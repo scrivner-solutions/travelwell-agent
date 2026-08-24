@@ -1,0 +1,13 @@
+{
+  "weights": {
+    "budget_match": 30,
+    "membership_reciprocity": 25,
+    "distance_proximity": 20,
+    "required_amenities": 15,
+    "preferred_amenities": 10
+  },
+  "score_range": {
+    "min": 0,
+    "max": 100
+  }
+}

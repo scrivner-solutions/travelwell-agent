@@ -1,0 +1,314 @@
+{
+  "scenarios": [
+    {
+      "scenario_id": "chicago_downtown_ymca",
+      "description": "Traveler with YMCA membership seeking pool or treadmill under $20 in Downtown Chicago",
+      "user_location": {
+        "address": "Downtown Chicago, IL",
+        "coordinates": {
+          "lat": 41.8817,
+          "lng": -87.6278
+        }
+      },
+      "trip_profile": {
+        "location": "Downtown Chicago, IL",
+        "time_window": {
+          "start": "18:00",
+          "end": "21:00"
+        },
+        "budget": 20.0,
+        "memberships": ["YMCA"],
+        "preferences": ["indoor pool", "treadmill"],
+        "required_amenities": ["showers"]
+      },
+      "candidate_facilities_seed": [
+        {
+          "id": "mock_chicago_ymca",
+          "name": "Downtown Chicago YMCA",
+          "address": "30 S Michigan Ave, Chicago, IL 60603",
+          "coordinates": {
+            "lat": 41.8812,
+            "lng": -87.6246
+          },
+          "rating": 4.5,
+          "amenities": ["indoor_pool", "treadmill", "showers", "lockers", "towels"],
+          "emoji_badges": ["🏊", "🏃", "🚿", "🔒", "🧺"],
+          "pricing": {
+            "access_type": "membership_reciprocity",
+            "cost": 0.0,
+            "pass_detail": "Free access with national YMCA membership"
+          },
+          "hours": {
+            "open": "06:00",
+            "close": "22:00",
+            "warning": null
+          },
+          "reviews_summary": "Great downtown location, features an indoor lap pool and modern treadmills. Showers are clean, lockers available.",
+          "crowd_warning": "🔥 Moderate crowd expected between 17:30 and 19:30.",
+          "travel_metadata": {
+            "walk_minutes": 10,
+            "drive_minutes": 4,
+            "distance_miles": 0.5
+          },
+          "source_metadata": {
+            "provider": "mock",
+            "verified": true
+          },
+          "recommendation_metadata": {
+            "best_for": "YMCA members looking for free lap swimming and gym access in the Loop.",
+            "limitations": "Can become moderately busy during standard post-work rush hours."
+          }
+        },
+        {
+          "id": "mock_chicago_ffc",
+          "name": "Fitness Formula Club (FFC) Union Station",
+          "address": "444 W Jackson Blvd, Chicago, IL 60606",
+          "coordinates": {
+            "lat": 41.8781,
+            "lng": -87.6394
+          },
+          "rating": 4.7,
+          "amenities": ["indoor_pool", "treadmill", "showers", "lockers", "towels", "parking"],
+          "emoji_badges": ["🏊", "🏃", "🚿", "🔒", "🧺", "🅿️"],
+          "pricing": {
+            "access_type": "day_pass",
+            "cost": 20.0,
+            "pass_detail": "$20 guest pass available with local registration"
+          },
+          "hours": {
+            "open": "05:00",
+            "close": "21:00",
+            "warning": null
+          },
+          "reviews_summary": "Premium club, excellent showers and locker amenities, top-tier treadmills, indoor saline pool.",
+          "crowd_warning": "🟢 Low crowding expected in the evening.",
+          "travel_metadata": {
+            "walk_minutes": 18,
+            "drive_minutes": 6,
+            "distance_miles": 0.9
+          },
+          "source_metadata": {
+            "provider": "mock",
+            "verified": true
+          },
+          "recommendation_metadata": {
+            "best_for": "Premium workout experience with a high-end saline pool and excellent locker room facilities.",
+            "limitations": "Price sits exactly at the maximum user budget limit."
+          }
+        },
+        {
+          "id": "mock_chicago_la_fitness",
+          "name": "LA Fitness Loop",
+          "address": "350 N Orleans St, Chicago, IL 60654",
+          "coordinates": {
+            "lat": 41.8885,
+            "lng": -87.6367
+          },
+          "rating": 3.8,
+          "amenities": ["indoor_pool", "treadmill", "showers", "lockers"],
+          "emoji_badges": ["🏊", "🏃", "🚿", "🔒"],
+          "pricing": {
+            "access_type": "day_pass",
+            "cost": 15.0,
+            "pass_detail": "$15 guest pass"
+          },
+          "hours": {
+            "open": "05:00",
+            "close": "20:00",
+            "warning": "Closes early (8:00 PM)"
+          },
+          "reviews_summary": "Decent amenities but swimming pool schedule is restricted. Highly crowded during peak hours.",
+          "crowd_warning": "🔥 High crowd density warning.",
+          "travel_metadata": {
+            "walk_minutes": 15,
+            "drive_minutes": 5,
+            "distance_miles": 0.8
+          },
+          "source_metadata": {
+            "provider": "mock",
+            "verified": true
+          },
+          "recommendation_metadata": {
+            "best_for": "Affordable day-pass gym access with standard amenities.",
+            "limitations": "Restricted hours that conflict with the end of the trip window; pool availability is unreliable."
+          }
+        },
+        {
+          "id": "mock_chicago_planet_fitness",
+          "name": "Planet Fitness Downtown",
+          "address": "26 N Halsted St, Chicago, IL 60661",
+          "coordinates": {
+            "lat": 41.8821,
+            "lng": -87.6475
+          },
+          "rating": 4.1,
+          "amenities": ["treadmill", "showers", "lockers"],
+          "emoji_badges": ["🏃", "🚿", "🔒"],
+          "pricing": {
+            "access_type": "day_pass",
+            "cost": 10.0,
+            "pass_detail": "$10 day pass for non-members"
+          },
+          "hours": {
+            "open": "00:00",
+            "close": "23:59",
+            "warning": null
+          },
+          "reviews_summary": "Very cheap, open 24 hours. Good selection of treadmills. No pool.",
+          "crowd_warning": "🔥 Moderate crowd expected.",
+          "travel_metadata": {
+            "walk_minutes": 22,
+            "drive_minutes": 7,
+            "distance_miles": 1.2
+          },
+          "source_metadata": {
+            "provider": "mock",
+            "verified": true
+          },
+          "recommendation_metadata": {
+            "best_for": "Late-night treadmill runs on a low budget.",
+            "limitations": "No pool (violates primary preference) and is located furthest from coordinates."
+          }
+        }
+      ],
+      "expected_ranking": [
+        {
+          "facility_id": "mock_chicago_ymca",
+          "expected_rank": 1,
+          "expected_score": 9.5,
+          "expected_confidence": 0.98
+        },
+        {
+          "facility_id": "mock_chicago_ffc",
+          "expected_rank": 2,
+          "expected_score": 8.2,
+          "expected_confidence": 0.9
+        },
+        {
+          "facility_id": "mock_chicago_la_fitness",
+          "expected_rank": 3,
+          "expected_score": 6.0,
+          "expected_confidence": 0.75
+        },
+        {
+          "facility_id": "mock_chicago_planet_fitness",
+          "expected_rank": 4,
+          "expected_score": 4.5,
+          "expected_confidence": 0.6
+        }
+      ]
+    },
+    {
+      "scenario_id": "chicago_impossible_budget",
+      "description": "Traveler with no memberships seeking day pass under $5 (impossible constraints)",
+      "user_location": {
+        "address": "Downtown Chicago, IL",
+        "coordinates": {
+          "lat": 41.8817,
+          "lng": -87.6278
+        }
+      },
+      "trip_profile": {
+        "location": "Downtown Chicago, IL",
+        "time_window": {
+          "start": "18:00",
+          "end": "21:00"
+        },
+        "budget": 5.0,
+        "memberships": [],
+        "preferences": ["treadmill"],
+        "required_amenities": ["showers"]
+      },
+      "candidate_facilities_seed": [
+        {
+          "id": "mock_chicago_ymca",
+          "name": "Downtown Chicago YMCA",
+          "address": "30 S Michigan Ave, Chicago, IL 60603",
+          "coordinates": {
+            "lat": 41.8812,
+            "lng": -87.6246
+          },
+          "rating": 4.5,
+          "amenities": ["indoor_pool", "treadmill", "showers", "lockers", "towels"],
+          "emoji_badges": ["🏊", "🏃", "🚿", "🔒", "🧺"],
+          "pricing": {
+            "access_type": "day_pass",
+            "cost": 25.0,
+            "pass_detail": "$25 day pass without membership"
+          },
+          "hours": {
+            "open": "06:00",
+            "close": "22:00",
+            "warning": null
+          },
+          "reviews_summary": "Great loop gym, standard guest policies apply.",
+          "crowd_warning": "🔥 Moderate crowd expected.",
+          "travel_metadata": {
+            "walk_minutes": 10,
+            "drive_minutes": 4,
+            "distance_miles": 0.5
+          },
+          "source_metadata": {
+            "provider": "mock",
+            "verified": true
+          },
+          "recommendation_metadata": {
+            "best_for": "Loop gym access.",
+            "limitations": "Price is way over the requested $5 budget."
+          }
+        },
+        {
+          "id": "mock_chicago_planet_fitness",
+          "name": "Planet Fitness Downtown",
+          "address": "26 N Halsted St, Chicago, IL 60661",
+          "coordinates": {
+            "lat": 41.8821,
+            "lng": -87.6475
+          },
+          "rating": 4.1,
+          "amenities": ["treadmill", "showers", "lockers"],
+          "emoji_badges": ["🏃", "🚿", "🔒"],
+          "pricing": {
+            "access_type": "day_pass",
+            "cost": 10.0,
+            "pass_detail": "$10 day pass"
+          },
+          "hours": {
+            "open": "00:00",
+            "close": "23:59",
+            "warning": null
+          },
+          "reviews_summary": "Clean, cheap, open 24/7.",
+          "crowd_warning": "🔥 Moderate crowd expected.",
+          "travel_metadata": {
+            "walk_minutes": 22,
+            "drive_minutes": 7,
+            "distance_miles": 1.2
+          },
+          "source_metadata": {
+            "provider": "mock",
+            "verified": true
+          },
+          "recommendation_metadata": {
+            "best_for": "Standard treadmills.",
+            "limitations": "Day pass is $10, which exceeds the $5 budget limit."
+          }
+        }
+      ],
+      "expected_ranking": [
+        {
+          "facility_id": "mock_chicago_planet_fitness",
+          "expected_rank": 1,
+          "expected_score": 5.0,
+          "expected_confidence": 0.5
+        },
+        {
+          "facility_id": "mock_chicago_ymca",
+          "expected_rank": 2,
+          "expected_score": 4.0,
+          "expected_confidence": 0.4
+        }
+      ]
+    }
+  ]
+}
