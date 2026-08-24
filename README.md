@@ -16,7 +16,7 @@
 
 ## 🌟 Overview
 
-TravelWell AI is an explainable multi-agent concierge that helps travelers find fitness facilities matching their location, schedule, memberships, budget, and wellness preferences.
+TravelWell is a proactive travel wellness agent that activates around an upcoming trip, understands itinerary and calendar context, recommends wellness and dining options, takes approved actions such as reservations or calendar updates, and adapts when plans change.
 
 Unlike traditional search, TravelWell uses an orchestrator engine to coordinate specialized agents, ensuring all decisions are policy-checked, audited, and explainable before being presented to the user.
 
@@ -92,8 +92,8 @@ graph TD
 
 1.  **Clone the Repository:**
     ```bash
-    git clone https://github.com/obscrivn/travelwell-ai.git
-    cd travelwell-ai
+    git clone https://github.com/obscrivn/travelwell-agent.git
+    cd travelwell-agent
     ```
 
 2.  **Run the Backend (Python):**
