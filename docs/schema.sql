@@ -135,6 +135,10 @@ create table connected_sources (
 -- Trip - the central domain object
 -- ---------------------------------------------------------------------------
 
+-- Identity: one contiguous period of displacement from home (ADR-002).
+-- The destination_*/timezone/hotel_* columns are the single stay,
+-- denormalized; the one-stay cap is a temporary restriction, not the
+-- definition. Lifting it adds a trip_stays child table, not a redefinition.
 create table trips (
   trip_id          uuid primary key default gen_random_uuid(),
   user_id          uuid not null references users(user_id) on delete cascade,
