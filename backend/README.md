@@ -58,6 +58,26 @@ You can also use features from the [ADK](https://adk.dev/) CLI with `uv run adk`
 | `agents-cli eval`    | Evaluate agent behavior (generate, grade, analyze, and more — see `agents-cli eval --help`) |
 | `uv run pytest tests/unit tests/integration` | Run unit and integration tests                                                        || [A2A Inspector](https://github.com/a2aproject/a2a-inspector) | Launch A2A Protocol Inspector                                                        |
 
+## Database (Postgres + SQLAlchemy + Alembic)
+
+Persistence per [docs/adr/001-data-access-and-migrations.md](../docs/adr/001-data-access-and-migrations.md).
+Operational schema truth is `migrations/`; [docs/schema.sql](../docs/schema.sql)
+is the readable reference, kept honest by `scripts/check_schema_drift.sh` in CI.
+
+Local dev flow:
+
+```bash
+docker compose up -d               # Postgres 16 on localhost:5432
+uv run alembic upgrade head        # apply migrations
+uv run python scripts/seed.py      # demo user + trips (idempotent)
+uv run uvicorn app.fast_api_app:app --port 8000
+```
+
+Connection comes from `DATABASE_URL` (defaults to the compose credentials).
+The v1 API lives under `/api/v1` (contract: [docs/openapi.yaml](../docs/openapi.yaml));
+sign in with `demo@travelwell.dev` and read the one-time code from the server log.
+Drift checks run locally with `PGUSER=travelwell PGPASSWORD=travelwell ./scripts/check_schema_drift.sh`.
+
 ## 🛠️ Project Management
 
 | Command | What It Does |

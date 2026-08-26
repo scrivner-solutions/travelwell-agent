@@ -1,0 +1,23 @@
+# Local dev Postgres. Usage from backend/:
+#   docker compose up -d
+#   uv run alembic upgrade head
+#   uv run python scripts/seed.py
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: travelwell
+      POSTGRES_PASSWORD: travelwell
+      POSTGRES_DB: travelwell
+    ports:
+      - "5432:5432"
+    volumes:
+      - travelwell-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U travelwell -d travelwell"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  travelwell-pgdata:

@@ -88,6 +88,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         rpc_path=f"/a2a/{adk_app.name}",
     )
     yield
+    from app.db.engine import engine as db_engine
+    await db_engine.dispose()
 
 
 app: FastAPI = get_fast_api_app(
@@ -111,6 +113,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Versioned API surface (docs/openapi.yaml). Legacy prototype endpoints below
+# stay at the root and retire slice by slice.
+from app.api.problems import install_problem_handlers
+from app.api.router import api_router
+
+app.include_router(api_router)
+install_problem_handlers(app)
 
 
 @app.post("/feedback")
