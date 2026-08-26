@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      - main
+
+jobs:
+  frontend:
+    name: Frontend gates
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generated API client is in sync with docs/openapi.yaml
+        run: |
+          npm run generate:api
+          git diff --exit-code src/api/schema.d.ts
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint (incl. import boundaries)
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  backend-schema:
+    name: Backend schema drift checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: travelwell
+          POSTGRES_PASSWORD: travelwell
+          POSTGRES_DB: travelwell
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U travelwell"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Install Postgres client tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends postgresql-client-16
+
+      - name: Schema drift checks (schema.sql vs migrations, models vs DB)
+        run: ./scripts/check_schema_drift.sh
+        env:
+          PGHOST: localhost
+          PGUSER: travelwell
+          PGPASSWORD: travelwell
