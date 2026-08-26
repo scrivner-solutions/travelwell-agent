@@ -1,0 +1,2256 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300..600&family=Public+Sans:wght@300..700&family=Manrope:wght@300..800&family=Archivo:wght@300..700&display=swap" rel="stylesheet">
+<style>
+:root{--tw-display:'Newsreader',Georgia,serif;--tw-ui:'Public Sans',system-ui,sans-serif}
+body{margin:0;font-variant-numeric:tabular-nums;background:#D6DEEA;font-family:var(--tw-ui);-webkit-font-smoothing:antialiased}
+a{color:#5B52B8;text-decoration:none}a:hover{color:#0F4A85}
+*{box-sizing:border-box}
+button{font-family:inherit}
+::-webkit-scrollbar{width:0;height:0}
+@keyframes tw-up{from{transform:translateY(101%)}to{transform:translateY(0)}}
+@keyframes tw-fade{from{opacity:0}to{opacity:1}}
+@keyframes tw-drop{from{transform:translateY(-130%);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes tw-slide{from{transform:translateX(100%)}to{transform:translateX(0)}}
+@keyframes tw-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes tw-pulse{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(1.35);opacity:0}}
+@keyframes tw-bar{0%,100%{height:10px}50%{height:34px}}
+@keyframes tw-spin{to{transform:rotate(360deg)}}
+</style>
+<meta name="ext-resource-dependency" content="https://loremflickr.com/200/200/gym,treadmill?lock=5">
+<meta name="ext-resource-dependency" content="https://loremflickr.com/200/200/swimming,pool?lock=12">
+<meta name="ext-resource-dependency" content="https://loremflickr.com/200/200/treadmill?lock=3">
+<meta name="ext-resource-dependency" content="https://loremflickr.com/200/200/restaurant,salad?lock=9">
+<meta name="ext-resource-dependency" content="https://loremflickr.com/200/200/mediterranean,food?lock=11">
+<meta name="ext-resource-dependency" content="https://loremflickr.com/200/200/running,trail?lock=4">
+<meta name="ext-resource-dependency" content="https://loremflickr.com/200/200/river,walk?lock=8">
+<meta name="ext-resource-dependency" content="https://loremflickr.com/200/200/spa,sauna?lock=2">
+<script src="./image-slot.js"></script>
+</helmet>
+<template id="__bundler_thumbnail"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#042C53"></rect><rect x="60" y="60" width="80" height="80" rx="18" fill="#E6F1FB"></rect><polyline points="128,100 116,100 106,127 88,73 78,100 72,100" fill="none" stroke="#185FA5" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"></polyline></svg></template>
+<div ref="{{ stageRef }}" style="min-height:100vh;display:flex;gap:32px;align-items:flex-start;justify-content:flex-start;width:max-content;margin:0 auto;padding:40px 32px 64px">
+
+  <div style="display:flex;flex-direction:column;align-items:center;gap:18px">
+    <div style="display:flex;align-items:center;gap:9px;color:#042C53">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+      <span style="font:600 16px/1 var(--tw-ui);letter-spacing:-.01em">TravelWell</span>
+    </div>
+
+    <div style="width:410px;height:864px;border-radius:56px;background:#06203B;padding:10px;box-shadow:0 40px 80px -24px rgba(4,44,83,.45),0 2px 0 rgba(255,255,255,.25) inset;position:relative">
+      <div style="width:100%;height:100%;border-radius:46px;overflow:hidden;background:#F4F7FB;position:relative;display:flex;flex-direction:column">
+
+        <div style="height:52px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:14px 30px 0;font:600 15px/1 var(--tw-ui);color:#042C53;position:relative;z-index:80">
+          <span>{{ clock }}</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <div style="display:flex;align-items:flex-end;gap:2px;height:11px"><div style="width:3px;height:4px;background:#042C53;border-radius:1px"></div><div style="width:3px;height:6px;background:#042C53;border-radius:1px"></div><div style="width:3px;height:9px;background:#042C53;border-radius:1px"></div><div style="width:3px;height:11px;background:#042C53;border-radius:1px"></div></div>
+            <div style="width:23px;height:11px;border:1.5px solid #042C53;border-radius:3px;padding:1.5px"><div style="width:70%;height:100%;background:#042C53;border-radius:1px"></div></div>
+          </div>
+        </div>
+
+        <div ref="{{ scrollRef }}" style="flex:1;overflow-y:auto;overflow-x:hidden;position:relative">
+
+          <sc-if value="{{ isToday }}" hint-placeholder-val="{{ true }}">
+            <div style="padding:4px 20px 130px">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:2px 2px 0">
+                <div style="min-width:0">
+                  <div style="font:600 10.5px/1 var(--tw-ui);letter-spacing:.13em;text-transform:uppercase;color:#8A97A8">{{ dayLabel }}</div>
+                  <div style="font:400 28px/1.08 var(--tw-display);color:#042C53;margin-top:8px;letter-spacing:-.01em">Today</div>
+                </div>
+                <button onClick="{{ openProfile }}" style="flex:none;width:40px;height:40px;border-radius:50%;border:1px solid #E1E7F0;background:#FFF;cursor:pointer;display:flex;align-items:center;justify-content:center" style-hover="background:#EDF1F7"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#5A6B80" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"></circle><path d="M5 20v-1a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v1"></path></svg></button>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:8px;margin:12px 2px 18px">
+                <span style="width:7px;height:7px;flex:none;border-radius:50%;background:{{ stateInk }}"></span>
+                <span style="font:600 12.5px/1 var(--tw-ui);color:{{ stateInk }};white-space:nowrap">{{ stateWord }}</span>
+                <span style="font:400 12.5px/1 var(--tw-ui);color:#B9C4D2">·</span>
+                <span style="font:400 12.5px/1 var(--tw-ui);color:#8A97A8;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ stateDetail }}</span>
+              </div>
+
+              <sc-if value="{{ lifeEmpty }}" hint-placeholder-val="{{ false }}">
+                <div style="border-radius:22px;background:#FFF;border:1px solid #E1E7F0;padding:22px">
+                  <div style="font:400 26px/1.15 var(--tw-display);color:#042C53;text-wrap:pretty">No trip to plan around yet</div>
+                  <div style="font:400 14.5px/1.5 var(--tw-ui);color:#5A6B80;margin-top:10px;text-wrap:pretty">I stay quiet until there is one. Connect your calendar and I will spot the next trip on my own, or type one in and I will work from that.</div>
+                  <div style="display:flex;flex-direction:column;gap:10px;margin-top:20px">
+                    <button onClick="{{ connectLater }}" style="height:50px;border:none;border-radius:14px;background:#185FA5;color:#FFF;font:600 15px/1 var(--tw-ui);cursor:pointer" style-hover="background:#114B84">Connect a calendar</button>
+                    <button onClick="{{ openManual }}" style="height:50px;border:1px solid #E1E7F0;border-radius:14px;background:#FFF;color:#042C53;font:600 15px/1 var(--tw-ui);cursor:pointer" style-hover="background:#EDF1F7">Add a trip yourself</button>
+                  </div>
+                </div>
+                <div style="font:500 11.5px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#8A97A8;margin:26px 0 11px">Meanwhile</div>
+                <button onClick="{{ goExplore }}" style="text-align:left;width:100%;border-radius:16px;background:none;border:1px dashed #D9DFE8;padding:16px;cursor:pointer;display:flex;align-items:center;gap:12px" style-hover="background:#FFF">
+                  <div style="flex:1;min-width:0">
+                    <div style="font:600 15px/1.2 var(--tw-ui);color:#042C53">Look around a city</div>
+                    <div style="font:400 13px/1.35 var(--tw-ui);color:#8A97A8;margin-top:4px">Browse pools, trails, and places to eat without connecting anything</div>
+                  </div>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A97A8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </button>
+              </sc-if>
+
+              <sc-if value="{{ lifeUpcoming }}" hint-placeholder-val="{{ false }}">
+                <div style="border-radius:22px;background:#FFF;border:1px solid #E1E7F0;padding:20px">
+                  <div style="font:600 11px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#8A97A8">Confirmed · not started</div>
+                  <div style="font:400 26px/1.15 var(--tw-display);color:#042C53;margin:11px 0 8px">Chicago in 12 days</div>
+                  <div style="font:400 14.5px/1.5 var(--tw-ui);color:#5A6B80;text-wrap:pretty">Nothing for you to do yet. I start work Aug 11, a week before you fly, and look for wellness windows around whatever your schedule looks like then.</div>
+                  <div style="display:flex;flex-direction:column;gap:10px;margin-top:18px;padding-top:16px;border-top:1px solid #EDF1F7">
+                    <sc-for list="{{ willUse }}" as="w" hint-placeholder-count="3">
+                      <div style="display:flex;align-items:center;gap:10px">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span style="font:400 13.5px/1.3 var(--tw-ui);color:#5A6B80">{{ w.text }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+                <button onClick="{{ startGen }}" style="margin-top:14px;width:100%;height:50px;border:none;border-radius:14px;background:#185FA5;color:#FFF;font:600 15px/1 var(--tw-ui);cursor:pointer" style-hover="background:#114B84">Start planning now</button>
+                <button onClick="{{ goTrip }}" style="margin-top:9px;width:100%;height:50px;border:1px solid #E1E7F0;border-radius:14px;background:#FFF;color:#042C53;font:600 15px/1 var(--tw-ui);cursor:pointer" style-hover="background:#EDF1F7">See what I know about this trip</button>
+              </sc-if>
+
+              <sc-if value="{{ lifePreparing }}" hint-placeholder-val="{{ false }}">
+                <div style="border-radius:22px;background:#FFF;border:1px solid #DEDCF8;padding:20px;box-shadow:0 14px 34px -24px rgba(4,44,83,.6)">
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <span style="width:7px;height:7px;border-radius:50%;background:#7F77DD"></span>
+                    <span style="font:600 11px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#5B52B8">Plan ready</span>
+                  </div>
+                  <div style="font:400 27px/1.15 var(--tw-display);color:#042C53;margin:12px 0 8px;text-wrap:pretty">I found room for 3 workouts and a dinner</div>
+                  <div style="font:400 14px/1.5 var(--tw-ui);color:#5A6B80;text-wrap:pretty">{{ planProvenance }}</div>
+                  <div style="display:flex;flex-direction:column;gap:2px;margin:16px 0 4px;padding-top:14px;border-top:1px solid #EDF1F7">
+                    <sc-for list="{{ planPreview }}" as="pv" hint-placeholder-count="4">
+                      <div style="display:flex;align-items:center;gap:12px;padding:9px 0">
+                        <span style="width:62px;flex:none;font:500 12.5px/1 var(--tw-ui);color:#8A97A8">{{ pv.when }}</span>
+                        <span style="width:7px;height:7px;flex:none;border-radius:50%;background:#7F77DD"></span>
+                        <span style="flex:1;font:600 14.5px/1.25 var(--tw-ui);color:#042C53">{{ pv.name }}</span>
+                        <span style="font:400 12.5px/1 var(--tw-ui);color:#8A97A8">{{ pv.dist }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="display:flex;gap:9px;margin-top:14px">
+                    <button onClick="{{ openReview }}" style="flex:1;height:50px;border:none;border-radius:14px;background:#185FA5;color:#FFF;font:600 15px/1 var(--tw-ui);cursor:pointer" style-hover="background:#114B84">Review plan</button>
+                    <button onClick="{{ acceptAll }}" style="height:50px;padding:0 16px;border:1px solid #E1E7F0;border-radius:14px;background:#FFF;color:#042C53;font:600 14.5px/1 var(--tw-ui);cursor:pointer" style-hover="background:#EDF1F7">Accept all</button>
+                  </div>
+                  <div style="font:400 12.5px/1.45 var(--tw-ui);color:#8A97A8;margin-top:12px">Nothing is booked. I go active when you land on Aug 18.</div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ lifeDone }}" hint-placeholder-val="{{ false }}">
+                <div style="border-radius:22px;background:#FFF;border:1px solid #E1E7F0;padding:20px">
+                  <div style="font:600 11px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#8A97A8">Trip complete · archived</div>
+                  <div style="font:400 26px/1.15 var(--tw-display);color:#042C53;margin:11px 0 8px">Four days in Chicago</div>
+                  <div style="display:flex;gap:10px;margin-top:16px">
+                    <sc-for list="{{ recap }}" as="rc" hint-placeholder-count="3">
+                      <div style="flex:1;border-radius:14px;background:#FAFCFE;border:1px solid #EDF1F7;padding:14px 12px">
+                        <div style="font:400 26px/1 var(--tw-display);color:#042C53">{{ rc.n }}</div>
+                        <div style="font:400 12px/1.3 var(--tw-ui);color:#8A97A8;margin-top:6px">{{ rc.label }}</div>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="font:400 14px/1.5 var(--tw-ui);color:#5A6B80;margin-top:16px;text-wrap:pretty">You swam twice and skipped one evening. I'll lean toward pools and earlier sessions next trip.</div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ lifeActive }}" hint-placeholder-val="{{ true }}">
+              <sc-if value="{{ alertOn }}" hint-placeholder-val="{{ false }}">
+                <div style="background:#042C53;border-radius:18px;padding:17px 17px 15px;margin-bottom:18px;box-shadow:0 14px 30px -18px rgba(4,44,83,.75);animation:tw-rise .35s ease both">
+                  <div style="display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;border-radius:50%;background:#9E97E8"></span><span style="font:600 11px/1 var(--tw-ui);letter-spacing:.08em;text-transform:uppercase;color:#9E97E8">Needs attention</span></div>
+                  <div style="font:600 17px/1.3 var(--tw-ui);color:#F4F7FB;margin:10px 0 6px;letter-spacing:-.01em">Your workshop now ends at 6:00 PM</div>
+                  <div style="font:400 14px/1.45 var(--tw-ui);color:#A9BBD1;text-wrap:pretty">The YMCA closes at 7:00, so your 5:30 swim no longer fits. I found a 35-minute alternative 4 minutes from your hotel.</div>
+                  <button onClick="{{ openAlt }}" style="margin-top:14px;width:100%;height:46px;border:none;border-radius:13px;background:#F4F7FB;color:#042C53;font:600 15px/1 var(--tw-ui);cursor:pointer">Review alternatives</button>
+                </div>
+              </sc-if>
+
+              <div style="display:flex;flex-direction:column;gap:2px;margin-bottom:6px">
+                <sc-for list="{{ dayItems }}" as="row" hint-placeholder-count="3">
+                  <div style="display:flex;gap:14px;align-items:center;padding:11px 4px">
+                    <div style="width:62px;flex:none;font:500 13px/1 var(--tw-ui);color:#8A97A8;text-align:right">{{ row.time }}</div>
+                    <div style="width:9px;height:9px;flex:none;border-radius:50%;border:2px solid #B9C4D2;background:#F4F7FB"></div>
+                    <div style="font:400 15px/1.3 var(--tw-ui);color:#5A6B80">{{ row.title }}</div>
+                  </div>
+                </sc-for>
+              </div>
+
+              <div style="position:relative;margin:10px 0 0;padding:20px;border-radius:22px;background:#FFF;border:1px solid #E1E7F0;box-shadow:0 10px 30px -20px rgba(4,44,83,.5)">
+                <div style="display:flex;align-items:baseline;gap:10px">
+                  <span style="font:600 13px/1 var(--tw-ui);color:#5B52B8">5:30 PM</span>
+                  <span style="font:500 12px/1 var(--tw-ui);color:#8A97A8;letter-spacing:.06em;text-transform:uppercase">Wellness window</span>
+                </div>
+                <div style="font:400 27px/1.15 var(--tw-display);color:#042C53;margin:9px 0 2px">90 minutes free</div>
+
+                <div style="margin-top:16px;border-radius:16px;overflow:hidden;border:1px solid #E1E7F0">
+                  <div style="height:128px;position:relative;background:#EDF1F7">
+                    <image-slot id="tw-ymca" shape="rect" fit="cover" src="https://loremflickr.com/640/400/swimming,pool?lock=12" placeholder="Drop a photo of the pool"></image-slot>
+                  </div>
+                  <div style="padding:15px 15px 16px">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+                      <div>
+                        <div style="font:600 19px/1.2 var(--tw-ui);color:#042C53;letter-spacing:-.01em">YMCA</div>
+                        <div style="font:400 14px/1.3 var(--tw-ui);color:#5A6B80;margin-top:4px">Pool + treadmill · Open to 9 PM</div>
+                      </div>
+                      <div style="flex:none;padding:6px 10px;border-radius:9px;background:#EDF1F7;font:600 12.5px/1 var(--tw-ui);color:#042C53;white-space:nowrap">7 min walk</div>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:12px">
+                      <span style="padding:6px 10px;border-radius:8px;background:#EEEDFE;font:500 12.5px/1 var(--tw-ui);color:#5B52B8">Fits your 90-minute opening</span>
+                      <span style="padding:6px 10px;border-radius:8px;background:#EEEDFE;font:500 12.5px/1 var(--tw-ui);color:#5B52B8">Membership accepted</span>
+                    </div>
+                    <sc-if value="{{ ymcaOpen }}" hint-placeholder-val="{{ true }}">
+                      <div style="display:flex;gap:9px;margin-top:15px">
+                        <button onClick="{{ addYmca }}" style="flex:1;height:48px;border:none;border-radius:13px;background:#185FA5;color:#FFF;font:600 15px/1 var(--tw-ui);cursor:pointer" style-hover="background:#114B84">Add to plan</button>
+                        <button onClick="{{ goExplore }}" style="width:48px;height:48px;border:1px solid #E1E7F0;border-radius:13px;background:#FFF;cursor:pointer;display:flex;align-items:center;justify-content:center" style-hover="background:#F4F7FB">
+                          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#042C53" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><polygon points="15.5 8.5 10.5 10.5 8.5 15.5 13.5 13.5"></polygon></svg>
+                        </button>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ ymcaDone }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;align-items:center;gap:9px;margin-top:15px;height:48px;border-radius:13px;background:#E6F1FB;padding:0 14px;animation:tw-fade .3s ease both">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span style="font:600 14.5px/1 var(--tw-ui);color:#0F4A85">Added to your plan · 5:30 PM</span>
+                      </div>
+                    </sc-if>
+                  </div>
+                </div>
+              </div>
+
+              <div style="margin:22px 0 10px;padding:0 2px;font:400 22px/1.2 var(--tw-display);color:#042C53">Dinner after your workout</div>
+
+              <div style="border-radius:20px;background:#FFF;border:1px solid #E1E7F0;padding:18px;box-shadow:0 10px 30px -22px rgba(4,44,83,.5);overflow:hidden">
+                <div style="height:128px;margin:-18px -18px 16px;background:#EDF1F7;border-radius:19px 19px 0 0;overflow:hidden">
+                  <image-slot id="tw-beatrix" shape="rect" fit="cover" src="https://loremflickr.com/640/400/restaurant,dining?lock=7" placeholder="Drop a photo of the room"></image-slot>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+                  <div style="flex:1;min-width:0">
+                    <div style="font:600 19px/1.2 var(--tw-ui);color:#042C53;letter-spacing:-.01em">Beatrix</div>
+                    <div style="font:400 14px/1.3 var(--tw-ui);color:#5A6B80;margin-top:4px">Healthy American · $$</div>
+                  </div>
+                  <div style="flex:none;padding:6px 10px;border-radius:9px;background:#EDF1F7;font:600 12.5px/1 var(--tw-ui);color:#042C53;white-space:nowrap">5 min from YMCA</div>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:12px">
+                  <span style="padding:6px 10px;border-radius:8px;background:#EEEDFE;font:500 12.5px/1 var(--tw-ui);color:#5B52B8">Matches your vegetarian preference</span>
+                </div>
+                <sc-if value="{{ dinnerOpen }}" hint-placeholder-val="{{ true }}">
+                  <div style="margin-top:15px">
+                    <div style="font:500 13.5px/1 var(--tw-ui);color:#5A6B80;margin-bottom:10px">7:30 PM available</div>
+                    <div style="display:flex;gap:9px">
+                      <button onClick="{{ openReserve }}" style="flex:1;height:48px;border:none;border-radius:13px;background:#042C53;color:#FFF;font:600 15px/1 var(--tw-ui);cursor:pointer">Reserve 7:30</button>
+                      <button onClick="{{ openReserve }}" style="height:48px;padding:0 16px;border:1px solid #E1E7F0;border-radius:13px;background:#FFF;color:#042C53;font:600 14.5px/1 var(--tw-ui);cursor:pointer" style-hover="background:#F4F7FB">Other times</button>
+                    </div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ dinnerDone }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;align-items:center;gap:9px;margin-top:15px;height:48px;border-radius:13px;background:#E6F1FB;padding:0 14px">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <span style="font:600 14.5px/1 var(--tw-ui);color:#0F4A85">{{ dinnerConfirmLabel }}</span>
+                  </div>
+                </sc-if>
+              </div>
+              </sc-if>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isTrip }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:4px 20px 130px">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:2px 2px 0">
+                <div style="min-width:0">
+                  <button onClick="{{ openTrips }}" style="display:flex;align-items:center;gap:7px;padding:0;border:none;background:none;cursor:pointer">
+                    <span style="width:6px;height:6px;border-radius:50%;background:{{ focusDot }}"></span>
+                    <span style="font:600 10.5px/1 var(--tw-ui);letter-spacing:.13em;text-transform:uppercase;color:#8A97A8">Aug 18–21 · Conference trip</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8A97A8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                  </button>
+                  <div style="font:400 28px/1.08 var(--tw-display);color:#042C53;margin-top:8px;letter-spacing:-.01em">Chicago</div>
+                </div>
+                <button onClick="{{ openProfile }}" style="flex:none;width:40px;height:40px;border-radius:50%;border:1px solid #E1E7F0;background:#FFF;cursor:pointer;display:flex;align-items:center;justify-content:center" style-hover="background:#EDF1F7"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#5A6B80" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"></circle><path d="M5 20v-1a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v1"></path></svg></button>
+              </div>
+              <div style="height:16px"></div>
+
+              <div style="border-radius:20px;background:#FFF;border:1px solid #E1E7F0;overflow:hidden">
+                <sc-for list="{{ tripFacts }}" as="fact" hint-placeholder-count="3">
+                  <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #EDF1F7">
+                    <div style="width:32px;height:32px;flex:none;border-radius:10px;background:#EDF1F7;display:flex;align-items:center;justify-content:center;font:600 11px/1 ui-monospace,Menlo,monospace;color:#5A6B80">{{ fact.tag }}</div>
+                    <div style="flex:1;min-width:0">
+                      <div style="font:600 14.5px/1.2 var(--tw-ui);color:#042C53">{{ fact.title }}</div>
+                      <div style="font:400 13px/1.3 var(--tw-ui);color:#8A97A8;margin-top:3px">{{ fact.sub }}</div>
+                    </div>
+                    <div style="font:500 11.5px/1 var(--tw-ui);color:#8A97A8;flex:none">{{ fact.source }}</div>
+                  </div>
+                </sc-for>
+                <div style="display:flex;align-items:center;gap:8px;padding:13px 16px;background:#FAFCFE">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span style="font:500 13px/1 var(--tw-ui);color:#5A6B80">Google Calendar connected · synced 4 min ago</span>
+                </div>
+              </div>
+
+              <sc-if value="{{ hasProposals }}" hint-placeholder-val="{{ true }}">
+                <div style="margin-top:16px;border-radius:20px;background:#FFF;border:1px solid #DEDCF8;padding:17px">
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <span style="width:7px;height:7px;border-radius:50%;background:#7F77DD"></span>
+                    <span style="font:600 11px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#5B52B8">Proposed plan</span>
+                  </div>
+                  <div style="font:400 22px/1.25 var(--tw-display);color:#042C53;margin:11px 0 6px;text-wrap:pretty">{{ planHeadline }}</div>
+                  <div style="font:400 13px/1.45 var(--tw-ui);color:#8A97A8;text-wrap:pretty">{{ planProvenance }}</div>
+                  <div style="display:flex;gap:9px;margin-top:15px">
+                    <button onClick="{{ openReview }}" style="flex:1;height:46px;border:none;border-radius:13px;background:#185FA5;color:#FFF;font:600 14.5px/1 var(--tw-ui);cursor:pointer" style-hover="background:#114B84">Review one by one</button>
+                    <button onClick="{{ acceptAll }}" style="height:46px;padding:0 16px;border:1px solid #E1E7F0;border-radius:13px;background:#FFF;color:#042C53;font:600 14.5px/1 var(--tw-ui);cursor:pointer" style-hover="background:#EDF1F7">Accept all</button>
+                  </div>
+                  <div style="font:400 12px/1.4 var(--tw-ui);color:#8A97A8;margin-top:11px">Reservations still ask you first.</div>
+                </div>
+              </sc-if>
+
+              <div style="display:flex;gap:7px;margin:24px 0 14px;overflow-x:auto">
+                <sc-for list="{{ days }}" as="d" hint-placeholder-count="4">
+                  <button onClick="{{ d.select }}" style="flex:1;min-width:74px;padding:10px 8px 9px;border-radius:14px;border:1px solid {{ d.border }};background:{{ d.bg }};cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:7px">
+                    <span style="font:600 12.5px/1 var(--tw-ui);color:{{ d.ink }};white-space:nowrap">{{ d.label }}</span>
+                    <span style="display:flex;gap:3px;align-items:center;height:6px">
+                      <sc-for list="{{ d.dots }}" as="dot" hint-placeholder-count="3">
+                        <span style="width:5px;height:5px;border-radius:50%;background:{{ dot.bg }}"></span>
+                      </sc-for>
+                    </span>
+                  </button>
+                </sc-for>
+              </div>
+
+              <div style="display:flex;align-items:center;justify-content:space-between;margin:0 2px 12px">
+                <div style="font:400 22px/1.2 var(--tw-display);color:#042C53">{{ dayHeading }}</div>
+                <div style="font:500 12px/1 var(--tw-ui);color:#8A97A8">{{ dayCount }}</div>
+              </div>
+
+              <div style="display:flex;flex-direction:column;gap:8px" data-timeline="1">
+                <sc-for list="{{ timeline }}" as="ev" hint-placeholder-count="5">
+                  <div style="display:flex;gap:12px;align-items:stretch">
+                    <div style="width:56px;flex:none;padding-top:14px;font:500 13px/1 var(--tw-ui);color:#8A97A8;text-align:right">{{ ev.time }}</div>
+                    <button onClick="{{ ev.tap }}" style="text-align:left;flex:1;min-width:0;border-radius:14px;padding:13px 14px;background:{{ ev.bg }};border:1.5px {{ ev.stroke }} {{ ev.border }};display:flex;align-items:center;gap:11px;cursor:{{ ev.cursor }}">
+                      <span style="width:8px;height:8px;flex:none;border-radius:50%;background:{{ ev.dot }}"></span>
+                      <div style="flex:1;min-width:0">
+                        <div style="font:600 14.5px/1.25 var(--tw-ui);color:#042C53">{{ ev.title }}</div>
+                        <div style="font:400 12.5px/1.3 var(--tw-ui);color:#8A97A8;margin-top:3px">{{ ev.sub }}</div>
+                      </div>
+                      <span style="flex:none;font:600 10.5px/1 var(--tw-ui);letter-spacing:.07em;text-transform:uppercase;color:{{ ev.badgeInk }}">{{ ev.badge }}</span>
+                    </button>
+                  </div>
+                </sc-for>
+              </div>
+
+              <div style="font:500 11.5px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#8A97A8;margin:30px 0 11px">Later this year</div>
+              <div style="display:flex;flex-direction:column;gap:9px">
+                <sc-for list="{{ otherTrips }}" as="t" hint-placeholder-count="2">
+                  <button onClick="{{ t.pick }}" style="text-align:left;width:100%;border-radius:16px;background:#FFF;border:1px solid #E1E7F0;padding:14px 15px;cursor:pointer;display:flex;align-items:center;gap:12px" style-hover="background:#FAFCFE">
+                    <span style="width:7px;height:7px;flex:none;border-radius:50%;background:{{ t.dot }}"></span>
+                    <div style="flex:1;min-width:0">
+                      <div style="font:600 15px/1.2 var(--tw-ui);color:#042C53">{{ t.name }}</div>
+                      <div style="font:400 12.5px/1.3 var(--tw-ui);color:#8A97A8;margin-top:4px">{{ t.dates }}</div>
+                    </div>
+                    <span style="flex:none;font:500 11.5px/1.3 var(--tw-ui);color:#8A97A8;text-align:right;max-width:120px">{{ t.state }}</span>
+                  </button>
+                </sc-for>
+                <button onClick="{{ openTrips }}" style="text-align:left;width:100%;border-radius:16px;background:none;border:1px dashed #D9DFE8;padding:14px 15px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px" style-hover="background:#FAFCFE">
+                  <span style="font:600 14px/1 var(--tw-ui);color:#5A6B80">6 past trips</span>
+                  <span style="font:500 12.5px/1 var(--tw-ui);color:#8A97A8">Archive</span>
+                </button>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isExplore }}" hint-placeholder-val="{{ false }}">
+            <div style="padding-bottom:130px">
+              <div style="padding:2px 20px 14px">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:2px 2px 0">
+                <div style="min-width:0">
+                  <div style="font:600 10.5px/1 var(--tw-ui);letter-spacing:.13em;text-transform:uppercase;color:#8A97A8">Near The Gwen · Chicago</div>
+                  <div style="font:400 28px/1.08 var(--tw-display);color:#042C53;margin-top:8px;letter-spacing:-.01em">Explore</div>
+                </div>
+                <button onClick="{{ openProfile }}" style="flex:none;width:40px;height:40px;border-radius:50%;border:1px solid #E1E7F0;background:#FFF;cursor:pointer;display:flex;align-items:center;justify-content:center" style-hover="background:#EDF1F7"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#5A6B80" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"></circle><path d="M5 20v-1a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v1"></path></svg></button>
+              </div>
+              </div>
+              <div style="position:relative;height:352px;background:#E8EEF6;overflow:hidden">
+                <div style="position:absolute;inset:0;background-image:repeating-linear-gradient(0deg,rgba(4,44,83,.07) 0 1px,transparent 1px 46px),repeating-linear-gradient(90deg,rgba(4,44,83,.07) 0 1px,transparent 1px 52px)"></div>
+                <div style="position:absolute;left:-40px;top:120px;width:520px;height:34px;background:#D3E3F5;transform:rotate(-13deg)"></div>
+                <div style="position:absolute;left:224px;top:58px;width:150px;height:96px;background:#DDE8DD;border-radius:10px"></div>
+                <div style="position:absolute;left:232px;top:68px;font:500 10px/1 ui-monospace,Menlo,monospace;color:#7F8FA3;letter-spacing:.06em">MILLENNIUM PARK</div>
+                <div style="position:absolute;left:40px;top:250px;width:110px;height:70px;background:#EDF1F7;border-radius:8px"></div>
+                <svg width="410" height="392" viewBox="0 0 410 392" style="position:absolute;inset:0" fill="none">
+                  <sc-if value="{{ routeHasPath }}" hint-placeholder-val="{{ true }}">
+                    <polyline points="{{ routePoints }}" stroke="#185FA5" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity=".8"></polyline>
+                  </sc-if>
+                  <sc-if value="{{ spurOn }}" hint-placeholder-val="{{ false }}">
+                    <polyline points="{{ spurPoints }}" stroke="#7F77DD" stroke-width="2" stroke-dasharray="4 6" stroke-linecap="round" opacity=".9"></polyline>
+                  </sc-if>
+                </svg>
+                <sc-for list="{{ pins }}" as="pin" hint-placeholder-count="4">
+                  <button onClick="{{ pin.select }}" style="position:absolute;left:{{ pin.x }};top:{{ pin.y }};transform:translate(-50%,-50%);width:{{ pin.size }};height:{{ pin.size }};border-radius:50%;border:2px solid {{ pin.border }};background:{{ pin.fill }};color:{{ pin.ink }};font:600 11px/1 var(--tw-ui);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 6px 16px -6px rgba(4,44,83,.45)">{{ pin.label }}</button>
+                </sc-for>
+                <sc-if value="{{ calloutOn }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute;left:{{ calloutX }};top:{{ calloutY }};transform:translate(-50%,-100%);z-index:4">
+                    <button onClick="{{ calloutOpen }}" style="text-align:left;min-width:168px;max-width:230px;padding:11px 13px;border-radius:14px;background:#FFF;border:1px solid #E1E7F0;box-shadow:0 14px 30px -14px rgba(4,44,83,.55);cursor:pointer;animation:tw-fade .22s ease both" style-hover="border-color:#185FA5">
+                      <div style="font:600 14.5px/1.2 var(--tw-ui);color:#042C53">{{ calloutName }}</div>
+                      <div style="font:400 12.5px/1.3 var(--tw-ui);color:#5A6B80;margin-top:4px">{{ calloutMeta }}</div>
+                      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:7px">
+                        <span style="font:500 12px/1 var(--tw-ui);color:{{ calloutHoursInk }}">{{ calloutHours }}</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                      </div>
+                    </button>
+                  </div>
+                </sc-if>
+                <div style="position:absolute;left:16px;top:14px;right:16px;display:flex;gap:7px;overflow-x:auto">
+                  <sc-for list="{{ cats }}" as="cat" hint-placeholder-count="4">
+                    <button onClick="{{ cat.select }}" style="flex:none;height:36px;padding:0 15px;border-radius:999px;border:1px solid {{ cat.border }};background:{{ cat.bg }};color:{{ cat.ink }};font:600 13.5px/1 var(--tw-ui);cursor:pointer;box-shadow:0 4px 12px -8px rgba(4,44,83,.5)">{{ cat.name }}</button>
+                  </sc-for>
+                </div>
+                <div style="position:absolute;left:16px;right:16px;bottom:14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px">
+                  <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:8px 13px;border-radius:16px;background:rgba(255,255,255,.94);border:1px solid #E1E7F0;max-width:100%">
+                    <span style="font:500 12px/1 var(--tw-ui);color:#5A6B80">{{ routeStart }}</span>
+                    <sc-for list="{{ routeSteps }}" as="st" hint-placeholder-count="3">
+                      <span style="display:flex;align-items:center;gap:6px">
+                        <span style="font:500 11px/1 var(--tw-ui);color:#8A97A8">{{ st.min }}</span>
+                        <span style="color:#A8B3C2">→</span>
+                        <span style="font:600 12px/1 var(--tw-ui);color:#5B52B8">{{ st.name }}</span>
+                      </span>
+                    </sc-for>
+                    <sc-if value="{{ routeHasPath }}" hint-placeholder-val="{{ true }}">
+                      <span style="width:100%;font:500 11.5px/1 var(--tw-ui);color:#8A97A8;padding-top:7px;border-top:1px solid #EDF1F7">{{ routeTotal }}</span>
+                    </sc-if>
+                  </div>
+                  <sc-if value="{{ spurOn }}" hint-placeholder-val="{{ false }}">
+                    <div style="padding:7px 12px;border-radius:999px;background:#EEEDFE;border:1px solid #DEDCF8;font:500 11.5px/1 var(--tw-ui);color:#5B52B8">{{ spurLabel }}</div>
+                  </sc-if>
+                </div>
+              </div>
+
+              <div style="padding:16px 20px 0">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px">
+                  <div style="font:400 22px/1.2 var(--tw-display);color:#042C53">{{ exploreHeading }}</div>
+                  <button onClick="{{ openFilters }}" style="flex:none;display:flex;align-items:center;gap:7px;height:36px;padding:0 13px;border-radius:11px;border:1px solid {{ filterBorder }};background:{{ filterBg }};color:{{ filterInk }};font:600 13px/1 var(--tw-ui);cursor:pointer">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="{{ filterInk }}" stroke-width="1.9" stroke-linecap="round"><line x1="3" y1="7" x2="21" y2="7"></line><line x1="6" y1="12" x2="18" y2="12"></line><line x1="10" y1="17" x2="14" y2="17"></line></svg>
+                    {{ filterLabel }}
+                  </button>
+                </div>
+                <div style="font:500 12.5px/1 var(--tw-ui);color:#8A97A8;margin-bottom:13px">{{ constraintLine }}</div>
+                <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}">
+                  <div style="border-radius:18px;background:#FFF;border:1px dashed #D9DFE8;padding:20px;text-align:center">
+                    <div style="font:600 15px/1.3 var(--tw-ui);color:#042C53">Nothing fits</div>
+                    <div style="font:400 13px/1.4 var(--tw-ui);color:#8A97A8;margin-top:6px">Try a wider radius.</div>
+                    <button onClick="{{ resetFilters }}" style="margin-top:14px;height:44px;padding:0 18px;border:1px solid #E1E7F0;border-radius:12px;background:#FFF;color:#042C53;font:600 14px/1 var(--tw-ui);cursor:pointer">Reset filters</button>
+                  </div>
+                </sc-if>
+                <div style="display:flex;flex-direction:column;gap:11px">
+                  <sc-for list="{{ places }}" as="p" hint-placeholder-count="3">
+                    <div ref="{{ p.cardRef }}" onClick="{{ p.select }}" style="border-radius:18px;background:#FFF;border:1.5px solid {{ p.border }};padding:15px 16px;cursor:pointer">
+                      <div style="display:flex;gap:13px;align-items:center">
+                        <div style="width:48px;height:48px;flex:none;border-radius:12px;background:#EDF1F7;overflow:hidden">{{ p.thumb }}</div>
+                        <div style="flex:1;min-width:0">
+                          <div style="font:600 16px/1.2 var(--tw-ui);color:#042C53">{{ p.name }}</div>
+                          <div style="font:400 13.5px/1.3 var(--tw-ui);color:#5A6B80;margin-top:4px">{{ p.sub }}</div>
+                          <div style="font:500 12.5px/1 var(--tw-ui);color:#5B52B8;margin-top:7px">{{ p.why }}</div>
+                          <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px">
+                            <span style="padding:4px 8px;border-radius:7px;background:#EDF1F7;font:600 11px/1 var(--tw-ui);color:{{ p.hoursInk }}">{{ p.hours }}</span>
+                            <sc-for list="{{ p.badges }}" as="bd" hint-placeholder-count="2">
+                              <span style="padding:4px 8px;border-radius:7px;background:{{ bd.bg }};font:600 11px/1 var(--tw-ui);color:{{ bd.ink }}">{{ bd.text }}</span>
+                            </sc-for>
+                          </div>
+                        </div>
+                        <div style="flex:none;font:600 12.5px/1 var(--tw-ui);color:#042C53;padding:6px 9px;border-radius:9px;background:#EDF1F7;white-space:nowrap">{{ p.dist }}</div>
+                      </div>
+                      <sc-if value="{{ p.isSel }}" hint-placeholder-val="{{ false }}">
+                        <div style="display:flex;gap:9px;margin-top:14px;padding-top:13px;border-top:1px solid #EDF1F7">
+                          <button onClick="{{ p.act }}" style="flex:1;height:44px;border:none;border-radius:12px;background:#185FA5;color:#FFF;font:600 14px/1 var(--tw-ui);cursor:pointer" style-hover="background:#114B84">{{ p.actLabel }}</button>
+                          <button onClick="{{ p.details }}" style="height:44px;padding:0 15px;border:1px solid #E1E7F0;border-radius:12px;background:#FFF;color:#042C53;font:600 14px/1 var(--tw-ui);cursor:pointer" style-hover="background:#EDF1F7">Details</button>
+                        </div>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isAgent }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:4px 20px 130px;display:flex;flex-direction:column;min-height:100%">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:2px 2px 0">
+                <div style="min-width:0">
+                  <div style="font:600 10.5px/1 var(--tw-ui);letter-spacing:.13em;text-transform:uppercase;color:#8A97A8">Ask TravelWell</div>
+                  <div style="font:400 28px/1.08 var(--tw-display);color:#042C53;margin-top:8px;letter-spacing:-.01em">Agent</div>
+                </div>
+                <button onClick="{{ openProfile }}" style="flex:none;width:40px;height:40px;border-radius:50%;border:1px solid #E1E7F0;background:#FFF;cursor:pointer;display:flex;align-items:center;justify-content:center" style-hover="background:#EDF1F7"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#5A6B80" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"></circle><path d="M5 20v-1a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v1"></path></svg></button>
+              </div>
+              <div style="height:18px"></div>
+
+              <sc-if value="{{ agentHasAnswer }}" hint-placeholder-val="{{ false }}">
+                <div style="animation:tw-rise .35s ease both">
+                  <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
+                    <div style="max-width:80%;padding:11px 15px;border-radius:16px 16px 4px 16px;background:#042C53;color:#FFF;font:500 14.5px/1.35 var(--tw-ui)">{{ agentQuery }}</div>
+                  </div>
+                  <div style="font:500 13.5px/1.4 var(--tw-ui);color:#5A6B80;margin:0 2px 12px">{{ agentSummary }}</div>
+                  <div style="display:flex;flex-direction:column;gap:10px">
+                    <sc-for list="{{ agentCards }}" as="c" hint-placeholder-count="2">
+                      <div style="border-radius:18px;background:#FFF;border:1px solid #E1E7F0;padding:15px 16px">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+                          <div style="font:600 16px/1.2 var(--tw-ui);color:#042C53">{{ c.title }}</div>
+                          <div style="flex:none;font:600 12.5px/1 var(--tw-ui);color:#042C53;padding:6px 9px;border-radius:9px;background:#EDF1F7;white-space:nowrap">{{ c.meta }}</div>
+                        </div>
+                        <div style="font:400 13.5px/1.35 var(--tw-ui);color:#5A6B80;margin-top:6px">{{ c.sub }}</div>
+                        <div style="font:500 12.5px/1 var(--tw-ui);color:#5B52B8;margin-top:9px">{{ c.why }}</div>
+                        <button onClick="{{ c.act }}" style="margin-top:13px;width:100%;height:44px;border:1px solid #E1E7F0;border-radius:12px;background:#FFF;color:#042C53;font:600 14.5px/1 var(--tw-ui);cursor:pointer" style-hover="background:#F4F7FB">{{ c.cta }}</button>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ agentEmpty }}" hint-placeholder-val="{{ true }}">
+                <button onClick="{{ openProfile }}" style="text-align:left;width:100%;border-radius:20px;background:#FFF;border:1px solid #E1E7F0;padding:17px;cursor:pointer" style-hover="border-color:#C9DEF3">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><span style="font:600 11px/1 var(--tw-ui);letter-spacing:.08em;text-transform:uppercase;color:#8A97A8">TravelWell knows</span><span style="font:600 12px/1 var(--tw-ui);color:#185FA5">Edit</span></div>
+                  <div style="display:flex;flex-direction:column;gap:9px;margin-top:12px">
+                    <sc-for list="{{ knows }}" as="k" hint-placeholder-count="4">
+                      <div style="display:flex;align-items:center;gap:9px">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span style="font:400 14px/1.3 var(--tw-ui);color:#5A6B80">{{ k.text }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </button>
+              </sc-if>
+
+              <div style="margin-top:auto;padding-top:22px">
+                <div style="font:500 11.5px/1 var(--tw-ui);letter-spacing:.08em;text-transform:uppercase;color:#8A97A8;margin:0 2px 10px">Try</div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px">
+                  <sc-for list="{{ prompts }}" as="q" hint-placeholder-count="5">
+                    <button onClick="{{ q.select }}" style="height:38px;padding:0 14px;border-radius:999px;border:1px solid #E1E7F0;background:#FFF;color:#042C53;font:500 13.5px/1 var(--tw-ui);cursor:pointer" style-hover="background:#EDF1F7">{{ q.text }}</button>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+        </div>
+
+        <div style="position:absolute;left:0;right:0;bottom:0;height:96px;background:#FFF;border-top:1px solid #E1E7F0;display:flex;align-items:flex-start;padding:9px 8px 0;z-index:20">
+          <button onClick="{{ goToday }}" style="flex:1;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;padding:6px 0">
+            <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="{{ todayInk }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15 14"></polyline></svg>
+            <span style="font:600 10.5px/1 var(--tw-ui);color:{{ todayInk }}">Today</span>
+          </button>
+          <button onClick="{{ goTrip }}" style="flex:1;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;padding:6px 0">
+            <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="{{ tripInk }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2.5"></rect><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path></svg>
+            <span style="font:600 10.5px/1 var(--tw-ui);color:{{ tripInk }}">Trip</span>
+          </button>
+          <div style="flex:1;display:flex;justify-content:center">
+            <button onClick="{{ openVoice }}" style="width:62px;height:62px;margin-top:-24px;border-radius:50%;border:4px solid #FFF;background:#185FA5;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 12px 24px -10px rgba(24,95,165,.5)" style-hover="background:#114B84">
+              <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="#FFF" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"></rect><path d="M5 10a7 7 0 0 0 14 0"></path><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+            </button>
+          </div>
+          <button onClick="{{ goExplore }}" style="flex:1;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;padding:6px 0">
+            <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="{{ exploreInk }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><polygon points="15.5 8.5 10.5 10.5 8.5 15.5 13.5 13.5"></polygon></svg>
+            <span style="font:600 10.5px/1 var(--tw-ui);color:{{ exploreInk }}">Explore</span>
+          </button>
+          <button onClick="{{ goAgent }}" style="flex:1;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;padding:6px 0">
+            <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="{{ agentInk }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+            <span style="font:600 10.5px/1 var(--tw-ui);color:{{ agentInk }}">Agent</span>
+          </button>
+          <div style="position:absolute;left:50%;bottom:8px;transform:translateX(-50%);width:132px;height:5px;border-radius:3px;background:#042C53;opacity:.28"></div>
+        </div>
+
+        <sc-if value="{{ sheetOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;inset:0;z-index:40;display:flex;flex-direction:column;justify-content:flex-end">
+            <div onClick="{{ closeSheet }}" style="position:absolute;inset:0;background:rgba(4,44,83,.42);animation:tw-fade .25s ease both"></div>
+            <div style="position:relative;background:#F4F7FB;border-radius:28px 28px 46px 46px;padding:10px 20px 34px;animation:tw-up .32s cubic-bezier(.22,1,.36,1) both;max-height:88%;overflow-y:auto">
+              <div style="width:40px;height:4px;border-radius:2px;background:#CBD5E1;margin:2px auto 16px"></div>
+
+              <sc-if value="{{ isVoice }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:0 2px">
+                  <sc-if value="{{ voiceListening }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex;flex-direction:column;align-items:center;padding:26px 0 34px">
+                      <div style="display:flex;align-items:center;gap:6px;height:40px">
+                        <div style="width:5px;background:#185FA5;border-radius:3px;animation:tw-bar .9s ease-in-out infinite"></div>
+                        <div style="width:5px;background:#185FA5;border-radius:3px;animation:tw-bar .9s ease-in-out .15s infinite"></div>
+                        <div style="width:5px;background:#185FA5;border-radius:3px;animation:tw-bar .9s ease-in-out .3s infinite"></div>
+                        <div style="width:5px;background:#185FA5;border-radius:3px;animation:tw-bar .9s ease-in-out .45s infinite"></div>
+                        <div style="width:5px;background:#185FA5;border-radius:3px;animation:tw-bar .9s ease-in-out .6s infinite"></div>
+                      </div>
+                      <div style="font:400 20px/1.3 var(--tw-display);color:#042C53;margin-top:24px;text-align:center;max-width:280px;text-wrap:pretty">{{ voiceHeard }}</div>
+                      <div style="font:500 12.5px/1 var(--tw-ui);color:#8A97A8;margin-top:16px">Listening…</div>
+                    </div>
+                  </sc-if>
+
+                  <sc-if value="{{ voiceWorking }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex;flex-direction:column;align-items:center;padding:36px 0 44px;gap:16px">
+                      <div style="width:26px;height:26px;border-radius:50%;border:2.5px solid #E1E7F0;border-top-color:#185FA5;animation:tw-spin .9s linear infinite"></div>
+                      <div style="font:500 15px/1 var(--tw-ui);color:#5A6B80">{{ workLabel }}</div>
+                    </div>
+                  </sc-if>
+
+                  <sc-if value="{{ voiceResult }}" hint-placeholder-val="{{ false }}">
+                    <div style="animation:tw-rise .3s ease both">
+                      <div style="font:500 13.5px/1.4 var(--tw-ui);color:#8A97A8;font-style:italic">“{{ voiceHeard }}”</div>
+                      <div style="font:400 26px/1.15 var(--tw-display);color:#042C53;margin:14px 0 15px">Updated plan</div>
+                      
+                      <div style="border-radius:18px;background:#FFF;border:1px solid #E1E7F0;overflow:hidden">
+                        <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #EDF1F7">
+                          <span style="font:500 13px/1 var(--tw-ui);color:#A8B3C2;width:58px">5:30 PM</span>
+                          <span style="font:500 14.5px/1 var(--tw-ui);color:#A8B3C2;text-decoration:line-through">YMCA · pool + treadmill</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:12px;padding:15px 16px">
+                          <span style="font:600 13px/1 var(--tw-ui);color:#5B52B8;width:58px">6:00 PM</span>
+                          <div style="flex:1">
+                            <div style="font:600 15.5px/1.2 var(--tw-ui);color:#042C53">Beatrix</div>
+                            <div style="font:400 13px/1.3 var(--tw-ui);color:#5A6B80;margin-top:3px">0.2 mi from hotel · vegetarian options</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div style="display:flex;gap:9px;margin-top:16px">
+                        <button onClick="{{ closeSheet }}" style="height:50px;padding:0 18px;border:1px solid #E1E7F0;border-radius:14px;background:#FFF;color:#042C53;font:600 15px/1 var(--tw-ui);cursor:pointer">Not now</button>
+                        <button onClick="{{ approveVoice }}" style="flex:1;height:50px;border:none;border-radius:14px;background:#185FA5;color:#FFF;font:600 15px/1 var(--tw-ui);cursor:pointer">Reserve 6:15</button>
+                      </div>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ isReserve }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:0 2px">
+                  <sc-if value="{{ resTimes }}" hint-placeholder-val="{{ false }}">
+                    <div>
+                      <div style="font:400 26px/1.15 var(--tw-display);color:#042C53">Beatrix</div>
+                      <div style="font:400 14px/1.4 var(--tw-ui);color:#5A6B80;margin-top:6px">Healthy American · $$ · 5 min from YMCA</div>
+                      <div style="display:flex;align-items:center;gap:7px;margin-top:14px;padding:9px 12px;border-radius:11px;background:#E6F1FB;width:fit-content">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span style="font:600 12.5px/1 var(--tw-ui);color:#0F4A85">TravelWell can book this for you</span>
+                      </div>
+                      <div style="font:500 11.5px/1 var(--tw-ui);letter-spacing:.08em;text-transform:uppercase;color:#8A97A8;margin:22px 0 10px">Tonight</div>
+                      <div style="display:flex;gap:9px">
+                        <sc-for list="{{ slots }}" as="s" hint-placeholder-count="3">
+                          <button onClick="{{ s.select }}" style="flex:1;height:52px;border-radius:14px;border:1.5px solid {{ s.border }};background:{{ s.bg }};color:{{ s.ink }};font:600 15px/1 var(--tw-ui);cursor:pointer">{{ s.label }}</button>
+                        </sc-for>
+                      </div>
+                      <button onClick="{{ toConfirm }}" style="margin-top:20px;width:100%;height:52px;border:none;border-radius:14px;background:#042C53;color:#FFF;font:600 15.5px/1 var(--tw-ui);cursor:pointer">Continue</button>
+                    </div>
+                  </sc-if>
+
+                  <sc-if value="{{ resConfirm }}" hint-placeholder-val="{{ false }}">
+                    <div style="animation:tw-rise .3s ease both">
+                      <div style="font:400 26px/1.15 var(--tw-display);color:#042C53">Confirm reservation</div>
+                      <div style="border-radius:18px;background:#FFF;border:1px solid #E1E7F0;overflow:hidden;margin-top:16px">
+                        <sc-for list="{{ confirmRows }}" as="r" hint-placeholder-count="4">
+                          <div style="display:flex;justify-content:space-between;gap:14px;padding:14px 16px;border-bottom:1px solid #EDF1F7">
+                            <span style="font:500 13px/1 var(--tw-ui);color:#8A97A8">{{ r.k }}</span>
+                            <span style="font:600 14px/1.2 var(--tw-ui);color:#042C53;text-align:right">{{ r.v }}</span>
+                          </div>
+                        </sc-for>
+                      </div>
+                      <div style="font:400 12.5px/1.4 var(--tw-ui);color:#8A97A8;margin:12px 2px 0">No card is charged.</div>
+                      <div style="display:flex;gap:9px;margin-top:16px">
+                        <button onClick="{{ closeSheet }}" style="height:52px;padding:0 18px;border:1px solid #E1E7F0;border-radius:14px;background:#FFF;color:#042C53;font:600 15px/1 var(--tw-ui);cursor:pointer">Cancel</button>
+                        <button onClick="{{ runReserve }}" style="flex:1;height:52px;border:none;border-radius:14px;background:#185FA5;color:#FFF;font:600 15.5px/1 var(--tw-ui);cursor:pointer">Reserve {{ slotLabel }}</button>
+                      </div>
+                    </div>
+                  </sc-if>
+
+                  <sc-if value="{{ resWorking }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex;flex-direction:column;align-items:center;padding:40px 0 48px;gap:16px">
+                      <div style="width:26px;height:26px;border-radius:50%;border:2.5px solid #E1E7F0;border-top-color:#185FA5;animation:tw-spin .9s linear infinite"></div>
+                      <div style="font:500 15px/1 var(--tw-ui);color:#5A6B80">{{ workLabel }}</div>
+                      <div style="font:400 13px/1 var(--tw-ui);color:#8A97A8">Not confirmed yet</div>
+                    </div>
+                  </sc-if>
+
+                  <sc-if value="{{ resFailed }}" hint-placeholder-val="{{ false }}">
+                    <div style="animation:tw-rise .3s ease both">
+                      <div style="display:flex;align-items:center;gap:10px">
+                        <div style="width:34px;height:34px;border-radius:50%;background:#EEEDFE;display:flex;align-items:center;justify-content:center">
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#5B52B8" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="7" x2="12" y2="13"></line><line x1="12" y1="17" x2="12" y2="17"></line></svg>
+                        </div>
+                        <div style="font:400 26px/1.15 var(--tw-display);color:#042C53">Not booked</div>
+                      </div>
+                      <div style="font:400 14px/1.5 var(--tw-ui);color:#5A6B80;margin-top:12px;text-wrap:pretty">Beatrix declined the {{ slotLabel }} hold. Their system released the table while I was confirming. Nothing was reserved.</div>
+                      <div style="display:flex;flex-direction:column;gap:9px;margin-top:18px">
+                        <button onClick="{{ retryReserve }}" style="height:52px;border:none;border-radius:14px;background:#185FA5;color:#FFF;font:600 15.5px/1 var(--tw-ui);cursor:pointer">Try 8:00 PM instead</button>
+                        <button onClick="{{ externalReserve }}" style="height:52px;border:1px solid #E1E7F0;border-radius:14px;background:#FFF;color:#042C53;font:600 15px/1 var(--tw-ui);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+                          Book it yourself on OpenTable
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#5A6B80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"></path><path d="M20 4l-8 8"></path><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"></path></svg>
+                        </button>
+                        <button onClick="{{ closeSheet }}" style="height:48px;border:none;border-radius:14px;background:none;color:#5A6B80;font:600 14.5px/1 var(--tw-ui);cursor:pointer">Leave it for now</button>
+                      </div>
+                    </div>
+                  </sc-if>
+
+                  <sc-if value="{{ resDone }}" hint-placeholder-val="{{ false }}">
+                    <div style="animation:tw-rise .3s ease both;padding-bottom:4px">
+                      <div style="display:flex;align-items:center;gap:10px">
+                        <div style="width:34px;height:34px;border-radius:50%;background:#E6F1FB;display:flex;align-items:center;justify-content:center">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        </div>
+                        <div style="font:400 26px/1.15 var(--tw-display);color:#042C53">Confirmed</div>
+                      </div>
+                      <div style="border-radius:18px;background:#FFF;border:1px solid #E1E7F0;padding:16px;margin-top:16px">
+                        <div style="font:600 18px/1.2 var(--tw-ui);color:#042C53">Beatrix</div>
+                        <div style="font:400 14px/1.5 var(--tw-ui);color:#5A6B80;margin-top:6px">{{ slotLabel }} · Party of 2 · Confirmation #4F21B</div>
+                      </div>
+                      <button onClick="{{ finishReserve }}" style="margin-top:16px;width:100%;height:52px;border:none;border-radius:14px;background:#042C53;color:#FFF;font:600 15.5px/1 var(--tw-ui);cursor:pointer">Added to plan · view trip</button>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ isFilters }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:0 2px">
+                  <div style="font:400 26px/1.15 var(--tw-display);color:#042C53">Filters</div>
+
+                  <div style="font:500 11.5px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#8A97A8;margin:22px 0 10px">Time I have</div>
+                  <div style="display:flex;gap:7px">
+                    <sc-for list="{{ fWindows }}" as="w" hint-placeholder-count="3">
+                      <button onClick="{{ w.pick }}" style="flex:1;height:46px;border-radius:12px;border:1.5px solid {{ w.border }};background:{{ w.bg }};color:{{ w.ink }};font:600 13.5px/1 var(--tw-ui);cursor:pointer">{{ w.label }}</button>
+                    </sc-for>
+                  </div>
+
+                  <div style="font:500 11.5px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#8A97A8;margin:20px 0 10px">Longest session</div>
+                  <div style="display:flex;gap:7px">
+                    <sc-for list="{{ fDurations }}" as="dn" hint-placeholder-count="4">
+                      <button onClick="{{ dn.pick }}" style="flex:1;height:44px;border-radius:12px;border:1.5px solid {{ dn.border }};background:{{ dn.bg }};color:{{ dn.ink }};font:600 13.5px/1 var(--tw-ui);cursor:pointer">{{ dn.label }}</button>
+                    </sc-for>
+                  </div>
+
+                  <div style="font:500 11.5px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#8A97A8;margin:20px 0 10px">Walk at most</div>
+                  <div style="display:flex;gap:7px">
+                    <sc-for list="{{ fWalks }}" as="wk" hint-placeholder-count="4">
+                      <button onClick="{{ wk.pick }}" style="flex:1;height:44px;border-radius:12px;border:1.5px solid {{ wk.border }};background:{{ wk.bg }};color:{{ wk.ink }};font:600 13.5px/1 var(--tw-ui);cursor:pointer">{{ wk.label }}</button>
+                    </sc-for>
+                  </div>
+
+                  <div style="border-radius:16px;background:#FFF;border:1px solid #E1E7F0;overflow:hidden;margin-top:20px">
+                    <sc-for list="{{ fToggles }}" as="tg" hint-placeholder-count="2">
+                      <div style="display:flex;align-items:center;gap:12px;padding:14px 15px;border-bottom:1px solid #EDF1F7">
+                        <div style="flex:1;min-width:0">
+                          <div style="font:600 14px/1.3 var(--tw-ui);color:#042C53">{{ tg.label }}</div>
+                        </div>
+                        <button onClick="{{ tg.toggle }}" style="flex:none;width:50px;height:30px;border-radius:15px;border:none;background:{{ tg.track }};cursor:pointer;padding:3px;display:flex;justify-content:{{ tg.justify }}">
+                          <span style="width:24px;height:24px;border-radius:50%;background:#FFF;box-shadow:0 1px 3px rgba(4,44,83,.35);display:block"></span>
+                        </button>
+                      </div>
+                    </sc-for>
+                  </div>
+
+                  <button onClick="{{ openProfile }}" style="text-align:left;width:100%;margin-top:14px;border-radius:14px;background:none;border:1px solid #E1E7F0;padding:0 15px;height:50px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px" style-hover="background:#FFF">
+                    <span style="font:600 14px/1 var(--tw-ui);color:#042C53">Standing preferences</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A97A8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                  </button>
+
+                  <div style="display:flex;gap:9px;margin-top:18px">
+                    <button onClick="{{ resetFilters }}" style="height:52px;padding:0 18px;border:1px solid #E1E7F0;border-radius:14px;background:#FFF;color:#5A6B80;font:600 15px/1 var(--tw-ui);cursor:pointer">Reset</button>
+                    <button onClick="{{ closeSheet }}" style="flex:1;height:52px;border:none;border-radius:14px;background:#185FA5;color:#FFF;font:600 15.5px/1 var(--tw-ui);cursor:pointer">{{ applyLabel }}</button>
+                  </div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ isTrips }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:0 2px">
+                  <div style="font:400 26px/1.15 var(--tw-display);color:#042C53">Your trips</div>
+                  
+                  <div style="display:flex;flex-direction:column;gap:9px;margin-top:18px">
+                    <sc-for list="{{ allTrips }}" as="t" hint-placeholder-count="4">
+                      <button onClick="{{ t.pick }}" style="text-align:left;width:100%;border-radius:16px;background:#FFF;border:1.5px solid {{ t.border }};padding:15px 16px;cursor:pointer;display:flex;align-items:center;gap:12px">
+                        <span style="width:8px;height:8px;flex:none;border-radius:50%;background:{{ t.dot }}"></span>
+                        <div style="flex:1;min-width:0">
+                          <div style="font:600 16px/1.2 var(--tw-ui);color:#042C53">{{ t.name }}</div>
+                          <div style="font:400 13px/1.3 var(--tw-ui);color:#8A97A8;margin-top:4px">{{ t.dates }}</div>
+                        </div>
+                        <span style="flex:none;font:500 11.5px/1.3 var(--tw-ui);color:{{ t.stateInk }};text-align:right;max-width:118px">{{ t.state }}</span>
+                      </button>
+                    </sc-for>
+                  </div>
+                  <button onClick="{{ openManual }}" style="margin-top:16px;width:100%;height:50px;border:1px dashed #D9DFE8;border-radius:14px;background:none;color:#5A6B80;font:600 14.5px/1 var(--tw-ui);cursor:pointer" style-hover="background:#FFF">Add a trip manually</button>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ isPlace }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:0 2px">
+                  <div style="height:150px;border-radius:18px;background:#EDF1F7;overflow:hidden">{{ pdImg }}</div>
+                  <div style="font:400 26px/1.15 var(--tw-display);color:#042C53;margin-top:16px">{{ pdName }}</div>
+                  <div style="font:400 14px/1.4 var(--tw-ui);color:#5A6B80;margin-top:6px">{{ pdSub }}</div>
+                  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:13px">
+                    <span style="padding:6px 10px;border-radius:8px;background:#EEEDFE;font:500 12.5px/1 var(--tw-ui);color:#5B52B8">{{ pdWhy }}</span>
+                  </div>
+
+                  <div style="border-radius:16px;background:#FFF;border:1px solid #E1E7F0;overflow:hidden;margin-top:18px">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;border-bottom:1px solid #EDF1F7">
+                      <span style="font:500 13.5px/1 var(--tw-ui);color:#8A97A8">Hours</span>
+                      <span style="font:600 13.5px/1 var(--tw-ui);color:{{ pdHoursInk }}">{{ pdHours }}</span>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;border-bottom:1px solid #EDF1F7">
+                      <span style="font:500 13.5px/1 var(--tw-ui);color:#8A97A8">From your hotel</span>
+                      <span style="font:600 13.5px/1 var(--tw-ui);color:#042C53">{{ pdDist }}</span>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;border-bottom:1px solid #EDF1F7">
+                      <span style="font:500 13.5px/1 var(--tw-ui);color:#8A97A8">Typical visit</span>
+                      <span style="font:600 13.5px/1 var(--tw-ui);color:#042C53">{{ pdDur }}</span>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px">
+                      <span style="font:500 13.5px/1 var(--tw-ui);color:#8A97A8">Cost</span>
+                      <span style="font:600 13.5px/1 var(--tw-ui);color:#042C53">{{ pdCost }}</span>
+                    </div>
+                  </div>
+
+                  <sc-if value="{{ pdIsFood }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ pdReserve }}" style="margin-top:18px;width:100%;height:52px;border:none;border-radius:14px;background:#185FA5;color:#FFF;font:600 15.5px/1 var(--tw-ui);cursor:pointer" style-hover="background:#114B84">Reserve a table</button>
+                  </sc-if>
+
+                  <div style="font:500 11.5px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#8A97A8;margin:22px 0 10px">Add to an open window</div>
+                  <div style="display:flex;flex-direction:column;gap:9px">
+                    <sc-for list="{{ pdWindows }}" as="w" hint-placeholder-count="2">
+                      <button onClick="{{ w.add }}" style="text-align:left;width:100%;border-radius:14px;background:#FFF;border:1px solid #E1E7F0;padding:14px 15px;cursor:pointer;display:flex;align-items:center;gap:12px" style-hover="border-color:#185FA5">
+                        <div style="flex:1;min-width:0">
+                          <div style="font:600 14.5px/1.2 var(--tw-ui);color:#042C53">{{ w.label }}</div>
+                          <div style="font:400 13px/1.3 var(--tw-ui);color:#5A6B80;margin-top:4px">{{ w.sub }}</div>
+                          <div style="font:400 12px/1.3 var(--tw-ui);color:#8A97A8;margin-top:4px">{{ w.current }}</div>
+                        </div>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                      </button>
+                    </sc-for>
+                  </div>
+                  <sc-if value="{{ pdNoWindows }}" hint-placeholder-val="{{ false }}">
+                    <div style="border-radius:14px;background:none;border:1px dashed #D9DFE8;padding:15px;font:400 13px/1.45 var(--tw-ui);color:#8A97A8;text-wrap:pretty">Everything on this day is already confirmed. Pick another day on the Trip screen and I will fit it in there.</div>
+                  </sc-if>
+
+                  <div style="font:400 12.5px/1.4 var(--tw-ui);color:#8A97A8;margin-top:14px;text-align:center">Adding replaces what I suggested for that window. Nothing is booked.</div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ isItem }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:0 2px">
+                  <div style="font:500 11.5px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:{{ itemStatusInk }}">{{ itemStatus }}</div>
+                  <div style="font:400 26px/1.15 var(--tw-display);color:#042C53;margin-top:10px">{{ itemName }}</div>
+                  <div style="font:400 14px/1.4 var(--tw-ui);color:#5A6B80;margin-top:7px">{{ itemWhen }}</div>
+                  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:13px">
+                    <button onClick="{{ itemProv }}" style="display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;background:#EEEDFE;border:1px solid #DEDCF8;font:500 12.5px/1 var(--tw-ui);color:#5B52B8;cursor:pointer" style-hover="background:#E4E2FC">
+                      {{ itemWhy }}
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7F77DD" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"></circle><line x1="12" y1="11" x2="12" y2="16.5"></line><line x1="12" y1="7.6" x2="12" y2="7.8"></line></svg>
+                    </button>
+                  </div>
+
+                  <sc-if value="{{ itemNeedsRes }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ itemReserve }}" style="margin-top:18px;width:100%;height:52px;border:none;border-radius:14px;background:#185FA5;color:#FFF;font:600 15.5px/1 var(--tw-ui);cursor:pointer">Confirm the table</button>
+                  </sc-if>
+
+                  <div style="font:500 11.5px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#8A97A8;margin:22px 0 10px">Other options</div>
+                  <div style="display:flex;flex-direction:column;gap:9px">
+                    <sc-for list="{{ itemOptions }}" as="op" hint-placeholder-count="2">
+                      <button onClick="{{ op.pick }}" style="text-align:left;width:100%;border-radius:14px;background:#FFF;border:1.5px solid {{ op.border }};padding:14px 15px;cursor:pointer;display:flex;align-items:center;gap:12px">
+                        <div style="flex:1;min-width:0">
+                          <div style="font:600 15px/1.2 var(--tw-ui);color:#042C53">{{ op.name }}</div>
+                          <div style="font:400 13px/1.3 var(--tw-ui);color:#8A97A8;margin-top:4px">{{ op.sub }}</div>
+                        </div>
+                        <span style="flex:none;font:600 12px/1 var(--tw-ui);color:#5A6B80">{{ op.dist }}</span>
+                      </button>
+                    </sc-for>
+                  </div>
+
+                  <button onClick="{{ itemSkip }}" style="margin-top:14px;width:100%;height:48px;border:1px solid #E1E7F0;border-radius:13px;background:#FFF;color:#5A6B80;font:600 14.5px/1 var(--tw-ui);cursor:pointer">Remove from plan</button>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ isAlt }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:0 2px">
+                  <div style="font:400 26px/1.15 var(--tw-display);color:#042C53">Two options that still fit</div>
+                  <div style="font:400 14px/1.45 var(--tw-ui);color:#5A6B80;margin-top:8px;text-wrap:pretty">Your workshop runs to 6:00 and dinner is at 7:30. That leaves 55 minutes.</div>
+                  <div style="display:flex;flex-direction:column;gap:11px;margin-top:18px">
+                    <sc-for list="{{ alts }}" as="a" hint-placeholder-count="2">
+                      <div style="border-radius:18px;background:#FFF;border:1px solid #E1E7F0;padding:15px 16px">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+                          <div>
+                            <div style="font:600 16.5px/1.2 var(--tw-ui);color:#042C53">{{ a.name }}</div>
+                            <div style="font:400 13.5px/1.3 var(--tw-ui);color:#5A6B80;margin-top:4px">{{ a.sub }}</div>
+                          </div>
+                          <div style="flex:none;font:600 12.5px/1 var(--tw-ui);color:#042C53;padding:6px 9px;border-radius:9px;background:#EDF1F7;white-space:nowrap">{{ a.dist }}</div>
+                        </div>
+                        <div style="font:500 12.5px/1 var(--tw-ui);color:#5B52B8;margin-top:10px">{{ a.why }}</div>
+                        <button onClick="{{ a.pick }}" style="margin-top:13px;width:100%;height:46px;border:none;border-radius:13px;background:#185FA5;color:#FFF;font:600 14.5px/1 var(--tw-ui);cursor:pointer">Move my workout here</button>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <button onClick="{{ skipTonight }}" style="margin-top:14px;width:100%;height:48px;border:1px solid #E1E7F0;border-radius:13px;background:#FFF;color:#5A6B80;font:600 14.5px/1 var(--tw-ui);cursor:pointer">Skip tonight</button>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ manualOn }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;inset:0;z-index:59;background:#F4F7FB;display:flex;flex-direction:column;animation:tw-slide .32s cubic-bezier(.22,1,.36,1) both">
+            <div style="flex:none;display:flex;align-items:center;gap:12px;padding:56px 18px 14px;border-bottom:1px solid #E1E7F0">
+              <button onClick="{{ closeManual }}" style="flex:none;width:40px;height:40px;border-radius:12px;border:1px solid #E1E7F0;background:#FFF;cursor:pointer;display:flex;align-items:center;justify-content:center" style-hover="background:#EDF1F7">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#042C53" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+              <span style="font:600 16px/1 var(--tw-ui);color:#042C53">New trip</span>
+            </div>
+            <div style="flex:1;overflow-y:auto;padding:22px 20px 34px">
+              <div style="border-radius:18px;background:#FFF;border:1px solid #E1E7F0;overflow:hidden">
+                <sc-for list="{{ manualFields }}" as="mf" hint-placeholder-count="4">
+                  <button onClick="{{ mf.cycle }}" style="text-align:left;width:100%;display:flex;align-items:center;gap:12px;padding:16px;border:none;border-bottom:1px solid #EDF1F7;background:none;cursor:pointer" style-hover="background:#FAFCFE">
+                    <span style="width:92px;flex:none;font:500 12.5px/1 var(--tw-ui);color:#8A97A8">{{ mf.label }}</span>
+                    <span style="flex:1;min-width:0;font:600 15px/1.2 var(--tw-ui);color:{{ mf.ink }}">{{ mf.value }}</span>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#B9C4D2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                  </button>
+                </sc-for>
+              </div>
+              <div style="font:400 12.5px/1.45 var(--tw-ui);color:#8A97A8;margin:12px 2px 0">I'll watch your calendar for anything that lands in these dates.</div>
+              <button onClick="{{ createManual }}" style="margin-top:18px;width:100%;height:54px;border:none;border-radius:14px;background:#185FA5;color:#FFF;font:600 16px/1 var(--tw-ui);cursor:pointer">Create trip</button>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ reviewOn }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;inset:0;z-index:58;background:#F4F7FB;display:flex;flex-direction:column;animation:tw-slide .32s cubic-bezier(.22,1,.36,1) both">
+            <div style="flex:none;display:flex;align-items:center;gap:12px;padding:56px 18px 14px;border-bottom:1px solid #E1E7F0">
+              <button onClick="{{ closeReview }}" style="flex:none;width:40px;height:40px;border-radius:12px;border:1px solid #E1E7F0;background:#FFF;cursor:pointer;display:flex;align-items:center;justify-content:center" style-hover="background:#EDF1F7">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#042C53" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+              <span style="flex:1;font:600 16px/1 var(--tw-ui);color:#042C53">Your Chicago plan</span>
+              <span style="font:500 12.5px/1 var(--tw-ui);color:#8A97A8">{{ reviewProgress }}</span>
+            </div>
+
+            <div style="flex:1;overflow-y:auto;padding:22px 20px 34px">
+              <sc-if value="{{ reviewCard }}" hint-placeholder-val="{{ false }}">
+                <div style="animation:tw-rise .3s ease both">
+                  <div style="font:500 11.5px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#5B52B8">{{ rvWindowLabel }}</div>
+                  <div style="font:400 30px/1.12 var(--tw-display);color:#042C53;margin:11px 0 7px;text-wrap:pretty">{{ rvWindow }}</div>
+                  <div style="font:400 14px/1.45 var(--tw-ui);color:#5A6B80">{{ rvGap }}</div>
+
+                  <div style="margin-top:18px;border-radius:20px;background:#FFF;border:1px solid #E1E7F0;padding:17px">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+                      <div>
+                        <div style="font:600 19px/1.2 var(--tw-ui);color:#042C53;letter-spacing:-.01em">{{ rvName }}</div>
+                        <div style="font:400 14px/1.35 var(--tw-ui);color:#5A6B80;margin-top:5px">{{ rvSub }}</div>
+                      </div>
+                      <div style="flex:none;padding:6px 10px;border-radius:9px;background:#EDF1F7;font:600 12.5px/1 var(--tw-ui);color:#042C53;white-space:nowrap">{{ rvDist }}</div>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:13px">
+                      <button onClick="{{ rvProv }}" style="display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;background:#EEEDFE;border:1px solid #DEDCF8;font:500 12.5px/1 var(--tw-ui);color:#5B52B8;cursor:pointer" style-hover="background:#E4E2FC">
+                        {{ rvWhy }}
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7F77DD" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"></circle><line x1="12" y1="11" x2="12" y2="16.5"></line><line x1="12" y1="7.6" x2="12" y2="7.8"></line></svg>
+                      </button>
+                      <sc-if value="{{ rvNeedsRes }}" hint-placeholder-val="{{ false }}">
+                        <span style="padding:6px 10px;border-radius:8px;background:#EDF1F7;font:500 12.5px/1 var(--tw-ui);color:#5A6B80">Needs a reservation</span>
+                      </sc-if>
+                    </div>
+                    <div style="display:flex;gap:9px;margin-top:16px">
+                      <button onClick="{{ rvSwap }}" style="flex:1;height:46px;border:1px solid #E1E7F0;border-radius:13px;background:#FFF;color:#042C53;font:600 14.5px/1 var(--tw-ui);cursor:pointer" style-hover="background:#EDF1F7">{{ rvSwapLabel }}</button>
+                      <button onClick="{{ rvSkip }}" style="height:46px;padding:0 16px;border:1px solid #E1E7F0;border-radius:13px;background:#FFF;color:#8A97A8;font:600 14.5px/1 var(--tw-ui);cursor:pointer" style-hover="background:#EDF1F7">Skip</button>
+                    </div>
+                  </div>
+
+                  <button onClick="{{ rvKeep }}" style="margin-top:16px;width:100%;height:52px;border:none;border-radius:14px;background:#185FA5;color:#FFF;font:600 15.5px/1 var(--tw-ui);cursor:pointer" style-hover="background:#114B84">Keep this</button>
+                  <div style="font:400 12.5px/1 var(--tw-ui);color:#8A97A8;margin-top:12px;text-align:center">Nothing is booked yet.</div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ reviewSummary }}" hint-placeholder-val="{{ false }}">
+                <div style="animation:tw-rise .3s ease both">
+                  <div style="font:400 30px/1.12 var(--tw-display);color:#042C53;text-wrap:pretty">{{ sumHeadline }}</div>
+                  <div style="font:400 14px/1.45 var(--tw-ui);color:#5A6B80;margin-top:9px">{{ sumSub }}</div>
+
+                  <div style="border-radius:20px;background:#FFF;border:1px solid #E1E7F0;overflow:hidden;margin-top:18px">
+                    <sc-for list="{{ sumItems }}" as="it" hint-placeholder-count="3">
+                      <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #EDF1F7">
+                        <span style="width:8px;height:8px;flex:none;border-radius:50%;background:{{ it.dot }}"></span>
+                        <div style="flex:1;min-width:0">
+                          <div style="font:600 14.5px/1.2 var(--tw-ui);color:#042C53">{{ it.title }}</div>
+                          <div style="font:400 12.5px/1.3 var(--tw-ui);color:#8A97A8;margin-top:3px">{{ it.when }}</div>
+                        </div>
+                        <span style="flex:none;font:600 11px/1 var(--tw-ui);color:{{ it.dot }}">{{ it.note }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+
+                  <sc-if value="{{ canAccept }}" hint-placeholder-val="{{ true }}">
+                  <div style="font:500 11.5px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#8A97A8;margin:22px 0 10px">What this needs from you</div>
+                  </sc-if>
+                  <div style="display:flex;flex-direction:column;gap:9px">
+                    <sc-for list="{{ sumNeeds }}" as="nd" hint-placeholder-count="2">
+                      <div style="display:flex;align-items:flex-start;gap:10px;padding:13px 15px;border-radius:14px;background:#FFF;border:1px solid #E1E7F0">
+                        <span style="width:7px;height:7px;flex:none;border-radius:50%;background:{{ nd.dot }};margin-top:5px"></span>
+                        <div style="flex:1;min-width:0">
+                          <div style="font:600 14px/1.25 var(--tw-ui);color:#042C53">{{ nd.title }}</div>
+                          <div style="font:400 12.5px/1.35 var(--tw-ui);color:#8A97A8;margin-top:3px;text-wrap:pretty">{{ nd.sub }}</div>
+                        </div>
+                      </div>
+                    </sc-for>
+                  </div>
+
+                  <sc-if value="{{ canAccept }}" hint-placeholder-val="{{ true }}">
+                    <button onClick="{{ acceptPlan }}" style="margin-top:20px;width:100%;height:54px;border:none;border-radius:14px;background:#185FA5;color:#FFF;font:600 16px/1 var(--tw-ui);cursor:pointer" style-hover="background:#114B84">{{ acceptLabel }}</button>
+                    <button onClick="{{ closeReview }}" style="margin-top:9px;width:100%;height:48px;border:none;border-radius:14px;background:none;color:#5A6B80;font:600 14.5px/1 var(--tw-ui);cursor:pointer">Not yet</button>
+                  </sc-if>
+                  <sc-if value="{{ nothingKept }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ closeReview }}" style="margin-top:20px;width:100%;height:54px;border:1px solid #E1E7F0;border-radius:14px;background:#FFF;color:#042C53;font:600 16px/1 var(--tw-ui);cursor:pointer" style-hover="background:#EDF1F7">Close</button>
+                  </sc-if>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ genOn }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;inset:0;z-index:64;background:#F4F7FB;display:flex;flex-direction:column;padding:0 24px;animation:tw-fade .25s ease both">
+            <div style="flex:none;display:flex;justify-content:flex-end;padding:44px 0 0">
+              <button onClick="{{ dismissGen }}" style="width:40px;height:40px;border-radius:12px;border:1px solid #E1E7F0;background:#FFF;cursor:pointer;display:flex;align-items:center;justify-content:center" style-hover="background:#EDF1F7">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#042C53" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+            <div style="flex:none;padding:26px 0 0">
+              <div style="display:flex;align-items:center;gap:9px">
+                <span style="width:8px;height:8px;border-radius:50%;background:#7F77DD;animation:tw-pulse 1.5s ease-in-out infinite"></span>
+                <span style="font:600 11px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#5B52B8">Working</span>
+              </div>
+              <div style="font:400 32px/1.14 var(--tw-display);color:#042C53;margin-top:14px;text-wrap:pretty">Building your Chicago plan</div>
+            </div>
+
+            <div style="flex:none;display:flex;flex-direction:column;gap:20px;margin-top:34px">
+              <sc-for list="{{ genSteps }}" as="g" hint-placeholder-count="4">
+                <div style="display:flex;gap:13px;align-items:flex-start">
+                  <span style="flex:none;width:22px;height:22px;margin-top:1px;border-radius:50%;background:{{ g.dotBg }};border:1.5px solid {{ g.dotBorder }};display:flex;align-items:center;justify-content:center">
+                    <sc-if value="{{ g.done }}" hint-placeholder-val="{{ false }}">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFF" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    </sc-if>
+                    <sc-if value="{{ g.active }}" hint-placeholder-val="{{ true }}">
+                      <span style="width:11px;height:11px;border-radius:50%;border:2px solid #EEEDFE;border-top-color:#7F77DD;animation:tw-spin .7s linear infinite;display:block"></span>
+                    </sc-if>
+                  </span>
+                  <span style="flex:1;min-width:0">
+                    <span style="display:block;font:600 15px/1.25 var(--tw-ui);color:{{ g.labelInk }}">{{ g.label }}</span>
+                    <span style="display:block;font:400 13px/1.4 var(--tw-ui);color:{{ g.subInk }};margin-top:4px;text-wrap:pretty">{{ g.sub }}</span>
+                  </span>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="margin-top:auto;padding-bottom:40px">
+              <div style="font:400 13px/1.45 var(--tw-ui);color:#8A97A8;text-wrap:pretty">You can close this and I will keep working. A notification comes when the plan is ready.</div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ provOn }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;inset:0;z-index:62;background:#F4F7FB;display:flex;flex-direction:column;animation:tw-slide .3s cubic-bezier(.22,1,.36,1) both">
+            <div style="flex:none;display:flex;align-items:center;gap:12px;padding:56px 18px 14px;border-bottom:1px solid #E1E7F0">
+              <button onClick="{{ closeProv }}" style="flex:none;width:40px;height:40px;border-radius:12px;border:1px solid #E1E7F0;background:#FFF;cursor:pointer;display:flex;align-items:center;justify-content:center" style-hover="background:#EDF1F7">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#042C53" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+              </button>
+              <span style="flex:1;font:600 16px/1 var(--tw-ui);color:#042C53">How I got here</span>
+            </div>
+
+            <div style="flex:1;overflow-y:auto;padding:22px 20px 40px">
+              <div style="font:500 11.5px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#5B52B8">{{ provWindowLabel }}</div>
+              <div style="font:400 28px/1.14 var(--tw-display);color:#042C53;margin:11px 0 7px;text-wrap:pretty">{{ provPlace }}</div>
+              <div style="font:400 14px/1.45 var(--tw-ui);color:#5A6B80;text-wrap:pretty">{{ provWhy }}</div>
+
+              <div style="font:500 11.5px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#8A97A8;margin:26px 0 10px">What makes the opening</div>
+              <div style="border-radius:18px;background:#FFF;border:1px solid #E1E7F0;overflow:hidden">
+                <sc-for list="{{ provBounds }}" as="b" hint-placeholder-count="2">
+                  <div style="display:flex;align-items:center;gap:12px;padding:14px 15px;border-bottom:1px solid #EDF1F7">
+                    <div style="width:34px;height:34px;flex:none;border-radius:10px;background:#EDF1F7;display:flex;align-items:center;justify-content:center;font:600 10px/1 ui-monospace,Menlo,monospace;color:#5A6B80">{{ b.tag }}</div>
+                    <div style="flex:1;min-width:0">
+                      <div style="font:600 14.5px/1.2 var(--tw-ui);color:#042C53">{{ b.title }}</div>
+                      <div style="font:400 13px/1.3 var(--tw-ui);color:#8A97A8;margin-top:3px">{{ b.sub }}</div>
+                    </div>
+                    <div style="flex:none;font:500 11.5px/1 var(--tw-ui);color:#8A97A8">{{ b.source }}</div>
+                  </div>
+                </sc-for>
+                <div style="padding:13px 15px;background:#FAFCFE;font:400 13px/1.4 var(--tw-ui);color:#5A6B80;text-wrap:pretty">{{ provGap }}</div>
+              </div>
+
+              <div style="font:500 11.5px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#8A97A8;margin:26px 0 10px">Matched from your profile</div>
+              <div style="display:flex;flex-wrap:wrap;gap:7px">
+                <sc-for list="{{ provMatched }}" as="m" hint-placeholder-count="3">
+                  <span style="padding:8px 12px;border-radius:10px;background:#EEEDFE;border:1px solid #DEDCF8;font:500 13px/1 var(--tw-ui);color:#5B52B8">{{ m }}</span>
+                </sc-for>
+              </div>
+
+              <div style="font:500 11.5px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#8A97A8;margin:26px 0 10px">Also considered</div>
+              <div style="display:flex;flex-direction:column;gap:9px">
+                <sc-for list="{{ provLost }}" as="l" hint-placeholder-count="2">
+                  <div style="border-radius:14px;background:#FFF;border:1px solid #E1E7F0;padding:13px 15px">
+                    <div style="font:600 14.5px/1.2 var(--tw-ui);color:#5A6B80">{{ l.name }}</div>
+                    <div style="font:400 13px/1.4 var(--tw-ui);color:#8A97A8;margin-top:4px;text-wrap:pretty">{{ l.reason }}</div>
+                  </div>
+                </sc-for>
+              </div>
+
+              <div style="display:flex;gap:9px;align-items:flex-start;margin-top:24px;padding-top:16px;border-top:1px solid #E1E7F0">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8A97A8" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px"><rect x="4" y="10.5" width="16" height="10" rx="2.5"></rect><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"></path></svg>
+                <span style="flex:1;font:400 12.5px/1.45 var(--tw-ui);color:#8A97A8;text-wrap:pretty">Only the calendar and inbox you connected. I read them, I do not store them.</span>
+              </div>
+
+              <button onClick="{{ closeProv }}" style="margin-top:20px;width:100%;height:50px;border:1px solid #E1E7F0;border-radius:14px;background:#FFF;color:#042C53;font:600 15px/1 var(--tw-ui);cursor:pointer" style-hover="background:#EDF1F7">Back to the plan</button>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isProfile }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;inset:0;z-index:55;background:#F4F7FB;display:flex;flex-direction:column;animation:tw-slide .32s cubic-bezier(.22,1,.36,1) both">
+            <div style="flex:none;display:flex;align-items:center;gap:12px;padding:56px 18px 14px;border-bottom:1px solid #E1E7F0">
+              <button onClick="{{ closeSheet }}" style="flex:none;width:40px;height:40px;border-radius:12px;border:1px solid #E1E7F0;background:#FFF;cursor:pointer;display:flex;align-items:center;justify-content:center" style-hover="background:#EDF1F7">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#042C53" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+              </button>
+              <span style="font:600 16px/1 var(--tw-ui);color:#042C53">Profile</span>
+            </div>
+            <div style="flex:1;overflow-y:auto;padding:20px 20px 40px">
+                <div style="padding:2px 2px 4px">
+                  <div style="display:flex;align-items:center;gap:13px">
+                    <div style="width:52px;height:52px;flex:none;border-radius:50%;border:1px solid #D5E2F2;background:#E6F1FB;color:#0F4A85;font:600 17px/1 var(--tw-ui);display:flex;align-items:center;justify-content:center">DL</div>
+                    <div style="flex:1;min-width:0">
+                      <div style="font:400 24px/1.15 var(--tw-display);color:#042C53">Duy Le</div>
+                      <div style="font:400 13.5px/1.3 var(--tw-ui);color:#8A97A8;margin-top:4px">4 trips this year · 18 nights away</div>
+                    </div>
+                  </div>
+
+                  <div style="font:500 11.5px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#8A97A8;margin:24px 0 10px">What TravelWell plans around</div>
+                  <div style="display:flex;flex-wrap:wrap;gap:7px">
+                    <sc-for list="{{ prefs }}" as="p" hint-placeholder-count="5">
+                      <button onClick="{{ p.toggle }}" style="height:38px;padding:0 14px;border-radius:11px;border:1px solid {{ p.border }};background:{{ p.bg }};color:{{ p.ink }};font:500 13.5px/1 var(--tw-ui);cursor:pointer">{{ p.label }}</button>
+                    </sc-for>
+                  </div>
+
+                  <div style="font:500 11.5px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#8A97A8;margin:24px 0 10px">Memberships I can use</div>
+                  <div style="display:flex;flex-wrap:wrap;gap:7px">
+                    <sc-for list="{{ memberships }}" as="mb" hint-placeholder-count="3">
+                      <button onClick="{{ mb.toggle }}" style="height:38px;padding:0 14px;border-radius:11px;border:1px solid {{ mb.border }};background:{{ mb.bg }};color:{{ mb.ink }};font:500 13.5px/1 var(--tw-ui);cursor:pointer">{{ mb.label }}</button>
+                    </sc-for>
+                  </div>
+
+                  <div style="font:500 11.5px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#8A97A8;margin:24px 0 10px">Day-pass budget</div>
+                  <div style="display:flex;gap:7px">
+                    <sc-for list="{{ budgets }}" as="bg2" hint-placeholder-count="4">
+                      <button onClick="{{ bg2.pick }}" style="flex:1;height:46px;border-radius:12px;border:1.5px solid {{ bg2.border }};background:{{ bg2.bg }};color:{{ bg2.ink }};font:600 14px/1 var(--tw-ui);cursor:pointer">{{ bg2.label }}</button>
+                    </sc-for>
+                  </div>
+
+                  <div style="font:500 11.5px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#8A97A8;margin:24px 0 10px">Amenities I look for</div>
+                  <div style="display:flex;flex-wrap:wrap;gap:7px">
+                    <sc-for list="{{ amenityOpts }}" as="am" hint-placeholder-count="5">
+                      <button onClick="{{ am.toggle }}" style="height:38px;padding:0 14px;border-radius:11px;border:1px solid {{ am.border }};background:{{ am.bg }};color:{{ am.ink }};font:500 13.5px/1 var(--tw-ui);cursor:pointer">{{ am.label }}</button>
+                    </sc-for>
+                  </div>
+
+                  <div style="font:500 11.5px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#8A97A8;margin:24px 0 10px">What TravelWell may do on its own</div>
+                  <div style="border-radius:18px;background:#FFF;border:1px solid #E1E7F0;overflow:hidden">
+                    <sc-for list="{{ perms }}" as="pm" hint-placeholder-count="3">
+                      <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #EDF1F7">
+                        <div style="flex:1;min-width:0">
+                          <div style="font:600 14.5px/1.2 var(--tw-ui);color:#042C53">{{ pm.label }}</div>
+                          <div style="font:400 12.5px/1.35 var(--tw-ui);color:#8A97A8;margin-top:3px">{{ pm.sub }}</div>
+                        </div>
+                        <button onClick="{{ pm.toggle }}" style="flex:none;width:50px;height:30px;border-radius:15px;border:none;background:{{ pm.track }};cursor:pointer;padding:3px;display:flex;justify-content:{{ pm.justify }}">
+                          <span style="width:24px;height:24px;border-radius:50%;background:#FFF;box-shadow:0 1px 3px rgba(4,44,83,.35);display:block"></span>
+                        </button>
+                      </div>
+                    </sc-for>
+                  </div>
+
+                  <div style="font:500 11.5px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#8A97A8;margin:24px 0 10px">Sources</div>
+                  <div style="border-radius:18px;background:#FFF;border:1px solid #E1E7F0;overflow:hidden">
+                    <sc-for list="{{ sources }}" as="src" hint-placeholder-count="3">
+                      <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #EDF1F7">
+                        <div style="width:32px;height:32px;flex:none;border-radius:10px;background:#EDF1F7;display:flex;align-items:center;justify-content:center;font:600 11px/1 ui-monospace,Menlo,monospace;color:#5A6B80">{{ src.tag }}</div>
+                        <div style="flex:1;min-width:0">
+                          <div style="font:600 14.5px/1.2 var(--tw-ui);color:#042C53">{{ src.name }}</div>
+                          <div style="font:400 12.5px/1.3 var(--tw-ui);color:#8A97A8;margin-top:3px">{{ src.sub }}</div>
+                        </div>
+                        <span style="flex:none;font:600 11.5px/1 var(--tw-ui);color:{{ src.ink }}">{{ src.state }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+
+                  <button onClick="{{ closeSheet }}" style="margin:18px 0 4px;width:100%;height:52px;border:none;border-radius:14px;background:#042C53;color:#F4F7FB;font:600 15.5px/1 var(--tw-ui);cursor:pointer">Done</button>
+                </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ onboarding }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;inset:0;z-index:60;background:#F4F7FB;display:flex;flex-direction:column;padding:66px 26px 40px;animation:tw-fade .25s ease both">
+
+            <sc-if value="{{ obAuth }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;height:100%">
+                <div style="margin-top:70px">
+                  <div style="display:flex;align-items:center;gap:9px;color:#042C53">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                    <span style="font:600 17px/1 var(--tw-ui);letter-spacing:-.01em">TravelWell</span>
+                  </div>
+                  <div style="font:400 40px/1.08 var(--tw-display);color:#042C53;margin-top:34px;text-wrap:pretty">Your routine, on the road.</div>
+                  <div style="font:400 16px/1.5 var(--tw-ui);color:#5A6B80;margin-top:14px;text-wrap:pretty">An unfamiliar city is a scheduling problem.</div>
+                </div>
+
+                <div style="margin-top:auto;display:flex;flex-direction:column;gap:10px">
+                  <button onClick="{{ authGoogle }}" style="height:54px;border:none;border-radius:15px;background:#042C53;color:#FFF;font:600 16px/1 var(--tw-ui);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:11px" style-hover="background:#06203B">
+                    <svg width="18" height="18" viewBox="0 0 16 16" fill="#FFF" style="flex:none"><path d="M15.545 6.558a9.4 9.4 0 0 1 .139 1.626c0 2.434-.87 4.492-2.384 5.885h.002C11.978 15.292 10.158 16 8 16A8 8 0 1 1 8 0a7.7 7.7 0 0 1 5.352 2.082l-2.284 2.284A4.35 4.35 0 0 0 8 3.166c-2.087 0-3.86 1.408-4.492 3.304a4.8 4.8 0 0 0 0 3.063h.003c.635 1.893 2.405 3.301 4.492 3.301 1.078 0 2.004-.276 2.722-.764h-.003a3.7 3.7 0 0 0 1.599-2.431H8v-3.08z"></path></svg>
+                    <span>Continue with Google</span>
+                  </button>
+                  <button onClick="{{ authApple }}" style="height:54px;border:1px solid #E1E7F0;border-radius:15px;background:#FFF;color:#042C53;font:600 16px/1 var(--tw-ui);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:11px" style-hover="background:#EDF1F7">
+                    <svg width="18" height="18" viewBox="0 0 16 16" fill="#042C53" style="flex:none"><path d="M11.182.008C11.148-.03 9.923.023 8.857 1.18c-1.066 1.156-.902 2.482-.878 2.516s1.52.087 2.475-1.258.762-2.391.728-2.43m3.314 11.733c-.048-.096-2.325-1.234-2.113-3.422s1.675-2.789 1.698-2.854-.597-.79-1.254-1.157a3.7 3.7 0 0 0-1.563-.434c-.108-.003-.483-.095-1.254.116-.508.139-1.653.589-1.968.607-.316.018-1.256-.522-2.267-.665-.647-.125-1.333.131-1.824.328-.49.196-1.422.754-2.074 2.237-.652 1.482-.311 3.83-.067 4.56s.625 1.924 1.273 2.796c.576.984 1.34 1.667 1.659 1.899s1.219.386 1.843.067c.502-.308 1.408-.485 1.766-.472.357.013 1.061.154 1.782.539.571.197 1.111.115 1.652-.105.541-.221 1.324-1.059 2.238-2.758q.52-1.185.473-1.282"></path></svg>
+                    <span>Continue with Apple</span>
+                  </button>
+                  <button onClick="{{ authEmail }}" style="height:50px;border:none;border-radius:15px;background:none;color:#5A6B80;font:600 15px/1 var(--tw-ui);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px" style-hover="color:#042C53">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8A97A8" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"></rect><polyline points="3.5 7 12 13 20.5 7"></polyline></svg>
+                    <span>Use an email address</span>
+                  </button>
+                  <div style="font:400 12px/1.5 var(--tw-ui);color:#A8B3C2;text-align:center;margin-top:6px;text-wrap:pretty">Signing in creates your account. Nothing connects until the next screen.</div>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ obEmail }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;height:100%">
+                <button onClick="{{ authBack }}" style="flex:none;align-self:flex-start;width:40px;height:40px;border-radius:12px;border:1px solid #E1E7F0;background:#FFF;cursor:pointer;display:flex;align-items:center;justify-content:center" style-hover="background:#EDF1F7">
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#042C53" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                </button>
+                <div style="margin-top:40px">
+                  <div style="font:400 34px/1.12 var(--tw-display);color:#042C53;text-wrap:pretty">What is your email?</div>
+                  <div style="font:400 14.5px/1.5 var(--tw-ui);color:#5A6B80;margin-top:12px;text-wrap:pretty">I will send a six-digit code. No password to remember.</div>
+                  <input value="{{ emailVal }}" onChange="{{ setEmail }}" type="email" placeholder="you@company.com" autoComplete="email" style="margin-top:24px;width:100%;height:56px;padding:0 16px;border-radius:15px;border:1.5px solid #E1E7F0;background:#FFF;color:#042C53;font:500 16px/1 var(--tw-ui);outline:none" style-focus="border-color:#185FA5" />
+                </div>
+                <div style="margin-top:auto">
+                  <button onClick="{{ emailSubmit }}" style="width:100%;height:54px;border:none;border-radius:15px;background:{{ emailBtnBg }};color:{{ emailBtnInk }};font:600 16px/1 var(--tw-ui);cursor:pointer">Send me a code</button>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ obCode }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;height:100%">
+                <button onClick="{{ authEmail }}" style="flex:none;align-self:flex-start;width:40px;height:40px;border-radius:12px;border:1px solid #E1E7F0;background:#FFF;cursor:pointer;display:flex;align-items:center;justify-content:center" style-hover="background:#EDF1F7">
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#042C53" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                </button>
+                <div style="margin-top:40px">
+                  <div style="font:400 34px/1.12 var(--tw-display);color:#042C53;text-wrap:pretty">Check your inbox</div>
+                  <div style="font:400 14.5px/1.5 var(--tw-ui);color:#5A6B80;margin-top:12px;text-wrap:pretty">A six-digit code is on its way to {{ codeSentTo }}.</div>
+                  <div style="position:relative;margin-top:24px">
+                    <div style="display:flex;gap:8px">
+                      <sc-for list="{{ codeDigits }}" as="d" hint-placeholder-count="6">
+                        <div style="flex:1;height:58px;border-radius:13px;border:1.5px solid {{ d.border }};background:#FFF;display:flex;align-items:center;justify-content:center;font:600 22px/1 var(--tw-ui);color:#042C53;font-variant-numeric:tabular-nums">{{ d.char }}</div>
+                      </sc-for>
+                    </div>
+                    <input value="{{ codeVal }}" onChange="{{ setCode }}" type="text" inputMode="numeric" autoComplete="one-time-code" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;border:none;background:none;cursor:pointer;font-size:16px" />
+                  </div>
+                  <button onClick="{{ codeResend }}" style="margin-top:16px;padding:0;border:none;background:none;color:#185FA5;font:600 13.5px/1 var(--tw-ui);cursor:pointer">Send it again</button>
+                </div>
+                <div style="margin-top:auto">
+                  <button onClick="{{ codeSubmit }}" style="width:100%;height:54px;border:none;border-radius:15px;background:{{ codeBtnBg }};color:{{ codeBtnInk }};font:600 16px/1 var(--tw-ui);cursor:pointer">Verify and continue</button>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ obWelcome }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;height:100%">
+                <div style="margin-top:44px">
+                  <div style="display:flex;align-items:center;gap:9px;padding:9px 13px;border-radius:999px;background:#FFF;border:1px solid #E1E7F0;width:fit-content">
+                    <span style="width:22px;height:22px;flex:none;border-radius:50%;background:#E6F1FB;color:#0F4A85;font:600 10px/1 var(--tw-ui);display:flex;align-items:center;justify-content:center">DL</span>
+                    <span style="font:500 12.5px/1 var(--tw-ui);color:#5A6B80">{{ accountEmail }}</span>
+                  </div>
+                  <div style="font:400 38px/1.08 var(--tw-display);color:#042C53;margin-top:24px;text-wrap:pretty">Keep your routine, wherever work takes you.</div>
+                  <div style="font:400 16px/1.5 var(--tw-ui);color:#5A6B80;margin-top:16px;text-wrap:pretty">Connect your calendar and TravelWell finds the openings, the places, and the reservations. You just approve.</div>
+                  <sc-if value="{{ googleAuthed }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex;align-items:center;gap:10px;margin-top:20px;padding:14px 15px;border-radius:15px;background:#FFF;border:1px solid #C9DEF3">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      <span style="flex:1;font:500 13.5px/1.4 var(--tw-ui);color:#042C53;text-wrap:pretty">Google Calendar came with your sign-in. Read-only, and you can revoke it in your profile.</span>
+                    </div>
+                  </sc-if>
+                </div>
+                <div style="margin-top:auto;display:flex;flex-direction:column;gap:10px">
+                  <button onClick="{{ obNext }}" style="height:54px;border:none;border-radius:15px;background:#185FA5;color:#FFF;font:600 16px/1 var(--tw-ui);cursor:pointer">{{ connectLabel }}</button>
+                  <button onClick="{{ openManual }}" style="height:50px;border:1px solid #E1E7F0;border-radius:15px;background:#FFF;color:#042C53;font:600 15px/1 var(--tw-ui);cursor:pointer" style-hover="background:#EDF1F7">Add a trip manually</button>
+                  <button onClick="{{ obLater }}" style="height:48px;border:none;border-radius:15px;background:none;color:#8A97A8;font:600 14.5px/1 var(--tw-ui);cursor:pointer" style-hover="color:#042C53">Not now</button>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ obScanning }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:18px">
+                <div style="width:28px;height:28px;border-radius:50%;border:2.5px solid #E1E7F0;border-top-color:#185FA5;animation:tw-spin .9s linear infinite"></div>
+                <div style="font:500 16px/1 var(--tw-ui);color:#5A6B80">Looking at your calendar…</div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ obFound }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;height:100%;animation:tw-rise .35s ease both">
+                <div style="margin-top:34px">
+                  <div style="font:500 12px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#8A97A8">We found an upcoming trip</div>
+                  <div style="font:400 46px/1.05 var(--tw-display);color:#042C53;margin-top:12px">Chicago</div>
+                  <div style="font:500 17px/1 var(--tw-ui);color:#5A6B80;margin-top:8px">Aug 18–21 · Conference trip</div>
+                  <div style="border-radius:18px;background:#FFF;border:1px solid #E1E7F0;overflow:hidden;margin-top:22px">
+                    <div style="padding:12px 16px;font:500 11.5px/1 var(--tw-ui);letter-spacing:.08em;text-transform:uppercase;color:#8A97A8;border-bottom:1px solid #EDF1F7">Based on</div>
+                    <sc-for list="{{ evidence }}" as="e" hint-placeholder-count="3">
+                      <div style="display:flex;align-items:center;gap:11px;padding:13px 16px;border-bottom:1px solid #EDF1F7">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span style="flex:1;font:500 14px/1.2 var(--tw-ui);color:#042C53">{{ e.title }}</span>
+                        <span style="font:400 12.5px/1 var(--tw-ui);color:#8A97A8">{{ e.src }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+                <div style="margin-top:auto;display:flex;gap:9px">
+                  <button onClick="{{ obNext }}" style="height:54px;padding:0 20px;border:1px solid #E1E7F0;border-radius:15px;background:#FFF;color:#042C53;font:600 15.5px/1 var(--tw-ui);cursor:pointer">Edit</button>
+                  <button onClick="{{ obNext }}" style="flex:1;height:54px;border:none;border-radius:15px;background:#185FA5;color:#FFF;font:600 16px/1 var(--tw-ui);cursor:pointer">Use this trip</button>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ obReady }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;height:100%;animation:tw-rise .35s ease both">
+                <div style="margin-top:52px">
+                  <div style="display:flex;align-items:center;gap:8px;padding:8px 13px;border-radius:999px;background:#EEEDFE;width:fit-content">
+                    <span style="width:7px;height:7px;border-radius:50%;background:#7F77DD"></span>
+                    <span style="font:600 12px/1 var(--tw-ui);color:#5B52B8">Preparing</span>
+                  </div>
+                  <div style="font:400 36px/1.1 var(--tw-display);color:#042C53;margin-top:20px;text-wrap:pretty">TravelWell activates Aug 11</div>
+                  <div style="font:400 16px/1.5 var(--tw-ui);color:#5A6B80;margin-top:14px;text-wrap:pretty">A week before you fly, I'll scan your Chicago schedule, find wellness windows, and have a plan waiting. I'll never book anything without asking.</div>
+                  <div style="display:flex;flex-direction:column;gap:11px;margin-top:26px">
+                    <sc-for list="{{ readyRows }}" as="r" hint-placeholder-count="3">
+                      <div style="display:flex;align-items:center;gap:11px">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span style="font:400 14.5px/1.3 var(--tw-ui);color:#5A6B80">{{ r.text }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+                <button onClick="{{ obDone }}" style="margin-top:auto;height:54px;border:none;border-radius:15px;background:#042C53;color:#FFF;font:600 16px/1 var(--tw-ui);cursor:pointer">Jump to day 2 in Chicago</button>
+              </div>
+            </sc-if>
+
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ notif }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;left:10px;right:10px;top:8px;z-index:90;background:rgba(4,44,83,.97);border-radius:22px;padding:14px 16px 15px;animation:tw-drop .4s cubic-bezier(.22,1,.36,1) both;box-shadow:0 20px 40px -20px rgba(4,44,83,.8)">
+            <div style="display:flex;align-items:center;gap:8px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9E97E8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+              <span style="font:600 11.5px/1 var(--tw-ui);letter-spacing:.06em;color:#9E97E8">TRAVELWELL</span>
+              <span style="flex:1"></span>
+              <span style="font:400 11.5px/1 var(--tw-ui);color:#8FA3BE">now</span>
+            </div>
+            <div style="font:600 15.5px/1.3 var(--tw-ui);color:#F4F7FB;margin:9px 0 5px">{{ notifTitle }}</div>
+            <div style="font:400 13.5px/1.4 var(--tw-ui);color:#A9BBD1;text-wrap:pretty">{{ notifBody }}</div>
+            <div style="display:flex;gap:8px;margin-top:13px">
+              <button onClick="{{ notifOpen }}" style="flex:1;height:42px;border:none;border-radius:12px;background:#F4F7FB;color:#042C53;font:600 14px/1 var(--tw-ui);cursor:pointer">{{ notifCta }}</button>
+              <button onClick="{{ notifDismiss }}" style="height:42px;padding:0 16px;border:none;border-radius:12px;background:rgba(244,247,251,.14);color:#C6D5E6;font:600 14px/1 var(--tw-ui);cursor:pointer">Later</button>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;left:18px;right:18px;bottom:112px;z-index:50;background:#042C53;color:#FFF;border-radius:16px;padding:14px 16px;display:flex;align-items:center;gap:10px;animation:tw-rise .3s ease both;box-shadow:0 16px 32px -18px rgba(4,44,83,.8)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CC4EC" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            <span style="font:500 14px/1.3 var(--tw-ui)">{{ toastText }}</span>
+          </div>
+        </sc-if>
+
+      </div>
+    </div>
+  </div>
+
+  <sc-if value="{{ panelOn }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:none;display:flex;align-items:flex-start;gap:28px;padding-top:3px">
+      <div style="flex:none;display:flex;flex-direction:column;gap:20px">
+        <div style="font:600 11px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#8A97A8">User flows</div>
+        <div style="display:flex;align-items:flex-start;gap:22px">
+          <div style="width:244px;flex:none;display:flex;flex-direction:column;gap:18px">
+          <sc-for list="{{ flowsLeft }}" as="grp" hint-placeholder-count="2">
+            <div>
+              <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:9px">
+                <span style="font:600 11px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#042C53">{{ grp.title }}</span>
+                <span style="font:400 11.5px/1 var(--tw-ui);color:#8A97A8">{{ grp.note }}</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:7px">
+                <sc-for list="{{ grp.items }}" as="d" hint-placeholder-count="3">
+                  <button onClick="{{ d.run }}" style="text-align:left;padding:12px 14px;border-radius:12px;border:1px solid rgba(4,44,83,.12);background:rgba(255,255,255,.6);cursor:pointer;display:flex;gap:11px;align-items:flex-start" style-hover="background:#FFF">
+                    <span style="flex:none;font:600 11px/1.5 ui-monospace,Menlo,monospace;color:#8A97A8">{{ d.n }}</span>
+                    <span style="flex:1;min-width:0">
+                      <span style="display:block;font:600 13.5px/1.2 var(--tw-ui);color:#042C53">{{ d.name }}</span>
+                      <span style="display:block;font:400 12px/1.35 var(--tw-ui);color:#5A6B80;margin-top:4px">{{ d.sub }}</span>
+                    </span>
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+          </div>
+          <div style="width:244px;flex:none;display:flex;flex-direction:column;gap:18px">
+          <sc-for list="{{ flowsRight }}" as="grp" hint-placeholder-count="2">
+            <div>
+              <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:9px">
+                <span style="font:600 11px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#042C53">{{ grp.title }}</span>
+                <span style="font:400 11.5px/1 var(--tw-ui);color:#8A97A8">{{ grp.note }}</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:7px">
+                <sc-for list="{{ grp.items }}" as="d" hint-placeholder-count="3">
+                  <button onClick="{{ d.run }}" style="text-align:left;padding:12px 14px;border-radius:12px;border:1px solid rgba(4,44,83,.12);background:rgba(255,255,255,.6);cursor:pointer;display:flex;gap:11px;align-items:flex-start" style-hover="background:#FFF">
+                    <span style="flex:none;font:600 11px/1.5 ui-monospace,Menlo,monospace;color:#8A97A8">{{ d.n }}</span>
+                    <span style="flex:1;min-width:0">
+                      <span style="display:block;font:600 13.5px/1.2 var(--tw-ui);color:#042C53">{{ d.name }}</span>
+                      <span style="display:block;font:400 12px/1.35 var(--tw-ui);color:#5A6B80;margin-top:4px">{{ d.sub }}</span>
+                    </span>
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+          </div>
+        </div>
+        <button onClick="{{ resetDemo }}" style="align-self:flex-start;padding:9px 13px;border-radius:10px;border:1px dashed rgba(4,44,83,.2);background:none;color:#5A6B80;font:600 12px/1 var(--tw-ui);cursor:pointer" style-hover="background:#FFF">Reset to day 2, nothing booked</button>
+      </div>
+    </div>
+
+    <div style="width:272px;flex:none;display:flex;flex-direction:column;gap:19px;padding-left:28px;border-left:1px solid rgba(4,44,83,.14)">
+      <div style="font:600 11px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#8A97A8">Style &amp; aesthetic</div>
+
+      <div>
+        <div style="font:600 11px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#042C53;margin-bottom:9px">Palette</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ swatches }}" as="sw" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="width:22px;height:22px;flex:none;border-radius:7px;background:{{ sw.hex }};border:1px solid rgba(4,44,83,.12)"></span>
+              <span style="flex:1;min-width:0">
+                <span style="display:block;font:600 12px/1.2 var(--tw-ui);color:#042C53">{{ sw.name }}</span>
+                <span style="display:block;font:400 11px/1.35 var(--tw-ui);color:#8A97A8;margin-top:2px">{{ sw.role }}</span>
+              </span>
+              <span style="flex:none;font:500 10px/1 ui-monospace,Menlo,monospace;color:#B9C4D2">{{ sw.hex }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid rgba(4,44,83,.1);padding-top:16px">
+        <div style="font:600 11px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#042C53;margin-bottom:9px">Type</div>
+        <div style="font:400 24px/1.1 var(--tw-display);color:#042C53">Newsreader</div>
+        <div style="font:400 11.5px/1.4 var(--tw-ui);color:#8A97A8;margin-top:4px">Display · place and moment</div>
+        <div style="font:600 15px/1.2 var(--tw-ui);color:#042C53;margin-top:12px">Public Sans</div>
+        <div style="font:400 11.5px/1.4 var(--tw-ui);color:#8A97A8;margin-top:4px">UI · everything actionable, tabular numerals</div>
+      </div>
+
+      <div style="border-top:1px solid rgba(4,44,83,.1);padding-top:16px">
+        <div style="font:600 11px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#042C53;margin-bottom:9px">Principles</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ principles }}" as="pr" hint-placeholder-count="5">
+            <div style="display:flex;gap:9px;align-items:flex-start">
+              <span style="flex:none;width:4px;height:4px;border-radius:50%;background:#B9C4D2;margin-top:6px"></span>
+              <span style="flex:1;font:400 12px/1.45 var(--tw-ui);color:#5A6B80;text-wrap:pretty">{{ pr.text }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid rgba(4,44,83,.1);padding-top:16px">
+        <div style="font:600 11px/1 var(--tw-ui);letter-spacing:.09em;text-transform:uppercase;color:#042C53;margin-bottom:9px">Avoided</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ avoided }}" as="av" hint-placeholder-count="6">
+            <div style="display:flex;gap:9px;align-items:flex-start">
+              <span style="flex:none;width:4px;height:4px;border-radius:50%;background:#B9C4D2;margin-top:6px"></span>
+              <span style="flex:1;font:400 12px/1.45 var(--tw-ui);color:#8A97A8;text-wrap:pretty">{{ av.text }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;agentState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Active&quot;,&quot;Preparing&quot;,&quot;Needs attention&quot;],&quot;default&quot;:&quot;Active&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Agent&quot;},&quot;tripDay&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:2,&quot;min&quot;:1,&quot;max&quot;:4,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Trip&quot;},&quot;showFlowPanel&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Prototype&quot;}}">
+class Component extends DCLogic {
+  state = {
+    screen: 'today', sheet: null, ob: null, authVia: null, emailVal: '', codeVal: '',
+    voiceStep: 0, resStep: 0, slot: '7:30 PM',
+    ymca: 'open', dinner: 'open', dinnerLabel: '',
+    alert: false, toast: '', cat: 'Workout',
+    agent: null, workLabel: '',
+    prefs: ['Vegetarian', 'Swim', 'Running', '$$ or less', '45–90 min'],
+    perms: { cal: true, book: false, watch: true },
+    plan: { p1: 'suggested', p2: 'suggested', p3: 'suggested', p4: 'suggested' },
+    swap: { p1: 0, p2: 0, p3: 0, p4: 0 },
+    day: 2, review: null, item: null, prov: null, override: {}, gen: null, life: 'active', notif: false, notifKind: 'plan', manual: false, manualPick: {}, extraTrips: [],
+    sel: 'ymca', budget: 20, amenities: ['Pool', 'Treadmill'], memberships: ['YMCA reciprocity', 'Hotel gym access'],
+    filt: { window: 'Next 2 hrs', walk: 30, dur: 0, memberOnly: false, budget: false, amenityOnly: false }
+  };
+
+  componentWillUnmount() { clearTimeout(this._t); clearTimeout(this._t2); }
+
+  toast(text) {
+    this.setState({ toast: text });
+    clearTimeout(this._t2);
+    this._t2 = setTimeout(() => this.setState({ toast: '' }), 2600);
+  }
+
+  startGen() {
+    if (this.genTimer) clearInterval(this.genTimer);
+    this.setState({ gen: 0, screen: 'today', sheet: null, notif: false, review: null, plan: { p1: 'suggested', p2: 'suggested', p3: 'suggested', p4: 'suggested' }, override: {} });
+    this.genStep = 0;
+    this.genTimer = setInterval(() => {
+      this.genStep += 1;
+      if (this.genStep >= 5) {
+        clearInterval(this.genTimer); this.genTimer = null;
+        this.setState({ gen: null, life: 'preparing', notif: true, notifKind: 'plan' });
+        return;
+      }
+      const n = this.genStep;
+      this.setState((st) => st.gen === null ? null : { gen: n });
+    }, 950);
+  }
+
+  componentDidMount() {
+    this._fit = () => this.fitStage();
+    window.addEventListener('resize', this._fit);
+    this.fitStage();
+    setTimeout(this._fit, 400);
+  }
+
+  fitStage() {
+    const el = this.stage;
+    if (!el) return;
+    el.style.zoom = '1';
+    const w = el.scrollWidth, h = el.scrollHeight;
+    if (!w || !h) return;
+    const s = Math.min(1, (window.innerWidth - 4) / w, (window.innerHeight - 4) / h);
+    el.style.zoom = s < 0.995 ? String(Math.round(s * 1000) / 1000) : '';
+  }
+
+  componentWillUnmount() {
+    if (this.genTimer) clearInterval(this.genTimer);
+    if (this._fit) window.removeEventListener('resize', this._fit);
+  }
+
+  focusCard(id) {
+    this.setState({ sel: id }, () => {
+      const el = this.cards && this.cards[id], sc = this.scroller;
+      if (!el || !sc) return;
+      const top = el.getBoundingClientRect().top - sc.getBoundingClientRect().top;
+      const bottom = top + el.offsetHeight;
+      if (top < 8) sc.scrollTop += top - 8;
+      else if (bottom > sc.clientHeight) sc.scrollTop += Math.min(bottom - sc.clientHeight + 12, top - 8);
+    });
+  }
+
+  renderVals() {
+    const s = this.state;
+    const S = (o) => this.setState(o);
+    const ink = (on) => on ? '#185FA5' : '#8A97A8';
+    const lifeWord = { upcoming: 'Upcoming', preparing: 'Preparing', active: 'Active', completed: 'Completed', empty: 'Idle' };
+    const agentState = s.life === 'active' ? (this.props.agentState ?? 'Active') : lifeWord[s.life];
+    const stateMap = {
+      Active: { label: 'TravelWell active', bg: '#E6F1FB', dot: '#185FA5', ink: '#0F4A85', word: 'Active', mark: '#185FA5', detail: 'Watching for schedule changes' },
+      Preparing: { label: 'Preparing your trip', bg: '#EEEDFE', dot: '#7F77DD', ink: '#5B52B8', word: 'Preparing', mark: '#5B52B8', detail: 'Activates Aug 11' },
+      'Needs attention': { label: 'Needs attention', bg: '#042C53', dot: '#9E97E8', ink: '#F4F7FB', word: 'Needs you', mark: '#042C53', detail: 'Workshop now runs to 6:00 PM' },
+      Upcoming: { label: 'Upcoming', bg: '#EDF1F7', dot: '#8A97A8', ink: '#5A6B80', word: 'Upcoming', mark: '#8A97A8', detail: 'I start work Aug 11' },
+      Completed: { label: 'Trip complete', bg: '#EDF1F7', dot: '#8A97A8', ink: '#5A6B80', word: 'Complete', mark: '#8A97A8', detail: 'Archived · Aug 21' },
+      Idle: { label: 'Idle', bg: '#EDF1F7', dot: '#B9C4D2', ink: '#8A97A8', word: 'Idle', mark: '#B9C4D2', detail: 'Nothing connected yet' }
+    };
+    const stKey = s.alert ? 'Needs attention' : agentState;
+    const st = stateMap[stKey] || stateMap.Active;
+    const day = this.props.tripDay ?? 2;
+    const segs = [1, 2, 3, 4].map(d => {
+      if (stKey === 'Preparing' || stKey === 'Upcoming') return { bg: 'transparent', dash: stKey === 'Preparing' ? '#CFCCF3' : '#D9DFE8' };
+      if (stKey === 'Completed') return { bg: '#C9DEF3', dash: 'transparent' };
+      if (d < day) return { bg: '#C9DEF3', dash: 'transparent' };
+      if (d === day) return { bg: st.mark, dash: 'transparent' };
+      return { bg: '#E1E7F0', dash: 'transparent' };
+    });
+    const statusOpts = [
+      { key: 'bar', name: 'Trip progress' },
+      { key: 'rule', name: 'Dateline' },
+      { key: 'pill', name: 'Status pill' }
+    ].map(o => ({
+      name: o.name, pick: () => S({ status: o.key }),
+      bg: s.status === o.key ? '#042C53' : 'rgba(255,255,255,.6)',
+      ink: s.status === o.key ? '#F4F7FB' : '#042C53',
+      border: s.status === o.key ? '#042C53' : 'rgba(4,44,83,.14)'
+    }));
+
+    const cats = ['Workout', 'Food', 'Outdoor', 'Recovery'].map(name => ({
+      name, select: () => S({ cat: name }),
+      bg: s.cat === name ? '#042C53' : 'rgba(255,255,255,.94)',
+      ink: s.cat === name ? '#FFF' : '#042C53',
+      border: s.cat === name ? '#042C53' : '#E1E7F0'
+    }));
+
+    const allPlaces = [
+      { id: 'ymca', kind: 'Workout', pin: 'Y', name: 'YMCA', sub: 'Pool + treadmill · open to 9 PM', why: 'Fits your 90-minute opening', walk: 7, price: 0, member: true, covered: true, open: 300, close: 1260, dur: 75, amenities: ['Pool', 'Treadmill'], x: 168, y: 176, img: 'https://loremflickr.com/200/200/gym,treadmill?lock=5' },
+      { id: 'cac', kind: 'Workout', pin: 'C', name: 'Chicago Athletic Club', sub: 'Lap pool · 25-yard', why: 'Quietest lanes after 6 PM', walk: 11, price: 25, member: false, covered: false, open: 330, close: 1320, dur: 60, amenities: ['Pool', 'Sauna'], x: 118, y: 118, img: 'https://loremflickr.com/200/200/swimming,pool?lock=12' },
+      { id: 'hgym', kind: 'Workout', pin: 'G', name: 'Hotel fitness room', sub: 'Treadmill + weights · 24h', why: 'No travel time at all', walk: 0, price: 0, member: true, covered: true, open: 0, close: 1440, dur: 40, amenities: ['Treadmill', 'Weights'], x: 60, y: 318, img: 'https://loremflickr.com/200/200/treadmill?lock=3' },
+      { id: 'beatrix', kind: 'Food', pin: 'B', name: 'Beatrix', sub: 'Healthy American · $$', why: 'Matches your vegetarian preference', walk: 5, price: 0, member: true, covered: false, open: 660, close: 1320, dur: 60, amenities: [], x: 272, y: 222, img: 'https://loremflickr.com/200/200/restaurant,salad?lock=9' },
+      { id: 'aba', kind: 'Food', pin: 'A', name: 'Aba', sub: 'Mediterranean · $$$', why: 'Mezze menu, later tables', walk: 9, price: 0, member: true, covered: false, open: 960, close: 1380, dur: 90, amenities: [], x: 322, y: 250, img: 'https://loremflickr.com/200/200/mediterranean,food?lock=11' },
+      { id: 'lake', kind: 'Outdoor', pin: 'L', name: 'Lakefront Trail', sub: '3.1 mi loop · flat', why: 'Good for a 40-minute morning run', walk: 12, price: 0, member: false, covered: false, open: 300, close: 1230, dur: 40, amenities: [], x: 296, y: 152, img: 'https://loremflickr.com/200/200/running,trail?lock=4' },
+      { id: 'river', kind: 'Outdoor', pin: 'R', name: 'Riverwalk loop', sub: '1.8 mi · lit path', why: 'Closest green route to the hotel', walk: 4, price: 0, member: false, covered: false, open: 0, close: 1440, dur: 30, amenities: [], x: 210, y: 268, img: 'https://loremflickr.com/200/200/river,walk?lock=8' },
+      { id: 'spa', kind: 'Recovery', pin: 'S', name: 'Chuan Spa', sub: 'Sauna + steam · 60 min', why: 'Good after two conference days', walk: 6, price: 40, member: false, covered: false, open: 540, close: 1140, dur: 60, amenities: ['Sauna'], x: 240, y: 104, img: 'https://loremflickr.com/200/200/spa,sauna?lock=2' }
+    ];
+    const cap = s.budget;
+    const winRange = { 'Now': [1032, 1092], 'Next 2 hrs': [1032, 1152], 'This evening': [1080, 1320] }[s.filt.window] || [1032, 1152];
+    const passes = (p) => p.kind === s.cat
+      && p.open <= winRange[0] && p.close >= winRange[1]
+      && p.walk <= s.filt.walk
+      && (s.filt.dur === 0 || p.dur <= s.filt.dur)
+      && (!s.filt.memberOnly || p.covered)
+      && (!s.filt.budget || p.price <= cap)
+      && (!s.filt.amenityOnly || p.amenities.length === 0 || p.amenities.some(a => s.amenities.indexOf(a) > -1));
+    const shown = allPlaces.filter(passes);
+    const NOW = 1035;
+    const fmtT = (m) => { const h = Math.floor(m / 60) % 24, mm = m % 60, ap = h >= 12 ? 'PM' : 'AM', hh = h % 12 === 0 ? 12 : h % 12; return hh + (mm ? ':' + String(mm).padStart(2, '0') : '') + ' ' + ap; };
+    const allDay = (p) => p.open === 0 && p.close === 1440;
+    const hoursLabel = (p) => allDay(p) ? 'Open 24 hours'
+      : NOW < p.open ? 'Opens ' + fmtT(p.open)
+      : NOW >= p.close ? 'Closed now'
+      : p.close - NOW <= 90 ? 'Closes in ' + (p.close - NOW) + ' min'
+      : 'Open till ' + fmtT(p.close);
+    const hoursTight = (p) => !allDay(p) && (NOW >= p.close || NOW < p.open || p.close - NOW <= 90);
+    const HOTEL = { id: 'hotel', name: 'The Gwen', short: 'Hotel', x: 82, y: 286, walk: 0 };
+    const nameToId = { 'YMCA': 'ymca', 'Hotel fitness room': 'hgym', 'Hotel pool': 'hgym', 'Chicago Athletic Club': 'cac', 'Beatrix': 'beatrix', 'Aba': 'aba', 'Lakefront Trail': 'lake', 'Riverwalk loop': 'river', 'Chuan Spa': 'spa' };
+    const legMin = (a, b) => (a.id === 'hotel' || b.id === 'hotel')
+      ? Math.max(1, (a.id === 'hotel' ? b : a).walk)
+      : Math.max(2, Math.round(Math.hypot(a.x - b.x, a.y - b.y) / 22));
+    const selPlace = allPlaces.find(p => p.id === s.sel) || null;
+    const places = shown.map((p) => ({
+      ...p, dist: p.walk === 0 ? 'In hotel' : p.walk + ' min',
+      thumb: React.createElement('img', { src: p.img, alt: '', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' } }),
+      select: () => this.focusCard(p.id), border: s.sel === p.id ? '#185FA5' : '#E1E7F0',
+      isSel: s.sel === p.id, cardRef: (el) => { if (!this.cards) this.cards = {}; if (el) this.cards[p.id] = el; },
+      hours: hoursLabel(p), hoursInk: hoursTight(p) ? '#042C53' : '#8A97A8',
+      details: () => S({ sel: p.id, sheet: 'place' }),
+      actLabel: p.kind === 'Food' ? 'Reserve a table' : 'Add to a window',
+      act: () => S({ sel: p.id, sheet: 'place' }),
+      badges: [].concat(
+        p.price === 0 && p.kind !== 'Food' ? [{ text: p.covered ? 'Membership accepted' : 'Free', bg: p.covered ? '#E6F1FB' : '#EDF1F7', ink: p.covered ? '#0F4A85' : '#5A6B80' }] : [],
+        p.price > 0 ? [{ text: '$' + p.price + ' pass' + (p.price > cap ? ' · over your cap' : ''), bg: p.price > cap ? '#EEEDFE' : '#EDF1F7', ink: p.price > cap ? '#5B52B8' : '#5A6B80' }] : [],
+        p.dur ? [{ text: p.dur + ' min', bg: '#EDF1F7', ink: '#5A6B80' }] : []
+      )
+    }));
+    const pins = [{ id: 'hotel', pin: 'H', x: 82, y: 286, home: true }].concat(shown).map((p) => ({
+      x: p.x + 'px', y: p.y + 'px', label: p.pin, size: s.sel === p.id ? '40px' : p.home ? '30px' : '34px',
+      fill: p.home ? '#042C53' : s.sel === p.id ? '#185FA5' : '#FFF',
+      ink: p.home || s.sel === p.id ? '#FFF' : '#042C53',
+      border: p.home ? '#042C53' : s.sel === p.id ? '#185FA5' : '#FFF',
+      select: p.home ? () => {} : () => this.focusCard(p.id)
+    }));
+    const walkLabel = s.filt.walk >= 30 ? 'any distance' : s.filt.walk + ' min walk';
+    const durLabel = s.filt.dur === 0 ? 'any length' : 'under ' + s.filt.dur + ' min';
+    const activeCount = (s.filt.window !== 'Next 2 hrs' ? 1 : 0) + (s.filt.walk < 30 ? 1 : 0) + (s.filt.dur ? 1 : 0) + (s.filt.memberOnly ? 1 : 0) + (s.filt.budget ? 1 : 0) + (s.filt.amenityOnly ? 1 : 0);
+    const setFilt = (patch) => S({ filt: { ...s.filt, ...patch } });
+
+    const slots = ['7:00 PM', '7:30 PM', '8:00 PM'].map(label => ({
+      label, select: () => S({ slot: label }),
+      bg: s.slot === label ? '#E6F1FB' : '#FFF',
+      ink: s.slot === label ? '#185FA5' : '#042C53',
+      border: s.slot === label ? '#185FA5' : '#E1E7F0'
+    }));
+
+    const runReserve = () => {
+      S({ resStep: 2, workLabel: 'Checking availability at Beatrix…' });
+      clearTimeout(this._t);
+      this._t = setTimeout(() => {
+        S({ workLabel: 'Holding your table…' });
+        this._t = setTimeout(() => S({ resStep: 3 }), 1100);
+      }, 1200);
+    };
+
+    const startVoice = () => {
+      S({ sheet: 'voice', voiceStep: 0 });
+      clearTimeout(this._t);
+      this._t = setTimeout(() => {
+        S({ voiceStep: 1, workLabel: 'Looking at your schedule…' });
+        this._t = setTimeout(() => {
+          S({ workLabel: 'Finding something healthy near the hotel…' });
+          this._t = setTimeout(() => S({ voiceStep: 2 }), 1100);
+        }, 1000);
+      }, 2200);
+    };
+
+    const agentAnswers = {
+      time: {
+        query: 'What do I have time for?',
+        summary: 'Two real openings today, after your workshop and before dinner.',
+        cards: [
+          { title: '5:30 – 7:00 PM', meta: '90 min', sub: 'Between workshop and dinner', why: 'Enough for the YMCA pool plus the walk back', cta: 'See wellness options', act: () => S({ screen: 'explore', cat: 'Workout', agent: null }) },
+          { title: '7:00 – 7:30 AM tomorrow', meta: '30 min', sub: 'Before the 8:00 keynote', why: 'Lakefront Trail is 12 minutes from the hotel', cta: 'Plan a morning run', act: () => S({ screen: 'explore', cat: 'Outdoor', sel: 'lake', agent: null }) }
+        ]
+      },
+      dinner: {
+        query: 'Find dinner near the hotel',
+        summary: 'Three places within a 10-minute walk that fit your preferences.',
+        cards: [
+          { title: 'Beatrix', meta: '5 min', sub: 'Healthy American · $$', why: 'Vegetarian options · 7:30 PM available', cta: 'Reserve 7:30', act: () => S({ sheet: 'reserve', resStep: 0, slot: '7:30 PM' }) },
+          { title: 'Aba', meta: '9 min', sub: 'Mediterranean · $$$', why: 'Mezze menu · 8:15 PM available', cta: 'See times', act: () => S({ sheet: 'reserve', resStep: 0, slot: '8:00 PM' }) }
+        ]
+      }
+    };
+    const ans = s.agent ? agentAnswers[s.agent] : null;
+
+    const prompts = [
+      { text: "What do I have time for?", key: 'time' },
+      { text: 'Find dinner', key: 'dinner' },
+      { text: 'Adjust my plan', key: 'time' },
+      { text: 'Find a shorter workout', key: 'time' },
+      { text: 'Something healthy nearby', key: 'dinner' }
+    ].map(p => ({ text: p.text, select: () => S({ agent: p.key }) }));
+
+    const planDefs = {
+      p1: { day: 2, min: 1050, time: '5:30', windowLabel: 'Window 1 · Wed', window: '90 minutes free', gap: 'Between your workshop and dinner, 5:30 to 7:00.',
+        options: [
+          { name: 'YMCA', sub: 'Pool + treadmill · 75 min', why: 'Fits your 90-minute opening', dist: '7 min walk' },
+          { name: 'Hotel fitness room', sub: 'Treadmill + weights · 40 min', why: 'No travel time at all', dist: 'In the hotel' },
+          { name: 'Chicago Athletic Club', sub: 'Lap pool · 60 min', why: 'Day pass accepted here', dist: '11 min walk' }
+        ], prov: { bounds: [{ tag: 'CAL', title: 'Workshop, Room 4B', sub: 'Ends Wed 5:30 PM', source: 'Calendar' }, { tag: 'PLAN', title: 'Dinner you kept', sub: 'Starts Wed 7:30 PM', source: 'This plan' }], matched: ['Swim', '45\u201390 min', 'Membership accepted'], lost: [{ name: 'Hotel fitness room', reason: 'No pool, and swim is one of your preferences' }, { name: 'Chicago Athletic Club', reason: '11 minutes each way left you tight for a 7:30 table' }] } },
+      p2: { day: 2, min: 1170, time: '7:30', windowLabel: 'Window 1 · Wed', window: 'Dinner after your workout', gap: 'You will be near the river by 7:00.', needsRes: true,
+        options: [
+          { name: 'Beatrix', sub: 'Healthy American · $$', why: 'Matches your vegetarian preference', dist: '5 min from YMCA' },
+          { name: 'Aba', sub: 'Mediterranean · $$$', why: 'Mezze menu, later tables', dist: '9 min walk' }
+        ], prov: { bounds: [{ tag: 'PLAN', title: 'YMCA session', sub: 'Ends Wed 7:00 PM', source: 'This plan' }, { tag: 'HTL', title: 'The Gwen, 521 N Rush St', sub: 'Walk back is 8 minutes', source: 'Email' }], matched: ['Vegetarian', '$$ or less'], lost: [{ name: 'Aba', reason: '$$$, above the budget you set' }, { name: 'Hotel restaurant', reason: 'No vegetarian main after 7 PM' }] } },
+      p3: { day: 3, min: 405, time: '6:45', windowLabel: 'Window 2 · Thu', window: '75 minutes before the keynote', gap: 'Your first commitment is the 9:00 keynote.',
+        options: [
+          { name: 'Lakefront Trail', sub: '40-minute run · flat loop', why: 'Back with time to shower', dist: '12 min walk' },
+          { name: 'Riverwalk loop', sub: '30-minute run', why: 'Closer, if you wake up late', dist: '4 min walk' }
+        ], prov: { bounds: [{ tag: 'CAL', title: 'Ardent Summit keynote', sub: 'Starts Thu 9:00 AM', source: 'Calendar' }, { tag: 'HTL', title: 'The Gwen', sub: 'Trail is 12 minutes away', source: 'Email' }], matched: ['Running', 'Mornings'], lost: [{ name: 'Riverwalk loop', reason: 'Shorter than the 40 minutes you had free' }, { name: 'Hotel fitness room', reason: 'You were indoors the day before' }] } },
+      p4: { day: 4, min: 450, time: '7:30', windowLabel: 'Window 3 · Fri', window: '2 hours before checkout', gap: 'Checkout is 10:00, your flight is 2:15.',
+        options: [
+          { name: 'Hotel pool', sub: '30-minute swim', why: 'No travel before your flight', dist: 'In the hotel' },
+          { name: 'Riverwalk loop', sub: '30-minute walk', why: 'A last look at the city', dist: '4 min walk' }
+        ], prov: { bounds: [{ tag: 'HTL', title: 'Checkout, The Gwen', sub: 'Fri 10:00 AM', source: 'Email' }, { tag: 'CAL', title: 'Flight home, ORD \u2192 SFO', sub: 'Fri 2:15 PM', source: 'Calendar' }], matched: ['Swim', 'Mornings'], lost: [{ name: 'Riverwalk loop', reason: 'Rain forecast Friday morning' }, { name: 'Chuan Spa', reason: '60 minutes plus travel, too close to checkout' }] } }
+    };
+    const planIds = ['p1', 'p2', 'p3', 'p4'];
+    const chosen = (id) => s.override[id] || planDefs[id].options[(s.swap[id] || 0) % planDefs[id].options.length];
+    const routeIds = planIds.filter(id => s.plan[id] !== 'skipped' && planDefs[id].day === s.day)
+      .sort((a, b) => planDefs[a].min - planDefs[b].min)
+      .map(id => nameToId[chosen(id).name]).filter(Boolean);
+    const routeStops = [HOTEL].concat(routeIds.map(id => allPlaces.find(p => p.id === id)).filter(Boolean));
+    if (routeStops.length > 1) routeStops.push(HOTEL);
+    const routeLegs = routeStops.slice(1).map((p, i) => ({ from: routeStops[i], to: p, min: legMin(routeStops[i], p) }));
+
+    const sched = {
+      1: [[580, '9:40', 'Flight UA 1142 to ORD', 'Departs SFO'], [780, '1:00', 'Hotel check-in', 'The Gwen'], [1110, '6:30', 'Welcome reception', 'McCormick Place']],
+      2: [[480, '8:00', 'Conference', 'McCormick Place · all morning'], [720, '12:00', 'Lunch', 'With the Ardent team'], [840, '2:00', 'Workshop', 'Room 4B']],
+      3: [[540, '9:00', 'Keynote', 'Main hall'], [660, '11:00', 'Panel · applied AI', 'Room 2A'], [1140, '7:00', 'Team dinner', 'Booked by Ardent']],
+      4: [[600, '10:00', 'Checkout', 'The Gwen'], [855, '2:15', 'Flight home', 'ORD → SFO']]
+    };
+    const dayNames = { 1: 'Tue 18', 2: 'Wed 19', 3: 'Thu 20', 4: 'Fri 21' };
+    const dayLong = { 1: 'Day 1 · Tuesday', 2: 'Day 2 · Wednesday', 3: 'Day 3 · Thursday', 4: 'Day 4 · Friday' };
+    const statusInk = { suggested: '#7F77DD', awaiting: '#042C53', planned: '#185FA5', confirmed: '#185FA5', working: '#5B52B8', changed: '#5B52B8' };
+    const statusWord = { suggested: 'Suggested', awaiting: 'Needs you', planned: 'In plan', confirmed: 'Confirmed', working: 'Working', changed: 'Changed' };
+
+    const timeline = [];
+    (sched[s.day] || []).forEach(r => timeline.push({
+      min: r[0], time: r[1], title: r[2], sub: r[3], badge: 'Existing', badgeInk: '#B9C4D2',
+      dot: '#B9C4D2', bg: '#FAFCFE', border: '#EDF1F7', stroke: 'solid', cursor: 'default', tap: () => {}
+    }));
+    planIds.forEach(id => {
+      const def = planDefs[id], ps = s.plan[id];
+      if (def.day !== s.day || ps === 'skipped') return;
+      const o = chosen(id);
+      timeline.push({
+        min: def.min, time: def.time, title: o.name,
+        sub: ps === 'confirmed' && def.needsRes ? 'Party of 2 · confirmation #4F21B' : o.sub + ' · ' + o.dist,
+        badge: statusWord[ps], badgeInk: statusInk[ps], dot: statusInk[ps], bg: '#FFF',
+        border: ps === 'suggested' ? '#CFCCF3' : ps === 'awaiting' ? '#042C53' : ps === 'changed' ? '#CFCCF3' : '#C9DEF3',
+        stroke: ps === 'suggested' ? 'dashed' : 'solid', cursor: 'pointer',
+        tap: () => S({ sheet: 'item', item: id })
+      });
+    });
+    timeline.sort((a, b) => a.min - b.min);
+
+    const days = [1, 2, 3, 4].map(n => ({
+      label: dayNames[n], select: () => S({ day: n }),
+      bg: s.day === n ? '#042C53' : '#FFF', ink: s.day === n ? '#F4F7FB' : '#042C53',
+      border: s.day === n ? '#042C53' : '#E1E7F0',
+      dots: (sched[n] || []).map(() => ({ bg: s.day === n ? 'rgba(244,247,251,.45)' : '#C4C1B6' }))
+        .concat(planIds.filter(id => planDefs[id].day === n && s.plan[id] !== 'skipped')
+          .map(id => ({ bg: s.plan[id] === 'suggested' ? '#7F77DD' : '#185FA5' })))
+    }));
+
+    const proposals = planIds.filter(id => s.plan[id] === 'suggested');
+    const acceptAll = () => {
+      const next = { ...s.plan };
+      planIds.forEach(id => { if (next[id] === 'suggested') next[id] = planDefs[id].needsRes ? 'awaiting' : 'planned'; });
+      const added = planIds.filter(id => next[id] === 'planned').length;
+      S({ plan: next, review: null, screen: 'trip' });
+      this.toast(!added ? 'Plan accepted' : s.perms.cal ? 'Plan accepted · ' + added + (added === 1 ? ' event added to your calendar' : ' events added to your calendar') : 'Plan accepted · ' + added + (added === 1 ? ' item' : ' items') + ' in your plan');
+    };
+    const rvId = planIds[s.review];
+    const provDef = s.prov && planDefs[s.prov] ? planDefs[s.prov] : null;
+    const rvDef = rvId ? planDefs[rvId] : null;
+    const rvOpt = rvId ? chosen(rvId) : null;
+    const keptIds = planIds.filter(id => s.plan[id] !== 'skipped');
+    const resCount = keptIds.filter(id => planDefs[id].needsRes).length;
+    const calCount = keptIds.filter(id => !planDefs[id].needsRes).length;
+    const dayCountKept = keptIds.reduce((acc, id) => acc.indexOf(planDefs[id].day) > -1 ? acc : acc.concat(planDefs[id].day), []).length;
+    const upcomingTrips = [
+      { name: 'Austin', dates: 'Sep 9–12 · Client visit', state: 'I activate Sep 2', note: 'Austin is confirmed. I start work Sep 2' },
+      { name: 'Lisbon', dates: 'Oct 2–8 · Personal', state: 'Dates only, no hotel yet', note: 'Add a hotel and I can plan around it' }
+    ].concat(s.extraTrips);
+    const itemId = s.item;
+    const itemDef = itemId ? planDefs[itemId] : null;
+    const itemOpt = itemId ? chosen(itemId) : null;
+
+    const freshPlan = { p1: 'suggested', p2: 'suggested', p3: 'suggested', p4: 'suggested' };
+    const resetDemo = () => S({ screen: 'today', sheet: null, ob: null, authVia: null, emailVal: '', codeVal: '', review: null, prov: null, override: {}, gen: null, alert: false, agent: null, sel: 'ymca', toast: '', day: 2, life: 'active', notif: false, notifKind: 'plan', manual: false, manualPick: {}, extraTrips: [], cat: 'Workout', filt: { window: 'Next 2 hrs', walk: 30, dur: 0, memberOnly: false, budget: false, amenityOnly: false }, plan: freshPlan, swap: { p1: 0, p2: 0, p3: 0, p4: 0 } });
+    const flowGroups = [
+      { title: 'Onboarding', note: 'first run',
+        items: [
+          { name: 'Sign in or sign up', sub: 'One screen, before anything is connected', run: () => S({ ob: 'auth', authVia: null, emailVal: '', codeVal: '', sheet: null, screen: 'today', life: 'upcoming', manual: false }) },
+          { name: 'Nothing connected yet', sub: 'Idle app after skipping calendar setup', run: () => S({ ob: null, sheet: null, screen: 'today', life: 'empty', manual: false, notif: false }) }
+        ] },
+      { title: 'Before the trip', note: 'detect → confirm → wait',
+        items: [
+      { name: 'Trip detection', sub: 'Calendar spots a trip → you confirm it', run: () => S({ ob: 'welcome', authVia: 'apple', sheet: null, screen: 'today', life: 'upcoming', manual: false }) },
+          { name: 'Add a trip yourself', sub: 'Manual entry when nothing was detected', run: () => S({ manual: true, sheet: null, ob: null, review: null }) },
+          { name: 'Waiting to activate', sub: 'Confirmed, nothing to do until Aug 11', run: () => S({ screen: 'today', life: 'upcoming', notif: false, sheet: null, ob: null, review: null }) },
+          { name: 'Building the plan', sub: 'Live progress while it works', run: () => { S({ life: 'upcoming' }); this.startGen(); } }
+        ] },
+      { title: 'Seven days out', note: 'the plan proposal',
+        items: [
+          { name: 'Plan is ready', sub: 'Push notification → review windows', run: () => S({ screen: 'today', life: 'preparing', notif: true, notifKind: 'plan', sheet: null, ob: null, review: null, plan: freshPlan }) },
+          { name: 'Review one by one', sub: 'Keep, swap or skip → accept the plan', run: () => S({ screen: 'trip', life: 'preparing', notif: false, sheet: null, ob: null, review: 0, plan: freshPlan }) },
+          { name: 'Why this suggestion', sub: 'Openings, matched prefs, alternatives', run: () => S({ screen: 'trip', life: 'preparing', notif: false, sheet: null, ob: null, review: 0, prov: 'p1', plan: freshPlan }) }
+        ] },
+      { title: 'During the trip', note: 'day 2 of 4 in Chicago',
+        items: [
+          { name: 'Wellness window', sub: '90 minutes free → YMCA → add to plan', run: () => S({ screen: 'today', life: 'active', notif: false, sheet: null, ob: null, review: null, plan: { ...s.plan, p1: 'suggested' }, alert: false }) },
+          { name: 'Book a table', sub: 'Times → confirm → working → verified', run: () => S({ screen: 'today', life: 'active', sheet: 'reserve', resStep: 0, ob: null, review: null }) },
+          { name: 'Change it by voice', sub: '“Skip the gym, find something healthy”', run: startVoice },
+          { name: 'Schedule conflict', sub: 'Push → workshop runs late → alternatives', run: () => S({ screen: 'today', life: 'active', alert: true, notif: true, notifKind: 'change', sheet: null, ob: null, review: null, plan: { ...s.plan, p1: 'suggested' } }) },
+          { name: 'Booking fails', sub: 'Table lost → retry or hand off to OpenTable', run: () => S({ screen: 'today', life: 'active', sheet: 'reserve', resStep: 4, slot: '7:30 PM', ob: null, review: null }) }
+        ] },
+      { title: 'After', note: 'archive',
+        items: [
+          { name: 'Trip complete', sub: 'Recap of what stuck, then quiet', run: () => S({ screen: 'today', life: 'completed', notif: false, sheet: null, ob: null, review: null }) }
+        ] }
+    ];
+    let flowN = 0;
+    flowGroups.forEach(g => g.items.forEach(it => { flowN += 1; it.n = String(flowN).padStart(2, '0'); }));
+
+    return {
+      clock: '5:12',
+      dayLabel: s.life === 'empty' ? 'No trip yet' : 'Chicago · Day ' + (this.props.tripDay ?? 2) + ' of 4',
+      lifeActive: s.life === 'active', lifePreparing: s.life === 'preparing',
+      lifeUpcoming: s.life === 'upcoming', lifeDone: s.life === 'completed',
+      lifeEmpty: s.life === 'empty',
+      obLater: () => S({ ob: null, screen: 'today', life: 'empty' }),
+      connectLater: () => S({ ob: 'welcome', authVia: s.authVia || 'apple' }),
+      goExplore: () => S({ screen: 'explore', cat: 'Workout' }),
+      notif: s.notif,
+      notifTitle: s.notifKind === 'change' ? 'Your schedule changed' : 'Your Chicago plan is ready',
+      notifBody: s.notifKind === 'change' ? 'Your workshop now ends at 6:00, so the 5:30 swim no longer fits. I found a 35-minute alternative.' : 'Three open windows and a dinner worth booking. Nothing reserved yet.',
+      notifCta: s.notifKind === 'change' ? 'Review alternatives' : 'Review plan',
+      notifOpen: () => s.notifKind === 'change'
+        ? S({ notif: false, screen: 'today', life: 'active', alert: true, sheet: 'alt' })
+        : S({ notif: false, screen: 'today', life: 'preparing', review: 0 }),
+      notifDismiss: () => S({ notif: false }),
+      planPreview: planIds.filter(id => s.plan[id] !== 'skipped').map(id => ({
+        when: dayNames[planDefs[id].day] + ' · ' + planDefs[id].time,
+        name: chosen(id).name, dist: chosen(id).dist
+      })),
+      willUse: [
+        { text: 'Your calendar, once the conference agenda lands' },
+        { text: 'The Gwen, 521 N Rush St' },
+        { text: 'Vegetarian · swim and run · $$ or less' }
+      ],
+      recap: [{ n: '3', label: 'sessions kept' }, { n: '2', label: 'dinners booked' }, { n: '1', label: 'evening skipped' }],
+      stateBg: st.bg, stateDot: st.dot, stateLabel: st.label,
+      stateInk: s.status === 'pill' ? st.ink : st.mark,
+      stateWord: st.word, stateDetail: st.detail, segs, statusOpts,
+      stBar: s.status === 'bar', stRule: s.status === 'rule', stPill: s.status === 'pill',
+      isToday: s.screen === 'today', isTrip: s.screen === 'trip',
+      isExplore: s.screen === 'explore', isAgent: s.screen === 'agent',
+      todayInk: ink(s.screen === 'today'), tripInk: ink(s.screen === 'trip'),
+      exploreInk: ink(s.screen === 'explore'), agentInk: ink(s.screen === 'agent'),
+      goToday: () => S({ screen: 'today', agent: null }), goTrip: () => S({ screen: 'trip' }),
+      goExplore: () => S({ screen: 'explore' }), goAgent: () => S({ screen: 'agent' }),
+      openVoice: startVoice,
+
+      dayItems: [
+        { time: '8:00 AM', title: 'Conference' },
+        { time: '12:00 PM', title: 'Lunch with the Ardent team' },
+        { time: '2:00 PM', title: 'Workshop · Room 4B' }
+      ],
+      ymcaOpen: s.plan.p1 === 'suggested', ymcaDone: s.plan.p1 === 'planned' || s.plan.p1 === 'confirmed',
+      addYmca: () => { S({ plan: { ...s.plan, p1: 'planned' } }); this.toast(s.perms.cal ? 'In your plan · added to your calendar' : 'In your plan · 5:30 PM'); },
+      dinnerOpen: s.plan.p2 !== 'confirmed', dinnerDone: s.plan.p2 === 'confirmed',
+      dinnerConfirmLabel: s.dinnerLabel || 'Reserved · 7:30 PM, party of 2',
+      openReserve: () => S({ sheet: 'reserve', resStep: 0 }),
+
+      alertOn: s.alert,
+      openAlt: () => S({ sheet: 'alt' }),
+      alts: [
+        { name: 'Hotel fitness room', sub: 'Treadmill + weights · open 24h', dist: '0 min', why: '35 minutes, no travel time', pick: () => { S({ sheet: null, alert: false, plan: { ...s.plan, p1: 'changed' }, swap: { ...s.swap, p1: 1 } }); this.toast('Workout moved to 6:10 PM · hotel gym'); } },
+        { name: 'Lakefront Trail', sub: '2 mi out-and-back · lit path', dist: '4 min', why: 'Still back by 7:15 for dinner', pick: () => { S({ sheet: null, alert: false, plan: { ...s.plan, p1: 'changed' }, swap: { ...s.swap, p1: 2 } }); this.toast('Workout moved to 6:05 PM · Chicago Athletic Club'); } }
+      ],
+      skipTonight: () => { S({ sheet: null, alert: false, plan: { ...s.plan, p1: 'skipped' } }); this.toast('Skipped tonight. I\u2019ll look at tomorrow morning'); },
+
+      isTrips: s.sheet === 'trips', openTrips: () => S({ sheet: 'trips' }),
+      manualOn: s.manual, openManual: () => S({ manual: true, sheet: null, ob: null }),
+      closeManual: () => S({ manual: false }),
+      manualFields: [
+        { key: 'where', label: 'Where', opts: ['Austin, TX', 'Denver, CO', 'Lisbon, PT'] },
+        { key: 'when', label: 'When', opts: ['Sep 9 – 12', 'Sep 22 – 25', 'Oct 2 – 8'] },
+        { key: 'hotel', label: 'Staying at', opts: ['Hotel Van Zandt', 'Not booked yet', 'Downtown, near the venue'] },
+        { key: 'why', label: 'Purpose', opts: ['Client visit', 'Conference', 'Personal'] }
+      ].map(mf => {
+        const i = s.manualPick[mf.key] || 0;
+        const value = mf.opts[i % mf.opts.length];
+        return { label: mf.label, value,
+          ink: value === 'Not booked yet' ? '#8A97A8' : '#042C53',
+          cycle: () => S({ manualPick: { ...s.manualPick, [mf.key]: (i + 1) % mf.opts.length } }) };
+      }),
+      createManual: () => {
+        const where = ['Austin, TX', 'Denver, CO', 'Lisbon, PT'][(s.manualPick.where || 0) % 3];
+        const when = ['Sep 9 – 12', 'Sep 22 – 25', 'Oct 2 – 8'][(s.manualPick.when || 0) % 3];
+        const hotel = ['Hotel Van Zandt', 'Not booked yet', 'Downtown, near the venue'][(s.manualPick.hotel || 0) % 3];
+        const why = ['Client visit', 'Conference', 'Personal'][(s.manualPick.why || 0) % 3];
+        const city = where.split(',')[0];
+        const noHotel = hotel === 'Not booked yet';
+        S({
+          manual: false, screen: 'trip', sheet: null,
+          extraTrips: s.extraTrips.concat([{
+            name: city, dates: when.replace(' – ', '–') + ' · ' + why,
+            state: noHotel ? 'Add a hotel and I can plan' : 'I activate a week out',
+            note: noHotel ? 'Add a hotel and I can plan around it' : city + ' is confirmed. I start work a week before you fly'
+          }])
+        });
+        this.toast(city + ' added · Chicago stays your active trip');
+      },
+      focusDot: s.life === 'active' ? '#185FA5' : s.life === 'preparing' ? '#7F77DD' : '#8A97A8',
+      otherTrips: upcomingTrips.map(t => ({
+        name: t.name, dates: t.dates, state: t.state, dot: '#C4C1B6',
+        pick: () => this.toast(t.note)
+      })),
+      allTrips: [{
+        name: 'Chicago', dates: 'Aug 18–21 · Conference',
+        state: s.life === 'active' ? 'Active · day 2 of 4' : s.life === 'preparing' ? 'Preparing' : s.life === 'completed' ? 'Complete' : 'Upcoming',
+        stateInk: s.life === 'completed' ? '#8A97A8' : '#0F4A85',
+        dot: s.life === 'active' ? '#185FA5' : s.life === 'preparing' ? '#7F77DD' : '#8A97A8',
+        border: '#185FA5', pick: () => S({ sheet: null, screen: 'trip' })
+      }].concat(upcomingTrips.map(t => ({
+        name: t.name, dates: t.dates, state: t.state, stateInk: '#8A97A8', dot: '#C4C1B6', border: '#E1E7F0',
+        pick: () => { S({ sheet: null }); this.toast(t.note); }
+      })), [
+        { name: 'New York', dates: 'Jun 3–6 · Complete', state: 'Archived', stateInk: '#8A97A8', dot: '#D9DFE8', border: '#E1E7F0', pick: () => { S({ sheet: null }); this.toast('Archived trips are read-only'); } }
+      ]),
+      tripFacts: [
+        { tag: 'FLT', title: 'UA 1142 · ORD 9:40 AM', sub: 'Aug 18 · confirmed', source: 'Calendar' },
+        { tag: 'HTL', title: 'The Gwen', sub: '521 N Rush St · 3 nights', source: 'Email' },
+        { tag: 'EVT', title: 'Ardent Summit', sub: 'McCormick Place · Aug 19–20', source: 'Calendar' }
+      ],
+      timeline, days,
+      dayHeading: dayLong[s.day], dayCount: (sched[s.day] || []).length + ' commitments',
+      hasProposals: proposals.length > 0,
+      planHeadline: proposals.length + ' things I would add to your Chicago days',
+      planProvenance: 'Prepared Aug 11, seven days out · read 11 calendar events · found 3 open windows',
+      openReview: () => S({ review: 0 }), acceptAll,
+
+      provOn: s.prov !== null,
+      closeProv: () => S({ prov: null }),
+      rvProv: () => S({ prov: rvId }),
+      itemProv: () => S({ prov: s.item }),
+      provPlace: provDef ? chosen(s.prov).name : '',
+      provWindowLabel: provDef ? provDef.windowLabel : '',
+      provGap: provDef ? provDef.gap : '',
+      provBounds: provDef ? provDef.prov.bounds : [],
+      provMatched: provDef ? provDef.prov.matched : [],
+      provLost: provDef ? provDef.prov.lost : [],
+      provWhy: provDef ? chosen(s.prov).why : '',
+
+      reviewOn: s.review !== null,
+      closeReview: () => S({ review: null }),
+      reviewProgress: s.review === planIds.length ? 'Summary' : (s.review + 1) + ' of ' + planIds.length,
+      reviewCard: s.review !== null && s.review < planIds.length,
+      reviewSummary: s.review === planIds.length,
+      rvWindowLabel: rvDef ? rvDef.windowLabel : '', rvWindow: rvDef ? rvDef.window : '', rvGap: rvDef ? rvDef.gap : '',
+      rvName: rvOpt ? rvOpt.name : '', rvSub: rvOpt ? rvOpt.sub : '', rvWhy: rvOpt ? rvOpt.why : '', rvDist: rvOpt ? rvOpt.dist : '',
+      rvNeedsRes: !!(rvDef && rvDef.needsRes),
+      rvSwapLabel: rvDef ? 'Swap · ' + planDefs[rvId].options[((s.swap[rvId] || 0) + 1) % planDefs[rvId].options.length].name : 'Swap',
+      rvSwap: () => S({ swap: { ...s.swap, [rvId]: (s.swap[rvId] || 0) + 1 } }),
+      rvKeep: () => S({ review: s.review + 1 }),
+      rvSkip: () => S({ plan: { ...s.plan, [rvId]: 'skipped' }, review: s.review + 1 }),
+      sumHeadline: keptIds.length === 0 ? 'Nothing left in this plan'
+        : keptIds.length + (keptIds.length === 1 ? ' addition across ' : ' additions across ')
+          + dayCountKept + (dayCountKept === 1 ? ' day' : ' days'),
+      sumSub: (() => {
+        if (!keptIds.length) return 'Skip everything and I will look again tomorrow morning.';
+        const n = (f2) => keptIds.filter(id => f2(planDefs[id].min)).length;
+        const parts = [[n(m => m < 720), 'morning'], [n(m => m >= 720 && m < 1020), 'afternoon'], [n(m => m >= 1020), 'evening']]
+          .filter(p => p[0] > 0).map(p => p[0] + ' ' + p[1] + (p[0] > 1 ? 's' : ''));
+        const list = parts.length > 1 ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1] : parts[0];
+        return list.charAt(0).toUpperCase() + list.slice(1) + '. Nothing overlaps a commitment.';
+      })(),
+      sumItems: keptIds.map(id => ({
+        title: chosen(id).name, when: dayNames[planDefs[id].day] + ' · ' + planDefs[id].time,
+        note: planDefs[id].needsRes ? 'Reservation' : 'Plan item',
+        dot: planDefs[id].needsRes ? '#042C53' : '#185FA5'
+      })),
+      sumNeeds: keptIds.length === 0 ? [] : [].concat(
+        resCount === 0 ? [] : [{ title: resCount === 1 ? '1 reservation to confirm' : resCount + ' reservations to confirm', sub: 'I will show you the times and wait for your yes before booking.', dot: '#042C53' }],
+        calCount === 0 ? [] : [{ title: s.perms.cal ? (calCount === 1 ? '1 calendar event added automatically' : calCount + ' calendar events added automatically') : 'I will ask before touching your calendar', sub: s.perms.cal ? 'You allowed this in your profile. Turn it off any time.' : 'Change this in your profile if you would rather I just add them.', dot: '#185FA5' }]
+      ),
+      canAccept: keptIds.length > 0, nothingKept: keptIds.length === 0,
+      acceptLabel: keptIds.length === 1 ? 'Accept 1 addition' : 'Accept ' + keptIds.length + ' additions', acceptPlan: acceptAll,
+
+      isItem: s.sheet === 'item',
+      itemName: itemOpt ? itemOpt.name : '', itemWhy: itemOpt ? itemOpt.why : '',
+      itemWhen: itemDef ? dayLong[itemDef.day] + ' · ' + itemDef.time + ' · ' + itemDef.window : '',
+      itemStatus: itemId ? statusWord[s.plan[itemId]] : '', itemStatusInk: itemId ? statusInk[s.plan[itemId]] : '#8A97A8',
+      itemNeedsRes: !!(itemDef && itemDef.needsRes && s.plan[itemId] !== 'confirmed'),
+      itemReserve: () => S({ sheet: 'reserve', resStep: 0 }),
+      itemSkip: () => { S({ plan: { ...s.plan, [itemId]: 'skipped' }, sheet: null }); this.toast('Removed from your plan'); },
+      itemOptions: itemDef ? itemDef.options.map((o, i) => ({
+        name: o.name, sub: o.sub, dist: o.dist,
+        border: i === ((s.swap[itemId] || 0) % itemDef.options.length) ? '#185FA5' : '#E1E7F0',
+        pick: () => { S({ swap: { ...s.swap, [itemId]: i }, sheet: null }); this.toast('Swapped to ' + o.name); }
+      })) : [],
+
+      cats, pins, places,
+      exploreHeading: s.cat === 'Food' ? 'Places to eat' : s.cat === 'Outdoor' ? 'Outside near you' : s.cat === 'Recovery' ? 'Rest and recovery' : 'Ways to move',
+      noResults: shown.length === 0,
+      constraintLine: shown.length + (shown.length === 1 ? ' place' : ' places') + ' · ' + s.filt.window.toLowerCase(),
+      scrollRef: (el) => { if (el) this.scroller = el; },
+      stageRef: (el) => { if (el && el !== this.stage) { this.stage = el; requestAnimationFrame(() => this.fitStage()); } },
+      genOn: s.gen !== null,
+      startGen: () => this.startGen(),
+      dismissGen: () => S({ gen: null }),
+      genSteps: [
+        { label: 'Reading your Chicago dates', sub: 'Flight, hotel, and the 11 commitments already on your calendar' },
+        { label: 'Finding your openings', sub: 'Gaps long enough to be worth leaving the hotel for' },
+        { label: 'Looking for places near The Gwen', sub: 'Open when you are free, inside your walking limit' },
+        { label: 'Putting the plan together', sub: 'Ranked against your standing preferences' }
+      ].map((st, i) => ({
+        label: st.label, sub: st.sub,
+        done: s.gen !== null && i < s.gen,
+        active: s.gen === i,
+        dotBg: s.gen !== null && i < s.gen ? '#185FA5' : '#FFF',
+        dotBorder: s.gen !== null && i < s.gen ? '#185FA5' : s.gen === i ? '#7F77DD' : '#E1E7F0',
+        labelInk: s.gen !== null && i <= s.gen ? '#042C53' : '#A8B3C2',
+        subInk: s.gen !== null && i <= s.gen ? '#5A6B80' : '#C3CCD8'
+      })),
+
+      calloutOn: !!selPlace && shown.indexOf(selPlace) > -1,
+      calloutX: selPlace ? Math.min(300, Math.max(96, selPlace.x)) + 'px' : '0px',
+      calloutY: selPlace ? (selPlace.y - 26) + 'px' : '0px',
+      calloutName: selPlace ? selPlace.name : '',
+      calloutMeta: selPlace ? (selPlace.walk === 0 ? 'In the hotel' : selPlace.walk + ' min walk from The Gwen') : '',
+      calloutHours: selPlace ? hoursLabel(selPlace) : '',
+      calloutHoursInk: selPlace && hoursTight(selPlace) ? '#042C53' : '#8A97A8',
+      calloutOpen: () => S({ sheet: 'place' }),
+
+      routePoints: routeStops.map(p => p.x + ',' + p.y).join(' '),
+      routeHasPath: routeStops.length > 1,
+      routeStart: routeStops.length > 1 ? 'Hotel' : 'Nothing planned ' + (s.day === 2 ? 'today' : 'that day'),
+      routeSteps: routeLegs.map(l => ({ min: l.min + ' min', name: l.to.id === 'hotel' ? 'Hotel' : l.to.name })),
+      routeTotal: routeLegs.length ? routeLegs.reduce((a, l) => a + l.min, 0) + ' min walking' : '',
+      spurOn: !!selPlace && routeIds.indexOf(s.sel) === -1 && selPlace.walk > 0,
+      spurPoints: selPlace ? '82,286 ' + selPlace.x + ',' + selPlace.y : '',
+      spurLabel: selPlace ? 'Add ' + selPlace.name + ': +' + legMin(HOTEL, selPlace) + ' min from the hotel' : '',
+
+      isPlace: s.sheet === 'place',
+      pdName: selPlace ? selPlace.name : '',
+      pdSub: selPlace ? selPlace.sub : '',
+      pdWhy: selPlace ? selPlace.why : '',
+      pdHours: selPlace ? hoursLabel(selPlace) : '',
+      pdHoursInk: selPlace && hoursTight(selPlace) ? '#042C53' : '#8A97A8',
+      pdDist: selPlace ? (selPlace.walk === 0 ? 'In the hotel' : selPlace.walk + ' min walk') : '',
+      pdDur: selPlace ? selPlace.dur + ' min typical' : '',
+      pdCost: selPlace ? (selPlace.price > 0 ? '$' + selPlace.price + ' day pass' : selPlace.covered ? 'Covered by your membership' : 'Free') : '',
+      pdIsFood: !!selPlace && selPlace.kind === 'Food',
+      pdImg: selPlace ? React.createElement('img', { src: selPlace.img, alt: '', style: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' } }) : null,
+      pdReserve: () => S({ sheet: 'reserve', resStep: 0 }),
+      pdWindows: planIds.filter(id => planDefs[id].day === s.day && s.plan[id] !== 'confirmed').map(id => ({
+        label: planDefs[id].windowLabel + ' · ' + planDefs[id].time,
+        sub: planDefs[id].window,
+        current: 'Now: ' + chosen(id).name,
+        add: () => {
+          if (!selPlace) return;
+          S({
+            override: { ...s.override, [id]: { name: selPlace.name, sub: selPlace.sub, why: selPlace.why, dist: selPlace.walk === 0 ? 'In the hotel' : selPlace.walk + ' min walk' } },
+            plan: { ...s.plan, [id]: 'changed' }, sheet: null, screen: 'trip'
+          });
+          this.toast(selPlace.name + ' is in your ' + planDefs[id].time + ' window');
+        }
+      })),
+      pdNoWindows: planIds.filter(id => planDefs[id].day === s.day && s.plan[id] !== 'confirmed').length === 0,
+      openFilters: () => S({ sheet: 'filters' }), isFilters: s.sheet === 'filters',
+      filterLabel: activeCount ? 'Filters · ' + activeCount : 'Filters',
+      filterBg: activeCount ? '#042C53' : '#FFF', filterInk: activeCount ? '#F4F7FB' : '#042C53',
+      filterBorder: activeCount ? '#042C53' : '#E1E7F0',
+      applyLabel: 'Show ' + shown.length + (shown.length === 1 ? ' place' : ' places'),
+      resetFilters: () => S({ filt: { window: 'Next 2 hrs', walk: 30, dur: 0, memberOnly: false, budget: false, amenityOnly: false } }),
+      fWindows: ['Now', 'Next 2 hrs', 'This evening'].map(label => ({
+        label, pick: () => setFilt({ window: label }),
+        bg: s.filt.window === label ? '#E6F1FB' : '#FFF', ink: s.filt.window === label ? '#185FA5' : '#042C53',
+        border: s.filt.window === label ? '#185FA5' : '#E1E7F0'
+      })),
+      fDurations: [{ label: 'Any', v: 0 }, { label: '30m', v: 30 }, { label: '45m', v: 45 }, { label: '60m', v: 60 }].map(d => ({
+        label: d.label, pick: () => setFilt({ dur: d.v }),
+        bg: s.filt.dur === d.v ? '#E6F1FB' : '#FFF', ink: s.filt.dur === d.v ? '#185FA5' : '#042C53',
+        border: s.filt.dur === d.v ? '#185FA5' : '#E1E7F0'
+      })),
+      fWalks: [{ label: '5 min', v: 5 }, { label: '10 min', v: 10 }, { label: '20 min', v: 20 }, { label: 'Any', v: 30 }].map(w => ({
+        label: w.label, pick: () => setFilt({ walk: w.v }),
+        bg: s.filt.walk === w.v ? '#E6F1FB' : '#FFF', ink: s.filt.walk === w.v ? '#185FA5' : '#042C53',
+        border: s.filt.walk === w.v ? '#185FA5' : '#E1E7F0'
+      })),
+      fToggles: [
+        { key: 'memberOnly', label: 'Only what my memberships cover', sub: 'YMCA and the hotel gym qualify' },
+        { key: 'budget', label: 'Stay under my $' + cap + ' pass cap', sub: 'Hides day passes above the cap' },
+        { key: 'amenityOnly', label: 'Must have my amenities', sub: s.amenities.join(' · ') || 'None set yet' }
+      ].map(t => ({
+        label: t.label, sub: t.sub, toggle: () => setFilt({ [t.key]: !s.filt[t.key] }),
+        track: s.filt[t.key] ? '#185FA5' : '#CBD5E1', justify: s.filt[t.key] ? 'flex-end' : 'flex-start'
+      })),
+      standingLine: 'YMCA reciprocity and hotel gym access · $' + cap + ' pass cap · ' + s.amenities.join(', ').toLowerCase() + ' · ' + s.prefs.slice(0, 3).join(', ').toLowerCase(),
+
+      agentHasAnswer: !!ans, agentEmpty: !ans,
+      agentQuery: ans ? ans.query : '', agentSummary: ans ? ans.summary : '',
+      agentCards: ans ? ans.cards : [],
+      knows: [
+        { text: 'Your Chicago trip, Aug 18–21' },
+        { text: '11 calendar commitments across 4 days' },
+        { text: 'The Gwen, 521 N Rush St' },
+        { text: 'Vegetarian · swim and run · $$ or less' }
+      ],
+      prompts,
+
+      sheetOpen: !!s.sheet && s.sheet !== 'profile', closeSheet: () => S({ sheet: null }),
+      isVoice: s.sheet === 'voice', isReserve: s.sheet === 'reserve', isAlt: s.sheet === 'alt',
+      isProfile: s.sheet === 'profile', openProfile: () => S({ sheet: 'profile' }),
+      prefs: ['Vegetarian', 'Swim', 'Running', 'Strength', '$$ or less', '45–90 min', 'Mornings'].map(label => {
+        const on = s.prefs.indexOf(label) > -1;
+        return {
+          label, toggle: () => S({ prefs: on ? s.prefs.filter(x => x !== label) : s.prefs.concat(label) }),
+          bg: on ? '#E6F1FB' : '#FFF', ink: on ? '#0F4A85' : '#5A6B80', border: on ? '#185FA5' : '#E1E7F0'
+        };
+      }),
+      memberships: ['YMCA reciprocity', 'Hotel gym access', 'ClassPass', 'Equinox'].map(label => {
+        const on = s.memberships.indexOf(label) > -1;
+        return { label, toggle: () => S({ memberships: on ? s.memberships.filter(x => x !== label) : s.memberships.concat(label) }),
+          bg: on ? '#E6F1FB' : '#FFF', ink: on ? '#0F4A85' : '#5A6B80', border: on ? '#185FA5' : '#E1E7F0' };
+      }),
+      budgets: [0, 20, 40, 75].map(v => ({
+        label: v === 0 ? 'Free only' : '$' + v, pick: () => S({ budget: v }),
+        bg: s.budget === v ? '#E6F1FB' : '#FFF', ink: s.budget === v ? '#185FA5' : '#042C53',
+        border: s.budget === v ? '#185FA5' : '#E1E7F0'
+      })),
+      amenityOpts: ['Pool', 'Treadmill', 'Weights', 'Sauna', 'Showers'].map(label => {
+        const on = s.amenities.indexOf(label) > -1;
+        return { label, toggle: () => S({ amenities: on ? s.amenities.filter(x => x !== label) : s.amenities.concat(label) }),
+          bg: on ? '#E6F1FB' : '#FFF', ink: on ? '#0F4A85' : '#5A6B80', border: on ? '#185FA5' : '#E1E7F0' };
+      }),
+      perms: [
+        { key: 'cal', label: 'Add approved plans to my calendar', sub: 'Only what you have approved' },
+        { key: 'book', label: 'Book tables under $40 without asking', sub: 'Currently off. I confirm every reservation' },
+        { key: 'watch', label: 'Watch my schedule and warn me', sub: 'Nudges when a plan stops fitting' }
+      ].map(p => {
+        const on = !!s.perms[p.key];
+        return {
+          label: p.label, sub: p.sub,
+          toggle: () => S({ perms: { ...s.perms, [p.key]: !on } }),
+          track: on ? '#185FA5' : '#CBD5E1', justify: on ? 'flex-end' : 'flex-start'
+        };
+      }),
+      sources: [
+        { tag: 'CAL', name: 'Google Calendar', sub: 'Synced 4 min ago', state: 'Connected', ink: '#0F4A85' },
+        { tag: 'MAI', name: 'Email receipts', sub: 'Flights and hotels only', state: 'Connected', ink: '#0F4A85' },
+        { tag: 'FIT', name: 'ClassPass', sub: 'Would unlock studio bookings', state: 'Connect', ink: '#5B52B8' }
+      ],
+      voiceListening: s.voiceStep === 0, voiceWorking: s.voiceStep === 1, voiceResult: s.voiceStep === 2,
+      voiceHeard: 'I\u2019m exhausted. Skip the gym and find something healthy near the hotel.',
+      workLabel: s.workLabel,
+      approveVoice: () => { S({ sheet: null, plan: { ...s.plan, p1: 'skipped', p2: 'confirmed' }, dinnerLabel: 'Reserved · 6:15 PM, party of 1' }); this.toast('Beatrix confirmed · 6:15 PM'); },
+
+      resTimes: s.resStep === 0, resConfirm: s.resStep === 1, resWorking: s.resStep === 2, resDone: s.resStep === 3, resFailed: s.resStep === 4,
+      retryReserve: () => { S({ slot: '8:00 PM', resStep: 1 }); },
+      externalReserve: () => { S({ sheet: null, plan: { ...s.plan, p2: 'awaiting' } }); this.toast('Opening OpenTable. I\u2019ll keep this unconfirmed until you tell me'); },
+      slots, slotLabel: s.slot,
+      toConfirm: () => S({ resStep: 1 }),
+      confirmRows: [
+        { k: 'What', v: 'Dinner at Beatrix' },
+        { k: 'When', v: 'Tonight, ' + s.slot },
+        { k: 'Where', v: '519 N Clark St · 5 min from YMCA' },
+        { k: 'Who', v: 'Party of 2' },
+        { k: 'Cost', v: 'No deposit' }
+      ],
+      runReserve,
+      finishReserve: () => { S({ sheet: null, plan: { ...s.plan, p2: 'confirmed' }, dinnerLabel: 'Reserved · ' + s.slot + ', party of 2', screen: 'trip', day: 2 }); this.toast('Confirmed · added to your Chicago plan'); },
+
+      onboarding: s.ob !== null,
+      obAuth: s.ob === 'auth', obEmail: s.ob === 'email', obCode: s.ob === 'code',
+      obWelcome: s.ob === 'welcome', obScanning: s.ob === 'scanning', obFound: s.ob === 'found', obReady: s.ob === 'ready',
+      authGoogle: () => S({ ob: 'welcome', authVia: 'google' }),
+      authApple: () => S({ ob: 'welcome', authVia: 'apple' }),
+      authEmail: () => S({ ob: 'email', emailVal: '', codeVal: '' }),
+      authBack: () => S({ ob: 'auth', emailVal: '', codeVal: '' }),
+      emailVal: s.emailVal,
+      setEmail: (e) => S({ emailVal: e.target.value }),
+      emailOk: /\S+@\S+\.\S\S+/.test(s.emailVal),
+      emailBtnBg: /\S+@\S+\.\S\S+/.test(s.emailVal) ? '#185FA5' : '#DDE4EE',
+      emailBtnInk: /\S+@\S+\.\S\S+/.test(s.emailVal) ? '#FFF' : '#A8B3C2',
+      emailSubmit: () => { if (/\S+@\S+\.\S\S+/.test(s.emailVal)) S({ ob: 'code' }); },
+      codeVal: s.codeVal,
+      setCode: (e) => S({ codeVal: (e.target.value || '').replace(/[^0-9]/g, '').slice(0, 6) }),
+      codeDigits: [0, 1, 2, 3, 4, 5].map(i => ({
+        char: s.codeVal[i] || '',
+        border: s.codeVal.length === i ? '#185FA5' : s.codeVal[i] ? '#C9DEF3' : '#E1E7F0'
+      })),
+      codeBtnBg: s.codeVal.length === 6 ? '#185FA5' : '#DDE4EE',
+      codeBtnInk: s.codeVal.length === 6 ? '#FFF' : '#A8B3C2',
+      codeSubmit: () => { if (s.codeVal.length === 6) S({ ob: 'welcome', authVia: 'email' }); },
+      codeResend: () => this.toast('New code sent to ' + s.emailVal),
+      codeSentTo: s.emailVal,
+      accountEmail: s.authVia === 'google' ? 'duy.le@gmail.com' : s.authVia === 'apple' ? 'duy.le@icloud.com' : s.emailVal,
+      googleAuthed: s.authVia === 'google',
+      connectLabel: s.authVia === 'google' ? 'Continue' : 'Connect Google Calendar',
+      obNext: () => {
+        const order = ['welcome', 'scanning', 'found', 'ready'];
+        const n = order[order.indexOf(s.ob) + 1];
+        if (!n) return;
+        S({ ob: n });
+        if (n === 'scanning') { clearTimeout(this._t); this._t = setTimeout(() => S({ ob: 'found' }), 1800); }
+      },
+      obSkip: () => S({ ob: 'found' }),
+      obDone: () => S({ ob: null, screen: 'today', life: 'upcoming' }),
+      evidence: [
+        { title: 'Flight UA 1142 to ORD', src: 'Calendar' },
+        { title: 'The Gwen · 3 nights', src: 'Email' },
+        { title: 'Ardent Summit, Aug 19–20', src: 'Calendar' }
+      ],
+      readyRows: [
+        { text: 'Wellness windows found in your schedule' },
+        { text: 'Gyms, pools and trails near The Gwen' },
+        { text: 'Restaurants that match your preferences' }
+      ],
+
+      toast: !!s.toast, toastText: s.toast,
+      swatches: [
+        { name: 'Navy', hex: '#042C53', role: 'Ink, and what needs you' },
+        { name: 'Blue', hex: '#185FA5', role: 'Settled: confirmed, primary' },
+        { name: 'Sky', hex: '#E6F1FB', role: 'Selected, membership covered' },
+        { name: 'Periwinkle', hex: '#7F77DD', role: 'TravelWell thinking: suggested' },
+        { name: 'Lilac', hex: '#EEEDFE', role: 'Proposal surfaces' },
+        { name: 'Paper', hex: '#F4F7FB', role: 'App background' },
+        { name: 'Slate', hex: '#5A6B80', role: 'Secondary text' }
+      ],
+      principles: [
+        { text: 'Colour carries state, never decoration: one hue per meaning.' },
+        { text: 'Nothing is booked without a confirmation step, and the UI says so.' },
+        { text: 'Every suggestion shows why it was suggested.' },
+        { text: 'Serif for place and moment; sans for anything you act on.' },
+        { text: 'One card pattern everywhere: recommendation, agent answer, reservation.' },
+        { text: 'State reads as a dot and a word, not a badge cluster.' }
+      ],
+      avoided: [
+        { text: 'Gradients and glass' },
+        { text: 'Neon AI aesthetics' },
+        { text: 'Dense tables' },
+        { text: 'A chat window' },
+        { text: 'Emoji' },
+        { text: 'Generated prose' }
+      ],
+      panelOn: this.props.showFlowPanel ?? true,
+      flowsLeft: (() => { const half = Math.ceil(flowGroups.reduce((a, g) => a + g.items.length + 1, 0) / 2); let n = 0; return flowGroups.filter(g => { const keep = n < half; n += g.items.length + 1; return keep; }); })(),
+      flowsRight: (() => { const half = Math.ceil(flowGroups.reduce((a, g) => a + g.items.length + 1, 0) / 2); let n = 0; return flowGroups.filter(g => { const keep = n >= half; n += g.items.length + 1; return keep; }); })(),
+      flowGroups, resetDemo
+    };
+  }
+}
+</script>
+</body>
+</html>
