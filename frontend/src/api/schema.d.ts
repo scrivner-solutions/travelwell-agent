@@ -962,7 +962,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                provider: "google" | "apple";
+                provider: "google";
             };
             cookie?: never;
         };

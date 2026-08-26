@@ -32,7 +32,7 @@ export function SignInScreen() {
     onSuccess: () => void navigate({ to: '/today' }),
   })
 
-  const startOauth = (provider: 'google' | 'apple') => {
+  const startOauth = (provider: 'google') => {
     window.location.href = `${runtimeConfig().apiBaseUrl}/api/v1/auth/oauth/${provider}/start`
   }
 
@@ -50,9 +50,6 @@ export function SignInScreen() {
       <div className="flex flex-col gap-3">
         <Button variant="secondary" onClick={() => startOauth('google')}>
           Continue with Google
-        </Button>
-        <Button variant="secondary" onClick={() => startOauth('apple')}>
-          Continue with Apple
         </Button>
       </div>
 

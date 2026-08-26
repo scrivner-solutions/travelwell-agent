@@ -163,7 +163,7 @@ Chosen to extend what `travelwell-agent/frontend` already uses. Substitutions ne
 | Styling | CSS custom properties (tokens) + Tailwind v4 consuming them | Tokens stay the single source; replaces the monolithic `App.css` |
 | Maps | Google Maps JS (vector, AdvancedMarker) - porting the existing marker/card sync + geocode fallback | Backend already uses Places/Routes; one provider, one visual language |
 | Dates/times | `Intl` + `date-fns-tz`; **all trip times rendered in `trips.timezone`, never device TZ** | The schema stores `timestamptz` + IANA zone per trip; a 5:30 PM Chicago workout must read 5:30 PM from a phone still on SFO time |
-| Auth | OAuth (Google/Apple) + email code via backend; **httpOnly session cookie (BFF pattern)** - no tokens in JS-readable storage | Arch guide §33; replaces the old ephemeral session ids |
+| Auth | OAuth (Google) + email code via backend; **httpOnly session cookie (BFF pattern)** - no tokens in JS-readable storage | Arch guide §33; replaces the old ephemeral session ids |
 | PWA plumbing | `vite-plugin-pwa` (Workbox), FCM Web Push | §3 |
 | Runtime config | Keep `entrypoint.sh` → `config.json` + `GET /api/config` | Existing, correct pattern; extend with new keys |
 

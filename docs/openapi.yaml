@@ -115,7 +115,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [google, apple]
+            enum: [google]
       responses:
         "302":
           description: Redirect to the provider's consent screen
