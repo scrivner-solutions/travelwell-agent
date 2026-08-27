@@ -55,6 +55,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/demo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign into the seeded demo account (flag-gated; off outside dev) */
+        post: operations["demoLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/oauth/{provider}/start": {
         parameters: {
             query?: never;
@@ -1021,6 +1038,27 @@ export interface operations {
                 };
             };
         };
+        responses: {
+            /** @description Session established; Set-Cookie carries the httpOnly session */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    demoLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Session established; Set-Cookie carries the httpOnly session */
             200: {

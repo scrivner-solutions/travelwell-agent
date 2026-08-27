@@ -103,6 +103,22 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /auth/demo:
+    post:
+      tags: [auth]
+      operationId: demoLogin
+      summary: Sign into the seeded demo account (flag-gated; off outside dev)
+      security: []
+      responses:
+        "200":
+          description: Session established; Set-Cookie carries the httpOnly session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /auth/oauth/{provider}/start:
     get:
       tags: [auth]

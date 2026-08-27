@@ -83,6 +83,40 @@ async def verify_email_code(
     return UserOut.from_model(user)
 
 
+def _demo_login_enabled() -> bool:
+    """Hackathon demo entry: on by default in dev/test only; a deployed
+    environment must opt in explicitly with DEMO_LOGIN_ENABLED=1."""
+    flag = os.getenv("DEMO_LOGIN_ENABLED", "").lower()
+    if flag in ("1", "true"):
+        return True
+    if flag in ("0", "false"):
+        return False
+    return sessions.dev_mode()
+
+
+@router.post("/auth/demo")
+async def demo_login(response: Response, session: SessionDep) -> UserOut:
+    """Sign into the pre-seeded demo account for hackathon walkthroughs."""
+    if not _demo_login_enabled():
+        raise Problem(403, "Demo sign-in is disabled", "demo_disabled")
+
+    email = os.getenv("DEMO_USER_EMAIL", "demo@travelwell.dev")
+    user = (
+        await session.execute(select(User).where(User.email == email))
+    ).scalar_one_or_none()
+    if user is None:
+        # Find-only on purpose: auto-creating here would demo an empty app.
+        raise Problem(
+            503,
+            "Demo account is not seeded",
+            "demo_unseeded",
+            detail="Run scripts/seed.py against this database first.",
+        )
+
+    _set_session_cookie(response, str(user.user_id))
+    return UserOut.from_model(user)
+
+
 # Pinned instead of discovered so /start never blocks on a metadata fetch;
 # these are Google's stable, documented OIDC endpoints.
 _GOOGLE_OIDC = {

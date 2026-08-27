@@ -7,6 +7,13 @@ import { loadRuntimeConfig } from '@/lib/config'
 
 function errorCopy(error: unknown): string {
   if (error instanceof ApiError) {
+    // Checked before the 401/403 branch: demo_disabled is also a 403.
+    if (
+      error.problem?.code === 'demo_disabled' ||
+      error.problem?.code === 'demo_unseeded'
+    ) {
+      return 'The demo is not available right now.'
+    }
     // A wrong or expired code answers 400 code_invalid.
     if (
       error.problem?.code === 'code_invalid' ||
@@ -42,6 +49,14 @@ export function SignInScreen() {
     onSuccess: () => void navigate({ to: '/today' }),
   })
 
+  const demoLogin = useMutation({
+    mutationFn: async () => {
+      const client = await api()
+      return throwOnError(await client.POST('/auth/demo', {}))
+    },
+    onSuccess: () => void navigate({ to: '/today' }),
+  })
+
   const startOauth = async (provider: 'google') => {
     // Same-origin fallback if config.json is unreachable; that is the
     // deployed default anyway.
@@ -61,9 +76,17 @@ export function SignInScreen() {
       </header>
 
       <div className="flex flex-col gap-3">
+        <Button onClick={() => demoLogin.mutate()} disabled={demoLogin.isPending}>
+          {demoLogin.isPending ? 'Opening the demo…' : 'Demo sign-in'}
+        </Button>
         <Button variant="secondary" onClick={() => void startOauth('google')}>
           Continue with Google
         </Button>
+        {demoLogin.isError && (
+          <p role="alert" className="text-body-sm text-state-failed">
+            {errorCopy(demoLogin.error)}
+          </p>
+        )}
       </div>
 
       <div className="flex items-center gap-3 text-caption text-muted-soft">
