@@ -1,13 +1,99 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, SVGProps } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Sun, CalendarDays, Compass, Sparkles } from 'lucide-react'
 
-const tabs = [
-  { to: '/today', label: 'Today', Icon: Sun },
-  { to: '/trip', label: 'Trip', Icon: CalendarDays },
-  { to: '/explore', label: 'Explore', Icon: Compass },
-  { to: '/agent', label: 'Agent', Icon: Sparkles },
+/**
+ * Tab icons traced from the design prototype's tab bar (exact SVG paths, not
+ * icon-library lookalikes). currentColor lets the active state tint icon and
+ * label together.
+ */
+const iconProps: SVGProps<SVGSVGElement> = {
+  width: 23,
+  height: 23,
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.8,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+  'aria-hidden': true,
+}
+
+function TodayIcon() {
+  return (
+    <svg {...iconProps}>
+      <circle cx="12" cy="12" r="9" />
+      <polyline points="12 7 12 12 15 14" />
+    </svg>
+  )
+}
+
+function TripIcon() {
+  return (
+    <svg {...iconProps}>
+      <rect x="3" y="7" width="18" height="13" rx="2.5" />
+      <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+    </svg>
+  )
+}
+
+function ExploreIcon() {
+  return (
+    <svg {...iconProps}>
+      <circle cx="12" cy="12" r="9" />
+      <polygon points="15.5 8.5 10.5 10.5 8.5 15.5 13.5 13.5" />
+    </svg>
+  )
+}
+
+function AgentIcon() {
+  return (
+    <svg {...iconProps}>
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+    </svg>
+  )
+}
+
+function MicIcon() {
+  return (
+    <svg {...iconProps} width={25} height={25} strokeWidth={1.9}>
+      <rect x="9" y="2" width="6" height="11" rx="3" />
+      <path d="M5 10a7 7 0 0 0 14 0" />
+      <line x1="12" y1="17" x2="12" y2="21" />
+    </svg>
+  )
+}
+
+const leftTabs = [
+  { to: '/today', label: 'Today', Icon: TodayIcon },
+  { to: '/trip', label: 'Trip', Icon: TripIcon },
 ] as const
+
+const rightTabs = [
+  { to: '/explore', label: 'Explore', Icon: ExploreIcon },
+  { to: '/agent', label: 'Agent', Icon: AgentIcon },
+] as const
+
+function Tab({
+  to,
+  label,
+  Icon,
+}: {
+  to: string
+  label: string
+  Icon: () => ReactNode
+}) {
+  return (
+    <Link
+      to={to}
+      // 10.5px label is the prototype's nav size; smaller than any type token
+      className="flex flex-1 flex-col items-center gap-[5px] pb-2.5 pt-2 text-[10.5px] font-semibold leading-none text-muted-soft focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
+      activeProps={{ className: 'text-primary', 'aria-current': 'page' }}
+    >
+      <Icon />
+      {label}
+    </Link>
+  )
+}
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
@@ -19,17 +105,23 @@ export function AppShell({ children }: { children: ReactNode }) {
         aria-label="Main"
         className="fixed inset-x-0 bottom-0 border-t border-border bg-card pb-[env(safe-area-inset-bottom)]"
       >
-        <div className="mx-auto flex w-full max-w-lg items-stretch justify-around">
-          {tabs.map(({ to, label, Icon }) => (
+        <div className="mx-auto flex w-full max-w-lg items-start px-2 pt-1">
+          {leftTabs.map((tab) => (
+            <Tab key={tab.to} {...tab} />
+          ))}
+          {/* Center mic FAB (design: the agent's voice entry point). Voice
+              capture ships in Phase 5; until then it opens the Agent tab. */}
+          <div className="flex flex-1 justify-center">
             <Link
-              key={to}
-              to={to}
-              className="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-label font-semibold text-muted-soft focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
-              activeProps={{ className: 'text-primary', 'aria-current': 'page' }}
+              to="/agent"
+              aria-label="Talk to TravelWell"
+              className="-mt-6 grid size-[62px] place-items-center rounded-full border-4 border-card bg-primary text-white shadow-[0_12px_24px_-10px_rgba(24,95,165,0.5)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
-              <Icon className="size-5" aria-hidden />
-              {label}
+              <MicIcon />
             </Link>
+          </div>
+          {rightTabs.map((tab) => (
+            <Tab key={tab.to} {...tab} />
           ))}
         </div>
       </nav>
