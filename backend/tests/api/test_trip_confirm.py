@@ -1,8 +1,9 @@
 """POST /trips/{id}/confirm: the optimistic-concurrency 409 template.
 
-This endpoint is the template every future mutation follows (strict token
-mismatch -> conflict; idempotent no-op repeat without a token bump; token
-rotates only on a real transition), so the tests spell out each branch.
+This endpoint is the template every future mutation follows (postcondition
+first, so lost-response retries succeed; then strict token mismatch ->
+conflict; token rotates only on a real transition), so the tests spell out
+each branch.
 """
 
 from datetime import datetime, time, timedelta
@@ -73,14 +74,32 @@ async def test_repeat_confirm_is_idempotent(authed_client, user, make_trip):
     assert repeat.json()["updated_at"] == token2
 
 
-async def test_stale_token_conflicts_even_when_already_confirmed(
+async def test_stale_token_succeeds_when_already_confirmed(
     authed_client, user, make_trip
 ):
     from app.db.models import TripState
 
     trip = await make_trip(user, state=TripState.confirmed)
-    # Token check comes before the idempotent branch: a stale client gets
-    # told to refetch even though the postcondition already holds.
+    token = await _get_token(authed_client, trip.trip_id)
+    # A retry whose earlier response was lost holds the pre-confirm token, so
+    # the postcondition check must run before the staleness check.
+    r = await authed_client.post(
+        f"/api/v1/trips/{trip.trip_id}/confirm", json={"updated_at": STALE}
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["state"] == "confirmed"
+    # Still a no-op: the token other clients hold stays valid.
+    assert r.json()["updated_at"] == token
+
+
+async def test_stale_token_on_non_confirmable_state_is_conflict(
+    authed_client, user, make_trip
+):
+    from app.db.models import TripState
+
+    trip = await make_trip(user, state=TripState.active)
+    # Postcondition does not hold and the token is stale: staleness wins, so
+    # the client refetches before learning anything about the state.
     r = await authed_client.post(
         f"/api/v1/trips/{trip.trip_id}/confirm", json={"updated_at": STALE}
     )

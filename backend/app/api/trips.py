@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, text
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import ApiRoute, CurrentUser, SessionDep
 from app.api.problems import Problem
 from app.api.schemas import (
     CalendarEventSummaryOut,
@@ -41,7 +41,7 @@ from app.db.models import (
     WindowStatus,
 )
 
-router = APIRouter(tags=["trips"])
+router = APIRouter(tags=["trips"], route_class=ApiRoute)
 
 # Open work per trip: plan items waiting on the user + proposed actions that
 # need approval. Contract: "derived ... never computed client-side".
@@ -274,36 +274,31 @@ async def confirm_trip(
 ) -> TripOut:
     trip = await _owned_trip(session, user, trip_id, with_evidence=True)
 
-    # Staleness is strict token mismatch, not ordering: any divergence means
-    # the client rendered a version that no longer exists. `<` would also wave
-    # through a future timestamp, which only clock skew or a bug produces.
-    if body.updated_at != trip.updated_at:
+    if trip.state == TripState.confirmed:
+        # Postcondition first: a retry whose earlier response was lost holds a
+        # stale token, and must get success, not 409. No updated_at bump.
+        pass
+    # Staleness is strict token mismatch, not ordering: `<` would wave through
+    # a future timestamp, which only clock skew or a bug produces.
+    elif body.updated_at != trip.updated_at:
         raise Problem(
             409,
             "Trip was modified",
             "conflict",
             "The trip changed since you loaded it. Refetch and retry.",
         )
-
-    if trip.state == TripState.confirmed:
-        # Idempotent repeat: the postcondition already holds, so a retrying
-        # client gets success. No updated_at bump - a no-op must not
-        # invalidate concurrency tokens other clients are holding.
-        pass
     elif trip.state == TripState.detected:
         trip.state = TripState.confirmed
-        # Confirming schedules the agent: T-7d activation (arch guide §6).
-        # Midnight trip-local; the scheduler treats a past activation_at as
-        # due immediately, so short-notice trips need no special case.
+        # T-7d activation, midnight trip-local; a past activation_at is due
+        # immediately, so short-notice trips need no special case.
         local_midnight = datetime.combine(
             trip.start_date - timedelta(days=7), time.min, ZoneInfo(trip.timezone)
         )
         trip.activation_at = local_midnight
         trip.updated_at = datetime.now(UTC)
     else:
-        # Everything else (upcoming/preparing/active/completed/archived/
-        # dismissed) has left the confirmable part of the lifecycle; 409
-        # because the conflict is with current state, not the request shape.
+        # Every other state has left the confirmable part of the lifecycle;
+        # 409 because the conflict is with current state, not request shape.
         raise Problem(
             409,
             "Trip is not confirmable",
