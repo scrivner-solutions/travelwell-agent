@@ -48,7 +48,17 @@ def _resolve_secret() -> str:
 
 # Resolved at import so a misconfigured deployment fails at startup, not on
 # the first sign-in.
-_SERIALIZER = URLSafeTimedSerializer(_resolve_secret(), salt="twl-session")
+_SECRET = _resolve_secret()
+_SERIALIZER = URLSafeTimedSerializer(_SECRET, salt="twl-session")
+
+
+def secret() -> str:
+    """Shared with the OAuth-state session middleware in fast_api_app."""
+    return _SECRET
+
+
+def cookie_secure() -> bool:
+    return os.getenv("SESSION_COOKIE_SECURE", "").lower() in ("1", "true")
 
 
 def issue_session(user_id: str) -> str:

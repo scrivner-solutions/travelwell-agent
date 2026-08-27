@@ -114,6 +114,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# OAuth handshake state only (authlib keeps state/nonce in request.session);
+# app sessions stay in the stateless twl_session cookie, never in here.
+from starlette.middleware.sessions import SessionMiddleware
+
+from app.api import sessions as api_sessions
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=api_sessions.secret(),
+    session_cookie="twl_oauth",
+    max_age=600,
+    same_site="lax",
+    https_only=api_sessions.cookie_secure(),
+)
+
 # Versioned API surface (docs/openapi.yaml). Legacy prototype endpoints below
 # stay at the root and retire slice by slice.
 from app.api.problems import install_problem_handlers

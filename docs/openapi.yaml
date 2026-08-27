@@ -120,6 +120,25 @@ paths:
         "302":
           description: Redirect to the provider's consent screen
 
+  /auth/oauth/{provider}/callback:
+    get:
+      tags: [auth]
+      operationId: oauthCallback
+      summary: Provider redirect target; sets the session cookie on success
+      security: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [google]
+      responses:
+        "302":
+          description: >
+            Redirect back into the app: to / with the session cookie set, or
+            to /sign-in?error=oauth_failed|not_allowed without one.
+
   /auth/logout:
     post:
       tags: [auth]
