@@ -6,15 +6,40 @@ tables exist via the initial migration even though they have no models yet.
 """
 
 import uuid
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Header, status
+from pydantic import BaseModel
 from sqlalchemy import select, text
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import CurrentUser, SessionDep
-from app.api.schemas import TripCreateIn, TripListOut, TripOut, trip_to_out
-from app.db.models import Trip, TripOrigin, TripState
+from app.api.problems import Problem
+from app.api.schemas import (
+    CalendarEventSummaryOut,
+    TimelineEntryOut,
+    TimelineOut,
+    TodayViewOut,
+    TripCreateIn,
+    TripListOut,
+    TripOut,
+    plan_item_to_out,
+    trip_to_out,
+    window_to_out,
+)
+from app.db.models import (
+    ItemStatus,
+    Plan,
+    PlanItem,
+    PlanStatus,
+    Trip,
+    TripOrigin,
+    TripState,
+    WellnessWindow,
+    WindowStatus,
+)
 
 router = APIRouter(tags=["trips"])
 
@@ -63,6 +88,232 @@ async def list_trips(
     return TripListOut(
         trips=[trip_to_out(t, counts.get(t.trip_id, 0)) for t in trips]
     )
+
+
+# The Today screen's state line, keyed by trip state (design: dot + word +
+# detail, one hue per meaning; the word must match the prototype's stateMap).
+_STATE_WORDS: dict[TripState, tuple[str, str | None]] = {
+    TripState.detected: ("Detected", "Waiting for your confirmation"),
+    TripState.confirmed: ("Upcoming", None),  # detail derived from activation_at
+    TripState.upcoming: ("Upcoming", None),
+    TripState.preparing: ("Preparing", "Building your plan"),
+    TripState.active: ("Active", "Watching for schedule changes"),
+    TripState.completed: ("Complete", "Archived"),
+    TripState.archived: ("Archived", None),
+    TripState.dismissed: ("Dismissed", None),
+}
+
+# Timeline and Today never render these; skipped stays visible nowhere per the
+# prototype (removed is a backend tombstone).
+_HIDDEN_ITEM_STATUSES = (ItemStatus.skipped, ItemStatus.removed)
+
+CALENDAR_EVENTS_SQL = text(
+    """
+    select cal_event_id, title, location, starts_at, ends_at
+    from calendar_events
+    where trip_id = :trip_id
+      and (cast(:day as date) is null
+           or (starts_at at time zone :tz)::date = cast(:day as date))
+    order by starts_at
+    """
+)
+
+
+async def _owned_trip(
+    session, user, trip_id: uuid.UUID, *, with_evidence: bool = False
+) -> Trip:
+    stmt = select(Trip).where(Trip.trip_id == trip_id, Trip.user_id == user.user_id)
+    if with_evidence:
+        stmt = stmt.options(selectinload(Trip.evidence))
+    trip = (await session.execute(stmt)).scalar_one_or_none()
+    if trip is None:
+        # Same problem for wrong owner and missing row: existence is private.
+        raise Problem(404, "Trip not found", "trip_not_found")
+    return trip
+
+
+async def _current_plan(session, trip_id: uuid.UUID) -> Plan | None:
+    stmt = (
+        select(Plan)
+        .where(
+            Plan.trip_id == trip_id,
+            Plan.status != PlanStatus.superseded,
+            Plan.status != PlanStatus.draft,
+        )
+        .order_by(Plan.version.desc())
+        .limit(1)
+        .options(selectinload(Plan.items).selectinload(PlanItem.options))
+    )
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
+def _local_today(tz: str) -> date:
+    return datetime.now(ZoneInfo(tz)).date()
+
+
+def _day_label(trip: Trip, today: date) -> str:
+    total = (trip.end_date - trip.start_date).days + 1
+    if trip.start_date <= today <= trip.end_date:
+        day_n = (today - trip.start_date).days + 1
+        return f"{trip.destination_city} · Day {day_n} of {total}"
+    if today < trip.start_date:
+        until = (trip.start_date - today).days
+        return f"{trip.destination_city} in {until} {'day' if until == 1 else 'days'}"
+    return f"{trip.destination_city} · trip complete"
+
+
+@router.get("/trips/{trip_id}")
+async def get_trip(
+    trip_id: uuid.UUID, user: CurrentUser, session: SessionDep
+) -> TripOut:
+    trip = await _owned_trip(session, user, trip_id, with_evidence=True)
+    counts = await _needs_you_counts(session, user.user_id)
+    return trip_to_out(trip, counts.get(trip.trip_id, 0))
+
+
+@router.get("/trips/{trip_id}/today")
+async def get_trip_today(
+    trip_id: uuid.UUID, user: CurrentUser, session: SessionDep
+) -> TodayViewOut:
+    trip = await _owned_trip(session, user, trip_id)
+    today = _local_today(trip.timezone)
+    word, detail = _STATE_WORDS[trip.state]
+    if detail is None and trip.activation_at is not None and trip.state in (
+        TripState.confirmed,
+        TripState.upcoming,
+    ):
+        detail = f"I start work {trip.activation_at.astimezone(ZoneInfo(trip.timezone)):%b %d}"
+
+    # Entity-shaped read: ORM with eager loads (ADR-001 point 3 reserves
+    # textual SQL for aggregate shapes like needs_you_count).
+    window_stmt = (
+        select(WellnessWindow)
+        .where(
+            WellnessWindow.trip_id == trip_id,
+            WellnessWindow.local_date == today,
+            WellnessWindow.status == WindowStatus.open,
+        )
+        .order_by(WellnessWindow.starts_at)
+        .limit(1)
+    )
+    window = (await session.execute(window_stmt)).scalar_one_or_none()
+
+    plan = await _current_plan(session, trip_id)
+    tz = ZoneInfo(trip.timezone)
+    next_up = [
+        plan_item_to_out(item)
+        for item in (plan.items if plan else [])
+        if item.status not in _HIDDEN_ITEM_STATUSES
+        and item.scheduled_start.astimezone(tz).date() == today
+    ]
+
+    return TodayViewOut(
+        trip_id=trip.trip_id,
+        day_label=_day_label(trip, today),
+        state_word=word,
+        state_detail=detail,
+        timezone=trip.timezone,
+        window=window_to_out(window) if window else None,
+        next_up=next_up,
+    )
+
+
+@router.get("/trips/{trip_id}/timeline")
+async def get_trip_timeline(
+    trip_id: uuid.UUID,
+    user: CurrentUser,
+    session: SessionDep,
+    day: date | None = None,
+) -> TimelineOut:
+    trip = await _owned_trip(session, user, trip_id)
+    tz = ZoneInfo(trip.timezone)
+
+    rows = await session.execute(
+        CALENDAR_EVENTS_SQL,
+        {"trip_id": trip_id, "tz": trip.timezone, "day": day},
+    )
+    entries = [
+        TimelineEntryOut(
+            entry_type="calendar_event",
+            starts_at=row.starts_at,
+            ends_at=row.ends_at,
+            calendar_event=CalendarEventSummaryOut(
+                id=row.cal_event_id, title=row.title, location_name=row.location
+            ),
+        )
+        for row in rows
+    ]
+
+    plan = await _current_plan(session, trip_id)
+    entries.extend(
+        TimelineEntryOut(
+            entry_type="plan_item",
+            starts_at=item.scheduled_start,
+            ends_at=item.scheduled_end,
+            plan_item=plan_item_to_out(item),
+        )
+        for item in (plan.items if plan else [])
+        if item.status not in _HIDDEN_ITEM_STATUSES
+        and (day is None or item.scheduled_start.astimezone(tz).date() == day)
+    )
+
+    entries.sort(key=lambda e: e.starts_at)
+    return TimelineOut(entries=entries)
+
+
+class TripConfirmIn(BaseModel):
+    updated_at: datetime
+
+
+@router.post("/trips/{trip_id}/confirm")
+async def confirm_trip(
+    trip_id: uuid.UUID,
+    body: TripConfirmIn,
+    user: CurrentUser,
+    session: SessionDep,
+) -> TripOut:
+    trip = await _owned_trip(session, user, trip_id, with_evidence=True)
+
+    # Staleness is strict token mismatch, not ordering: any divergence means
+    # the client rendered a version that no longer exists. `<` would also wave
+    # through a future timestamp, which only clock skew or a bug produces.
+    if body.updated_at != trip.updated_at:
+        raise Problem(
+            409,
+            "Trip was modified",
+            "conflict",
+            "The trip changed since you loaded it. Refetch and retry.",
+        )
+
+    if trip.state == TripState.confirmed:
+        # Idempotent repeat: the postcondition already holds, so a retrying
+        # client gets success. No updated_at bump - a no-op must not
+        # invalidate concurrency tokens other clients are holding.
+        pass
+    elif trip.state == TripState.detected:
+        trip.state = TripState.confirmed
+        # Confirming schedules the agent: T-7d activation (arch guide §6).
+        # Midnight trip-local; the scheduler treats a past activation_at as
+        # due immediately, so short-notice trips need no special case.
+        local_midnight = datetime.combine(
+            trip.start_date - timedelta(days=7), time.min, ZoneInfo(trip.timezone)
+        )
+        trip.activation_at = local_midnight
+        trip.updated_at = datetime.now(UTC)
+    else:
+        # Everything else (upcoming/preparing/active/completed/archived/
+        # dismissed) has left the confirmable part of the lifecycle; 409
+        # because the conflict is with current state, not the request shape.
+        raise Problem(
+            409,
+            "Trip is not confirmable",
+            "invalid_state",
+            f"A {trip.state.value} trip cannot be confirmed.",
+        )
+
+    await session.commit()
+    counts = await _needs_you_counts(session, user.user_id)
+    return trip_to_out(trip, counts.get(trip.trip_id, 0))
 
 
 @router.post("/trips", status_code=status.HTTP_201_CREATED)

@@ -11,7 +11,20 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, EmailStr, model_validator
 
-from app.db.models import AuthProvider, Trip, TripEvidence, TripOrigin, TripState
+from app.db.models import (
+    AuthProvider,
+    ItemKind,
+    ItemStatus,
+    OptionState,
+    PlanItem,
+    PlanItemOption,
+    Trip,
+    TripEvidence,
+    TripOrigin,
+    TripState,
+    WellnessWindow,
+    WindowStatus,
+)
 
 
 class SourceKind(enum.StrEnum):
@@ -64,6 +77,7 @@ class TripCreateIn(BaseModel):
 class TripEvidenceOut(BaseModel):
     source: SourceKind
     summary: str
+    kind: str
 
 
 class TripOut(BaseModel):
@@ -71,6 +85,7 @@ class TripOut(BaseModel):
     state: TripState
     origin: TripOrigin
     destination_name: str
+    label: str | None = None
     timezone: str
     starts_on: date
     ends_on: date
@@ -83,6 +98,132 @@ class TripOut(BaseModel):
 
 class TripListOut(BaseModel):
     trips: list[TripOut]
+
+
+class WindowBoundOut(BaseModel):
+    tag: str
+    title: str
+    detail: str | None = None
+    source_label: str | None = None
+
+
+class WellnessWindowOut(BaseModel):
+    id: uuid.UUID
+    status: WindowStatus
+    starts_at: datetime
+    ends_at: datetime
+    label: str
+    gap_explanation: str | None = None
+    bounds: list[WindowBoundOut] = []
+
+
+class PlanItemOptionOut(BaseModel):
+    id: uuid.UUID
+    state: OptionState
+    display_name: str
+    display_summary: str | None = None
+    reason: str | None = None
+    distance_minutes: int | None = None
+    duration_minutes: int | None = None
+    matched_preferences: list[str] = []
+    rejection_reason: str | None = None
+
+
+class PlanItemOut(BaseModel):
+    id: uuid.UUID
+    kind: ItemKind
+    status: ItemStatus
+    title: str
+    starts_at: datetime
+    ends_at: datetime | None = None
+    window_id: uuid.UUID | None = None
+    why: list[str] = []
+    selected_option: PlanItemOptionOut | None = None
+    updated_at: datetime
+
+
+class TodayViewOut(BaseModel):
+    trip_id: uuid.UUID
+    day_label: str
+    state_word: str
+    state_detail: str | None = None
+    timezone: str
+    window: WellnessWindowOut | None = None
+    next_up: list[PlanItemOut] = []
+
+
+class CalendarEventSummaryOut(BaseModel):
+    id: uuid.UUID
+    title: str
+    location_name: str | None = None
+
+
+class TimelineEntryOut(BaseModel):
+    entry_type: str  # 'calendar_event' | 'plan_item'
+    starts_at: datetime
+    ends_at: datetime | None = None
+    calendar_event: CalendarEventSummaryOut | None = None
+    plan_item: PlanItemOut | None = None
+
+
+class TimelineOut(BaseModel):
+    entries: list[TimelineEntryOut]
+
+
+def window_to_out(window: WellnessWindow) -> WellnessWindowOut:
+    return WellnessWindowOut(
+        id=window.window_id,
+        status=window.status,
+        starts_at=window.starts_at,
+        ends_at=window.ends_at,
+        label=window.label,
+        gap_explanation=window.gap_explanation,
+        bounds=[
+            WindowBoundOut(
+                tag=b.get("tag", ""),
+                title=b.get("title", ""),
+                detail=b.get("detail"),
+                source_label=b.get("source_label"),
+            )
+            for b in window.bounds
+        ],
+    )
+
+
+def option_to_out(option: PlanItemOption) -> PlanItemOptionOut:
+    return PlanItemOptionOut(
+        id=option.option_id,
+        state=option.state,
+        display_name=option.display_name,
+        display_summary=option.display_summary,
+        reason=option.reason,
+        distance_minutes=option.distance_minutes,
+        duration_minutes=option.duration_minutes,
+        matched_preferences=option.matched_preferences,
+        rejection_reason=option.rejection_reason,
+    )
+
+
+def plan_item_to_out(item: PlanItem) -> PlanItemOut:
+    # The rendered title is the selected option's name; a freshly skipped or
+    # still-deciding item falls back to its best-ranked candidate so the
+    # timeline never shows a blank card. options is ordered by rank.
+    selected = next(
+        (o for o in item.options if o.state == OptionState.selected), None
+    )
+    face = selected or next(iter(item.options), None)
+    return PlanItemOut(
+        id=item.item_id,
+        kind=item.kind,
+        status=item.status,
+        title=face.display_name if face else item.kind.value.capitalize(),
+        starts_at=item.scheduled_start,
+        ends_at=item.scheduled_end,
+        window_id=item.window_id,
+        why=list(face.matched_preferences) if face else [],
+        selected_option=option_to_out(selected) if selected else None,
+        updated_at=item.updated_at,
+    )
 
 
 # Real trust indicators, server-derived (contract: Trip.state_line).
@@ -107,8 +248,10 @@ _SOURCE_LABEL_TO_KIND: dict[str, SourceKind] = {
 
 
 def evidence_to_out(row: TripEvidence) -> TripEvidenceOut:
-    kind = _SOURCE_LABEL_TO_KIND.get(row.source_label.lower(), SourceKind.manual_import)
-    return TripEvidenceOut(source=kind, summary=row.summary)
+    source = _SOURCE_LABEL_TO_KIND.get(
+        row.source_label.lower(), SourceKind.manual_import
+    )
+    return TripEvidenceOut(source=source, summary=row.summary, kind=row.kind)
 
 
 def trip_to_out(trip: Trip, needs_you_count: int) -> TripOut:
@@ -120,6 +263,7 @@ def trip_to_out(trip: Trip, needs_you_count: int) -> TripOut:
         state=trip.state,
         origin=trip.origin,
         destination_name=destination_name,
+        label=trip.label,
         timezone=trip.timezone,
         starts_on=trip.start_date,
         ends_on=trip.end_date,

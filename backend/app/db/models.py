@@ -4,10 +4,11 @@ Storage layer only; API shapes live in app/api/schemas.py (ADR-001 point 6).
 All DDL, including the Postgres enum types, is created by migrations, never by
 metadata.create_all: every pg enum here is declared with create_type=False.
 
-Covered so far: users, trips, trip_evidence. The remaining tables exist in the
-database via the initial migration and are reached with textual SQL until their
-vertical slice lands; migrations/env.py limits drift comparison to the tables
-modeled here, so partial coverage does not trip `alembic check`.
+Covered so far: users, trips, trip_evidence, wellness_windows, plans,
+plan_items, plan_item_options. The remaining tables exist in the database via
+the initial migration and are reached with textual SQL until their vertical
+slice lands; migrations/env.py limits drift comparison to the tables modeled
+here, so partial coverage does not trip `alembic check`.
 """
 
 import enum
@@ -42,6 +43,43 @@ class TripOrigin(enum.StrEnum):
     calendar_detection = "calendar_detection"
     manual = "manual"
     import_ = "import"
+
+
+class WindowStatus(enum.StrEnum):
+    open = "open"
+    filled = "filled"
+    expired = "expired"
+    superseded = "superseded"
+
+
+class PlanStatus(enum.StrEnum):
+    draft = "draft"
+    proposed = "proposed"
+    partially_accepted = "partially_accepted"
+    accepted = "accepted"
+    superseded = "superseded"
+
+
+class ItemStatus(enum.StrEnum):
+    suggested = "suggested"
+    awaiting_user = "awaiting_user"
+    planned = "planned"
+    confirmed = "confirmed"
+    working = "working"
+    changed = "changed"
+    skipped = "skipped"
+    removed = "removed"
+
+
+class ItemKind(enum.StrEnum):
+    activity = "activity"
+    meal = "meal"
+
+
+class OptionState(enum.StrEnum):
+    selected = "selected"
+    alternative = "alternative"
+    rejected = "rejected"
 
 
 def _pg_enum(py_enum: type[enum.StrEnum], name: str) -> pg.ENUM:
@@ -125,6 +163,149 @@ class Trip(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+
+
+class WellnessWindow(Base):
+    __tablename__ = "wellness_windows"
+    __table_args__ = (
+        sa.Index("wellness_windows_trip_idx", "trip_id", "local_date"),
+        sa.CheckConstraint("ends_at > starts_at", name="wellness_windows_check"),
+    )
+
+    window_id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, server_default=sa.text("gen_random_uuid()")
+    )
+    trip_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("trips.trip_id", ondelete="CASCADE")
+    )
+    local_date: Mapped[date]
+    starts_at: Mapped[datetime]
+    ends_at: Mapped[datetime]
+    label: Mapped[str]
+    gap_explanation: Mapped[str | None]
+    # Display-shaped provenance rows; soft references by design (schema.sql):
+    # bounds must survive the bounding event being deleted.
+    bounds: Mapped[list[dict]] = mapped_column(
+        pg.JSONB(), server_default=sa.text("'[]'::jsonb")
+    )
+    status: Mapped[WindowStatus] = mapped_column(
+        _pg_enum(WindowStatus, "window_status"),
+        server_default=sa.text("'open'::window_status"),
+    )
+    computed_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+
+
+class Plan(Base):
+    __tablename__ = "plans"
+    __table_args__ = (
+        sa.Index("plans_trip_idx", "trip_id", "status"),
+        sa.UniqueConstraint("trip_id", "version", name="plans_trip_id_version_key"),
+    )
+
+    plan_id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, server_default=sa.text("gen_random_uuid()")
+    )
+    trip_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("trips.trip_id", ondelete="CASCADE")
+    )
+    version: Mapped[int]
+    status: Mapped[PlanStatus] = mapped_column(
+        _pg_enum(PlanStatus, "plan_status"),
+        server_default=sa.text("'proposed'::plan_status"),
+    )
+    headline: Mapped[str | None]
+    provenance_summary: Mapped[str | None]
+    # FK to agent_runs lives in the database; agent_runs is not modeled yet,
+    # so the constraint is filtered out of drift comparison (env.py).
+    generated_by_run_id: Mapped[uuid.UUID | None]
+    created_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+
+    items: Mapped[list["PlanItem"]] = relationship(
+        back_populates="plan",
+        order_by="PlanItem.scheduled_start",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class PlanItem(Base):
+    __tablename__ = "plan_items"
+    __table_args__ = (
+        sa.Index("plan_items_trip_status_idx", "trip_id", "status"),
+        sa.Index("plan_items_window_idx", "window_id"),
+    )
+
+    item_id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, server_default=sa.text("gen_random_uuid()")
+    )
+    plan_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("plans.plan_id", ondelete="CASCADE")
+    )
+    trip_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("trips.trip_id", ondelete="CASCADE")
+    )
+    window_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.ForeignKey("wellness_windows.window_id")
+    )
+    kind: Mapped[ItemKind] = mapped_column(_pg_enum(ItemKind, "item_kind"))
+    status: Mapped[ItemStatus] = mapped_column(
+        _pg_enum(ItemStatus, "item_status"),
+        server_default=sa.text("'suggested'::item_status"),
+    )
+    scheduled_start: Mapped[datetime]
+    scheduled_end: Mapped[datetime | None]
+    needs_reservation: Mapped[bool] = mapped_column(server_default=sa.text("false"))
+    calendar_event_ref: Mapped[str | None]
+    created_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+
+    plan: Mapped[Plan] = relationship(back_populates="items")
+    window: Mapped[WellnessWindow | None] = relationship()
+    options: Mapped[list["PlanItemOption"]] = relationship(
+        back_populates="item",
+        order_by="PlanItemOption.rank",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class PlanItemOption(Base):
+    __tablename__ = "plan_item_options"
+    __table_args__ = (
+        sa.Index("plan_item_options_item_idx", "item_id", "state", "rank"),
+        sa.Index(
+            "plan_item_options_selected_uq",
+            "item_id",
+            unique=True,
+            postgresql_where=sa.text("state = 'selected'::option_state"),
+        ),
+        sa.CheckConstraint(
+            "(state = 'rejected'::option_state) = (rejection_reason is not null)",
+            name="plan_item_options_check",
+        ),
+    )
+
+    option_id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, server_default=sa.text("gen_random_uuid()")
+    )
+    item_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("plan_items.item_id", ondelete="CASCADE")
+    )
+    # FK to places lives in the database; places is not modeled yet (env.py).
+    place_id: Mapped[uuid.UUID | None]
+    state: Mapped[OptionState] = mapped_column(_pg_enum(OptionState, "option_state"))
+    rank: Mapped[int] = mapped_column(sa.SmallInteger, server_default=sa.text("0"))
+    display_name: Mapped[str]
+    display_summary: Mapped[str | None]
+    reason: Mapped[str | None]
+    rejection_reason: Mapped[str | None]
+    distance_minutes: Mapped[int | None] = mapped_column(sa.SmallInteger)
+    duration_minutes: Mapped[int | None] = mapped_column(sa.SmallInteger)
+    matched_preferences: Mapped[list[str]] = mapped_column(
+        pg.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]")
+    )
+
+    item: Mapped[PlanItem] = relationship(back_populates="options")
 
 
 class TripEvidence(Base):

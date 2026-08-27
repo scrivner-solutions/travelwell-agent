@@ -918,6 +918,9 @@ components:
           $ref: "#/components/schemas/TripOrigin"
         destination_name:
           type: string
+        label:
+          type: string
+          description: 'Short trip descriptor for the header eyebrow ("Conference trip").'
         timezone:
           type: string
           description: IANA zone; all trip times render in this zone, never the device zone.
@@ -948,12 +951,18 @@ components:
 
     TripEvidence:
       type: object
-      required: [source, summary]
+      required: [source, summary, kind]
       properties:
         source:
           $ref: "#/components/schemas/SourceKind"
         summary:
           type: string
+        kind:
+          type: string
+          description: >-
+            Evidence category (flight_event, hotel_email, conference_event,
+            calendar_block, ...); drives the tag box on evidence rows.
+            Open-ended - render unknown kinds with a generic tag.
 
     TodayView:
       type: object
@@ -967,6 +976,9 @@ components:
           description: Server-derived ("Day 2 of 4 - Chicago").
         state_word:
           type: string
+        state_detail:
+          type: string
+          description: Second half of the state line ("Watching for schedule changes").
         timezone:
           type: string
         window:
@@ -978,8 +990,11 @@ components:
 
     WellnessWindow:
       type: object
-      required: [status, starts_at, ends_at, bounds]
+      required: [id, status, starts_at, ends_at, label, bounds]
       properties:
+        id:
+          type: string
+          format: uuid
         status:
           $ref: "#/components/schemas/WindowStatus"
         starts_at:
@@ -988,11 +1003,32 @@ components:
         ends_at:
           type: string
           format: date-time
+        label:
+          type: string
+          description: Headline for the window card ("90 minutes free").
+        gap_explanation:
+          type: string
+          description: One sentence on the gap ("Between your workshop and dinner, 5:30 to 7:00.").
         bounds:
           type: array
-          description: The calendar constraints that define the window ("after your 3pm review").
+          description: Display-shaped provenance rows for "What makes the opening".
           items:
-            type: string
+            $ref: "#/components/schemas/WindowBound"
+
+    WindowBound:
+      type: object
+      required: [tag, title]
+      properties:
+        tag:
+          type: string
+          description: Short mono badge (CAL, PLAN, HTL).
+        title:
+          type: string
+        detail:
+          type: string
+        source_label:
+          type: string
+          description: Where this bound came from ("Calendar", "This plan", "Email").
 
     TimelineEntry:
       type: object
@@ -1067,6 +1103,13 @@ components:
         ends_at:
           type: string
           format: date-time
+        window_id:
+          type: string
+          format: uuid
+          description: >-
+            Wellness window this item fills, if any. The Today screen nests
+            the item inside its window card (design: the opening, then what
+            fits it).
         why:
           type: array
           description: Matched preferences served from plan_item_options.matched_preferences.
@@ -1082,15 +1125,26 @@ components:
 
     PlanItemOption:
       type: object
-      required: [id, state, place]
+      required: [id, state, display_name]
       properties:
         id:
           type: string
           format: uuid
         state:
           $ref: "#/components/schemas/OptionState"
-        place:
-          $ref: "#/components/schemas/Place"
+        display_name:
+          type: string
+          description: Denormalized for stable display; survives place cache churn.
+        display_summary:
+          type: string
+          description: '"Pool + treadmill · 75 min"'
+        reason:
+          type: string
+          description: The why-chip ("Fits your 90-minute opening").
+        distance_minutes:
+          type: integer
+        duration_minutes:
+          type: integer
         matched_preferences:
           type: array
           items:
@@ -1098,6 +1152,9 @@ components:
         rejection_reason:
           type: string
           description: Required by schema CHECK when state = rejected.
+        place:
+          $ref: "#/components/schemas/Place"
+          description: Populated once the places cache slice lands; display_* fields are authoritative until then.
 
     Provenance:
       type: object
