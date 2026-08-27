@@ -83,3 +83,40 @@ jobs:
           PGHOST: localhost
           PGUSER: travelwell
           PGPASSWORD: travelwell
+
+  backend-tests:
+    name: Backend API integration tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: travelwell
+          POSTGRES_PASSWORD: travelwell
+          POSTGRES_DB: travelwell
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U travelwell"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # The suite creates and migrates its own travelwell_test database on
+      # the service instance; the name must end in _test (conftest enforces).
+      - name: API integration tests
+        run: uv run pytest tests/api -q
+        env:
+          TEST_DATABASE_URL: postgresql+asyncpg://travelwell:travelwell@localhost:5432/travelwell_test
