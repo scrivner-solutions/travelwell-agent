@@ -11,13 +11,14 @@ async def test_preferences_default_shape(authed_client):
     body = r.json()
     for field in ("dietary", "activities", "amenities", "memberships", "preferred_times"):
         assert body[field] == []
+    # Unset scalars are omitted from responses, never sent as null (ApiRoute).
     for field in (
         "price_level_max",
         "day_pass_budget_cents",
         "session_min_minutes",
         "session_max_minutes",
     ):
-        assert body[field] is None
+        assert field not in body
     assert body["allow_calendar_write"] is False
     assert body["allow_auto_book"] is False
     assert body["watch_schedule"] is True
@@ -65,7 +66,7 @@ async def test_patch_null_clears_scalar(authed_client):
         "/api/v1/me/preferences", json={"price_level_max": None}
     )
     assert r.status_code == 200, r.text
-    assert r.json()["price_level_max"] is None
+    assert "price_level_max" not in r.json()
 
 
 async def test_patch_rejects_out_of_range(authed_client):
@@ -88,9 +89,9 @@ async def test_patch_rejects_min_over_stored_max(authed_client):
     assert r.json()["code"] == "invalid_range"
 
     # The rejected patch must not have half-applied.
-    r = await authed_client.get("/api/v1/me/preferences")
-    assert r.json()["session_min_minutes"] is None
-    assert r.json()["session_max_minutes"] == 90
+    body = (await authed_client.get("/api/v1/me/preferences")).json()
+    assert "session_min_minutes" not in body
+    assert body["session_max_minutes"] == 90
 
 
 async def test_sources_empty_and_own_only(authed_client, user, other_user, db_session):

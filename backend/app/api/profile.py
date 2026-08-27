@@ -12,7 +12,7 @@ from fastapi import APIRouter
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import ApiRoute, CurrentUser, SessionDep
 from app.api.problems import Problem
 from app.api.schemas import (
     PreferencesOut,
@@ -23,7 +23,7 @@ from app.api.schemas import (
 )
 from app.db.models import ConnectedSource, UserPreferences
 
-router = APIRouter(tags=["profile"])
+router = APIRouter(tags=["profile"], route_class=ApiRoute)
 
 
 async def _get_or_create_preferences(

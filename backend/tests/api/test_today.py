@@ -63,5 +63,6 @@ async def test_today_before_trip_starts(authed_client, user, make_trip):
     t = r.json()
     assert t["day_label"] == "Austin in 10 days"
     assert t["state_word"] == "Upcoming"
-    assert t["window"] is None
+    # None fields are omitted from responses, never sent as null (ApiRoute).
+    assert "window" not in t
     assert t["next_up"] == []

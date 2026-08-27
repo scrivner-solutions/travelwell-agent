@@ -1,15 +1,27 @@
-"""Shared FastAPI dependencies for the /api/v1 surface."""
+"""Shared FastAPI dependencies and route plumbing for the /api/v1 surface."""
 
 import uuid
 from typing import Annotated
 
 from fastapi import Depends, Request
+from fastapi.routing import APIRoute
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.problems import Problem
 from app.api.sessions import SESSION_COOKIE, read_session
 from app.db.engine import get_session
 from app.db.models import User
+
+
+class ApiRoute(APIRoute):
+    """Omits None fields from responses, keeping docs/openapi.yaml's
+    optional-but-not-nullable fields true on the wire (`label?: string`)."""
+
+    def __init__(self, path: str, endpoint, **kwargs) -> None:
+        # Forced, not defaulted: the router decorators pass False explicitly.
+        kwargs["response_model_exclude_none"] = True
+        super().__init__(path, endpoint, **kwargs)
+
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 

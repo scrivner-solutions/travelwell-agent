@@ -27,8 +27,9 @@ async def test_get_trip_shape(authed_client, user, make_trip):
     assert [e["source"] for e in body["evidence"]] == ["google_calendar", "gmail"]
     # kind passes through verbatim; it drives the FLT/HTL/EVT tag boxes
     assert [e["kind"] for e in body["evidence"]] == ["flight_event", "hotel_email"]
-    # detail is the caption under the summary; null when there is no caption
-    assert [e["detail"] for e in body["evidence"]] == ["Round trip · confirmed", None]
+    # detail is the caption under the summary; omitted when there is no caption
+    assert [e.get("detail") for e in body["evidence"]] == ["Round trip · confirmed", None]
+    assert "detail" not in body["evidence"][1]
 
 
 async def test_missing_trip_is_404(authed_client):

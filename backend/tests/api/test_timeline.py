@@ -21,12 +21,13 @@ async def test_full_timeline_interleaves_and_sorts(authed_client, scene):
     ]
     assert "Walk the Riverwalk" not in titles
 
-    # Each entry carries exactly its own payload kind.
+    # Each entry carries exactly its own payload kind; the other is omitted,
+    # never null (ApiRoute drops None fields).
     for e in entries:
         if e["entry_type"] == "calendar_event":
-            assert e["calendar_event"] is not None and e["plan_item"] is None
+            assert e["calendar_event"] is not None and "plan_item" not in e
         else:
-            assert e["plan_item"] is not None and e["calendar_event"] is None
+            assert e["plan_item"] is not None and "calendar_event" not in e
 
 
 async def test_day_filter_scopes_both_sources(authed_client, scene):
