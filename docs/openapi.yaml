@@ -1367,52 +1367,126 @@ components:
           additionalProperties: true
 
     Preferences:
+      description: >-
+        Mirrors user_preferences 1:1. Drives Explore filters, plan ranking,
+        and the "Matched from your profile" chips; the autonomy toggles gate
+        what the action executor may do without asking. Array values are
+        lowercase slugs; the profile screen owns the display labels.
       type: object
-      required: [allow_reservations, allow_calendar_writes, allow_notifications, updated_at]
+      required:
+        - dietary
+        - activities
+        - amenities
+        - memberships
+        - preferred_times
+        - allow_calendar_write
+        - allow_auto_book
+        - watch_schedule
+        - updated_at
       properties:
-        allow_reservations:
-          type: boolean
-        allow_calendar_writes:
-          type: boolean
-        allow_notifications:
-          type: boolean
-        workout_kinds:
-          type: array
-          items:
-            type: string
         dietary:
           type: array
           items:
             type: string
-        pace:
-          type: string
+          description: e.g. ["vegetarian"]
+        activities:
+          type: array
+          items:
+            type: string
+          description: e.g. ["swim", "running", "strength"]
+        amenities:
+          type: array
+          items:
+            type: string
+          description: e.g. ["pool", "treadmill"]
+        memberships:
+          type: array
+          items:
+            type: string
+          description: e.g. ["ymca_reciprocity", "hotel_gym"]
+        preferred_times:
+          type: array
+          items:
+            type: string
+          description: Time-of-day preference, e.g. ["mornings"]
+        price_level_max:
+          type: integer
+          minimum: 1
+          maximum: 4
+          description: 2 = "$$ or less". Absent = no cap.
+        day_pass_budget_cents:
+          type: integer
+          minimum: 0
+          description: 0 = free only. Absent = no budget set.
+        session_min_minutes:
+          type: integer
+          minimum: 5
+          maximum: 600
+        session_max_minutes:
+          type: integer
+          minimum: 5
+          maximum: 600
+        allow_calendar_write:
+          type: boolean
+        allow_auto_book:
+          type: boolean
+        watch_schedule:
+          type: boolean
         updated_at:
           type: string
           format: date-time
 
     PreferencesUpdate:
+      description: >-
+        Partial update: fields absent from the body are left unchanged; send
+        null to clear an optional scalar.
       type: object
       properties:
-        allow_reservations:
-          type: boolean
-        allow_calendar_writes:
-          type: boolean
-        allow_notifications:
-          type: boolean
-        workout_kinds:
-          type: array
-          items:
-            type: string
         dietary:
           type: array
           items:
             type: string
-        pace:
-          type: string
+        activities:
+          type: array
+          items:
+            type: string
+        amenities:
+          type: array
+          items:
+            type: string
+        memberships:
+          type: array
+          items:
+            type: string
+        preferred_times:
+          type: array
+          items:
+            type: string
+        price_level_max:
+          type: [integer, "null"]
+          minimum: 1
+          maximum: 4
+        day_pass_budget_cents:
+          type: [integer, "null"]
+          minimum: 0
+        session_min_minutes:
+          type: [integer, "null"]
+          minimum: 5
+          maximum: 600
+        session_max_minutes:
+          type: [integer, "null"]
+          minimum: 5
+          maximum: 600
+        allow_calendar_write:
+          type: boolean
+        allow_auto_book:
+          type: boolean
+        watch_schedule:
+          type: boolean
 
     ConnectedSource:
       type: object
-      required: [id, kind, status]
+      required: [id, kind, status, connected_at]
       properties:
         id:
           type: string
@@ -1422,6 +1496,9 @@ components:
         status:
           $ref: "#/components/schemas/SourceStatus"
         connected_at:
+          type: string
+          format: date-time
+        last_synced_at:
           type: string
           format: date-time
 

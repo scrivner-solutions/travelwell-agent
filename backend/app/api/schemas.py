@@ -5,33 +5,29 @@ carries derived fields (destination_name, needs_you_count, state_line) that no
 table stores, so mapping from models is explicit, never automatic.
 """
 
-import enum
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, EmailStr, model_validator
+from pydantic import BaseModel, EmailStr, Field, model_validator
 
 from app.db.models import (
     AuthProvider,
+    ConnectedSource,
     ItemKind,
     ItemStatus,
     OptionState,
     PlanItem,
     PlanItemOption,
+    SourceKind,
+    SourceStatus,
     Trip,
     TripEvidence,
     TripOrigin,
     TripState,
+    UserPreferences,
     WellnessWindow,
     WindowStatus,
 )
-
-
-class SourceKind(enum.StrEnum):
-    google_calendar = "google_calendar"
-    gmail = "gmail"
-    apple_calendar = "apple_calendar"
-    manual_import = "manual_import"
 
 
 class EmailCodeRequest(BaseModel):
@@ -169,6 +165,81 @@ class TimelineEntryOut(BaseModel):
 
 class TimelineOut(BaseModel):
     entries: list[TimelineEntryOut]
+
+
+class PreferencesOut(BaseModel):
+    dietary: list[str]
+    activities: list[str]
+    amenities: list[str]
+    memberships: list[str]
+    preferred_times: list[str]
+    price_level_max: int | None = None
+    day_pass_budget_cents: int | None = None
+    session_min_minutes: int | None = None
+    session_max_minutes: int | None = None
+    allow_calendar_write: bool
+    allow_auto_book: bool
+    watch_schedule: bool
+    updated_at: datetime
+
+
+class PreferencesUpdateIn(BaseModel):
+    """Partial update: only fields present in the body are applied
+    (model_dump(exclude_unset=True)); explicit null clears a nullable scalar.
+    Defaults below are never used, they only make every field optional."""
+
+    dietary: list[str] = Field(default_factory=list)
+    activities: list[str] = Field(default_factory=list)
+    amenities: list[str] = Field(default_factory=list)
+    memberships: list[str] = Field(default_factory=list)
+    preferred_times: list[str] = Field(default_factory=list)
+    price_level_max: int | None = Field(default=None, ge=1, le=4)
+    day_pass_budget_cents: int | None = Field(default=None, ge=0)
+    session_min_minutes: int | None = Field(default=None, ge=5, le=600)
+    session_max_minutes: int | None = Field(default=None, ge=5, le=600)
+    allow_calendar_write: bool = False
+    allow_auto_book: bool = False
+    watch_schedule: bool = True
+
+
+class ConnectedSourceOut(BaseModel):
+    id: uuid.UUID
+    kind: SourceKind
+    status: SourceStatus
+    connected_at: datetime
+    last_synced_at: datetime | None = None
+
+
+class SourcesOut(BaseModel):
+    sources: list[ConnectedSourceOut]
+
+
+def preferences_to_out(prefs: UserPreferences) -> PreferencesOut:
+    return PreferencesOut(
+        dietary=prefs.dietary,
+        activities=prefs.activities,
+        amenities=prefs.amenities,
+        memberships=prefs.memberships,
+        preferred_times=prefs.preferred_times,
+        price_level_max=prefs.price_level_max,
+        day_pass_budget_cents=prefs.day_pass_budget_cents,
+        session_min_minutes=prefs.session_min_minutes,
+        session_max_minutes=prefs.session_max_minutes,
+        allow_calendar_write=prefs.allow_calendar_write,
+        allow_auto_book=prefs.allow_auto_book,
+        watch_schedule=prefs.watch_schedule,
+        updated_at=prefs.updated_at,
+    )
+
+
+def source_to_out(source: ConnectedSource) -> ConnectedSourceOut:
+    return ConnectedSourceOut(
+        id=source.source_id,
+        kind=source.kind,
+        status=source.status,
+        connected_at=source.created_at,
+        last_synced_at=source.last_synced_at,
+    )
 
 
 def window_to_out(window: WellnessWindow) -> WellnessWindowOut:

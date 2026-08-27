@@ -4,8 +4,9 @@ Storage layer only; API shapes live in app/api/schemas.py (ADR-001 point 6).
 All DDL, including the Postgres enum types, is created by migrations, never by
 metadata.create_all: every pg enum here is declared with create_type=False.
 
-Covered so far: users, trips, trip_evidence, wellness_windows, plans,
-plan_items, plan_item_options. The remaining tables exist in the database via
+Covered so far: users, user_preferences, connected_sources, trips,
+trip_evidence, wellness_windows, plans, plan_items, plan_item_options. The
+remaining tables exist in the database via
 the initial migration and are reached with textual SQL until their vertical
 slice lands; migrations/env.py limits drift comparison to the tables modeled
 here, so partial coverage does not trip `alembic check`.
@@ -26,6 +27,19 @@ class AuthProvider(enum.StrEnum):
     google = "google"
     apple = "apple"
     email = "email"
+
+
+class SourceKind(enum.StrEnum):
+    google_calendar = "google_calendar"
+    gmail = "gmail"
+    apple_calendar = "apple_calendar"
+    manual_import = "manual_import"
+
+
+class SourceStatus(enum.StrEnum):
+    connected = "connected"
+    error = "error"
+    revoked = "revoked"
 
 
 class TripState(enum.StrEnum):
@@ -108,6 +122,65 @@ class User(Base):
     trips: Mapped[list["Trip"]] = relationship(
         back_populates="user", passive_deletes=True
     )
+
+
+class UserPreferences(Base):
+    __tablename__ = "user_preferences"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("users.user_id", ondelete="CASCADE"), primary_key=True
+    )
+    dietary: Mapped[list[str]] = mapped_column(
+        pg.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]")
+    )
+    activities: Mapped[list[str]] = mapped_column(
+        pg.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]")
+    )
+    amenities: Mapped[list[str]] = mapped_column(
+        pg.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]")
+    )
+    memberships: Mapped[list[str]] = mapped_column(
+        pg.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]")
+    )
+    price_level_max: Mapped[int | None] = mapped_column(sa.SmallInteger)
+    day_pass_budget_cents: Mapped[int | None]
+    session_min_minutes: Mapped[int | None] = mapped_column(sa.SmallInteger)
+    session_max_minutes: Mapped[int | None] = mapped_column(sa.SmallInteger)
+    allow_calendar_write: Mapped[bool] = mapped_column(server_default=sa.text("false"))
+    allow_auto_book: Mapped[bool] = mapped_column(server_default=sa.text("false"))
+    watch_schedule: Mapped[bool] = mapped_column(server_default=sa.text("true"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+    # Last to match migration 0003's ADD COLUMN.
+    preferred_times: Mapped[list[str]] = mapped_column(
+        pg.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]")
+    )
+
+
+class ConnectedSource(Base):
+    __tablename__ = "connected_sources"
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "user_id", "kind", name="connected_sources_user_id_kind_key"
+        ),
+    )
+
+    source_id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, server_default=sa.text("gen_random_uuid()")
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("users.user_id", ondelete="CASCADE")
+    )
+    kind: Mapped[SourceKind] = mapped_column(_pg_enum(SourceKind, "source_kind"))
+    status: Mapped[SourceStatus] = mapped_column(
+        _pg_enum(SourceStatus, "source_status"),
+        server_default=sa.text("'connected'::source_status"),
+    )
+    scopes: Mapped[list[str]] = mapped_column(
+        pg.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]")
+    )
+    secret_ref: Mapped[str | None]
+    last_synced_at: Mapped[datetime | None]
+    created_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
 
 
 class Trip(Base):

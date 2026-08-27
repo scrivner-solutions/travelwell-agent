@@ -115,7 +115,9 @@ create table user_preferences (
   allow_calendar_write boolean not null default false,
   allow_auto_book      boolean not null default false,
   watch_schedule       boolean not null default true,
-  updated_at           timestamptz not null default now()
+  updated_at           timestamptz not null default now(),
+  -- Last so the column order matches migration 0003 (pg_dump drift diff).
+  preferred_times      text[] not null default '{}'     -- {'mornings'}
 );
 
 -- OAuth grants. Tokens live in Secret Manager; only the reference is here.

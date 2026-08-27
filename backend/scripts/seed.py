@@ -9,7 +9,7 @@ Usage (from backend/, with the compose Postgres up and migrations applied):
 """
 
 import asyncio
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
@@ -29,6 +29,7 @@ async def main() -> None:
     from app.db.engine import SessionFactory, engine
     from app.db.models import (
         AuthProvider,
+        ConnectedSource,
         ItemKind,
         ItemStatus,
         OptionState,
@@ -36,11 +37,14 @@ async def main() -> None:
         PlanItem,
         PlanItemOption,
         PlanStatus,
+        SourceKind,
+        SourceStatus,
         Trip,
         TripEvidence,
         TripOrigin,
         TripState,
         User,
+        UserPreferences,
         WellnessWindow,
         WindowStatus,
     )
@@ -62,6 +66,34 @@ async def main() -> None:
             await session.flush()
 
         await session.execute(delete(Trip).where(Trip.user_id == user.user_id))
+        await session.execute(
+            delete(UserPreferences).where(UserPreferences.user_id == user.user_id)
+        )
+        # Cascades the user's calendar_events too; they are recreated below.
+        await session.execute(
+            delete(ConnectedSource).where(ConnectedSource.user_id == user.user_id)
+        )
+
+        # Profile scene from the design prototype: the chips the plan options'
+        # matched_preferences refer back to ("Swim", "Vegetarian", "Mornings",
+        # "$$ or less", "45-90 min").
+        session.add(
+            UserPreferences(
+                user_id=user.user_id,
+                dietary=["vegetarian"],
+                activities=["swim", "running"],
+                amenities=["pool", "treadmill"],
+                memberships=["ymca_reciprocity", "hotel_gym"],
+                price_level_max=2,
+                day_pass_budget_cents=2000,
+                session_min_minutes=45,
+                session_max_minutes=90,
+                preferred_times=["mornings"],
+                allow_calendar_write=True,
+                allow_auto_book=False,
+                watch_schedule=True,
+            )
+        )
 
         chicago = Trip(
             user_id=user.user_id,
@@ -321,20 +353,25 @@ async def main() -> None:
         ]
         session.add_all(items)
 
-        # --- Calendar events (unmodeled tables: textual SQL, ADR-001 pt 3) ---
-        source_id = (
-            await session.execute(
-                text(
-                    """
-                    insert into connected_sources (user_id, kind, status)
-                    values (:uid, 'google_calendar', 'connected')
-                    on conflict (user_id, kind) do update set status = 'connected'
-                    returning source_id
-                    """
-                ),
-                {"uid": user.user_id},
-            )
-        ).scalar_one()
+        # --- Connected sources (profile screen) and calendar events ---
+        calendar_source = ConnectedSource(
+            user_id=user.user_id,
+            kind=SourceKind.google_calendar,
+            status=SourceStatus.connected,
+            scopes=["https://www.googleapis.com/auth/calendar.readonly"],
+            last_synced_at=datetime.now(UTC) - timedelta(minutes=4),
+        )
+        # The trip evidence above cites Email as a source; this is its grant.
+        email_source = ConnectedSource(
+            user_id=user.user_id,
+            kind=SourceKind.gmail,
+            status=SourceStatus.connected,
+            scopes=["https://www.googleapis.com/auth/gmail.readonly"],
+            last_synced_at=datetime.now(UTC) - timedelta(hours=1),
+        )
+        session.add_all([calendar_source, email_source])
+        await session.flush()
+        source_id = calendar_source.source_id
         cal_events = [
             (_at(d2, 8, 0), _at(d2, 12, 0), "Conference", "McCormick Place"),
             (_at(d2, 12, 0), _at(d2, 13, 30), "Lunch with the team", None),
