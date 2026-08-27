@@ -1,6 +1,6 @@
 import createClient from 'openapi-fetch'
 import type { paths, components } from './schema'
-import { runtimeConfig } from '@/lib/config'
+import { loadRuntimeConfig } from '@/lib/config'
 
 export type Problem = components['schemas']['Problem']
 
@@ -23,9 +23,12 @@ export class ApiError extends Error {
 
 let client: ReturnType<typeof createClient<paths>> | null = null
 
-export function api() {
+// Async so every call is a retry point for the runtime config: a config.json
+// fetch that failed at launch is retried here instead of bricking the app.
+export async function api() {
+  const { apiBaseUrl } = await loadRuntimeConfig()
   client ??= createClient<paths>({
-    baseUrl: `${runtimeConfig().apiBaseUrl}/api/v1`,
+    baseUrl: `${apiBaseUrl}/api/v1`,
     credentials: 'include',
   })
   return client

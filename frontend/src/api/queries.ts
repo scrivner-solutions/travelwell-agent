@@ -14,7 +14,10 @@ export type WellnessWindow = components['schemas']['WellnessWindow']
 export function meQueryOptions() {
   return queryOptions({
     queryKey: ['me'],
-    queryFn: async () => throwOnError<User>(await api().GET('/me')),
+    queryFn: async () => {
+      const client = await api()
+      return throwOnError<User>(await client.GET('/me'))
+    },
     staleTime: 5 * 60 * 1000,
     retry: false,
   })
@@ -23,44 +26,56 @@ export function meQueryOptions() {
 export function tripsQueryOptions(state?: TripState) {
   return queryOptions({
     queryKey: ['trips', state ?? 'all'],
-    queryFn: async () =>
-      throwOnError(
-        await api().GET('/trips', { params: { query: state ? { state } : {} } }),
-      ).trips,
+    queryFn: async () => {
+      const client = await api()
+      return throwOnError(
+        await client.GET('/trips', { params: { query: state ? { state } : {} } }),
+      ).trips
+    },
   })
 }
 
 export function todayQueryOptions(tripId: string) {
   return queryOptions({
     queryKey: ['trips', tripId, 'today'],
-    queryFn: async () =>
-      throwOnError<TodayView>(
-        await api().GET('/trips/{tripId}/today', {
+    queryFn: async () => {
+      const client = await api()
+      return throwOnError<TodayView>(
+        await client.GET('/trips/{tripId}/today', {
           params: { path: { tripId } },
         }),
-      ),
+      )
+    },
   })
 }
 
 export function timelineQueryOptions(tripId: string, day?: string) {
   return queryOptions({
     queryKey: ['trips', tripId, 'timeline', day ?? 'all'],
-    queryFn: async () =>
-      throwOnError(
-        await api().GET('/trips/{tripId}/timeline', {
+    queryFn: async () => {
+      const client = await api()
+      return throwOnError(
+        await client.GET('/trips/{tripId}/timeline', {
           params: { path: { tripId }, query: day ? { day } : {} },
         }),
-      ).entries,
+      ).entries
+    },
   })
 }
 
 export async function confirmTrip(tripId: string, updatedAt: string): Promise<Trip> {
+  const client = await api()
   return throwOnError<Trip>(
-    await api().POST('/trips/{tripId}/confirm', {
+    await client.POST('/trips/{tripId}/confirm', {
       params: { path: { tripId } },
       body: { updated_at: updatedAt },
     }),
   )
+}
+
+export async function logout(): Promise<void> {
+  const client = await api()
+  throwOnError(await client.POST('/auth/logout'))
 }
 
 export type Preferences = components['schemas']['Preferences']
@@ -70,22 +85,28 @@ export type ConnectedSource = components['schemas']['ConnectedSource']
 export function preferencesQueryOptions() {
   return queryOptions({
     queryKey: ['me', 'preferences'],
-    queryFn: async () =>
-      throwOnError<Preferences>(await api().GET('/me/preferences')),
+    queryFn: async () => {
+      const client = await api()
+      return throwOnError<Preferences>(await client.GET('/me/preferences'))
+    },
   })
 }
 
 export function sourcesQueryOptions() {
   return queryOptions({
     queryKey: ['me', 'sources'],
-    queryFn: async () => throwOnError(await api().GET('/me/sources')).sources,
+    queryFn: async () => {
+      const client = await api()
+      return throwOnError(await client.GET('/me/sources')).sources
+    },
   })
 }
 
 export async function updatePreferences(
   patch: PreferencesUpdate,
 ): Promise<Preferences> {
+  const client = await api()
   return throwOnError<Preferences>(
-    await api().PATCH('/me/preferences', { body: patch }),
+    await client.PATCH('/me/preferences', { body: patch }),
   )
 }

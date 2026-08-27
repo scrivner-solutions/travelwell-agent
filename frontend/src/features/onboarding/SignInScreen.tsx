@@ -3,11 +3,16 @@ import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { Button } from '@/components/ui/Button'
 import { api, throwOnError, ApiError } from '@/api/client'
-import { runtimeConfig } from '@/lib/config'
+import { loadRuntimeConfig } from '@/lib/config'
 
 function errorCopy(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.status === 401 || error.status === 403) {
+    // A wrong or expired code answers 400 code_invalid.
+    if (
+      error.problem?.code === 'code_invalid' ||
+      error.status === 401 ||
+      error.status === 403
+    ) {
       return 'That code did not match. Check the newest email and try again.'
     }
     return error.problem?.detail ?? 'Sign-in is unavailable right now. Try again in a moment.'
@@ -22,18 +27,26 @@ export function SignInScreen() {
 
   const requestCode = useMutation({
     mutationFn: async () => {
-      throwOnError(await api().POST('/auth/email-code', { body: { email } }))
+      const client = await api()
+      throwOnError(await client.POST('/auth/email-code', { body: { email } }))
     },
   })
 
   const verifyCode = useMutation({
-    mutationFn: async () =>
-      throwOnError(await api().POST('/auth/email-code/verify', { body: { email, code } })),
+    mutationFn: async () => {
+      const client = await api()
+      return throwOnError(
+        await client.POST('/auth/email-code/verify', { body: { email, code } }),
+      )
+    },
     onSuccess: () => void navigate({ to: '/today' }),
   })
 
-  const startOauth = (provider: 'google') => {
-    window.location.href = `${runtimeConfig().apiBaseUrl}/api/v1/auth/oauth/${provider}/start`
+  const startOauth = async (provider: 'google') => {
+    // Same-origin fallback if config.json is unreachable; that is the
+    // deployed default anyway.
+    const { apiBaseUrl } = await loadRuntimeConfig().catch(() => ({ apiBaseUrl: '' }))
+    window.location.href = `${apiBaseUrl}/api/v1/auth/oauth/${provider}/start`
   }
 
   const codeSent = requestCode.isSuccess
@@ -48,7 +61,7 @@ export function SignInScreen() {
       </header>
 
       <div className="flex flex-col gap-3">
-        <Button variant="secondary" onClick={() => startOauth('google')}>
+        <Button variant="secondary" onClick={() => void startOauth('google')}>
           Continue with Google
         </Button>
       </div>
