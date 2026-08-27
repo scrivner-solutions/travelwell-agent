@@ -593,6 +593,8 @@ export interface components {
             state: components["schemas"]["TripState"];
             origin: components["schemas"]["TripOrigin"];
             destination_name: string;
+            /** @description Short trip descriptor for the header eyebrow ("Conference trip"). */
+            label?: string;
             /** @description IANA zone; all trip times render in this zone, never the device zone. */
             timezone: string;
             /** Format: date */
@@ -611,7 +613,12 @@ export interface components {
         };
         TripEvidence: {
             source: components["schemas"]["SourceKind"];
+            /** @description Bold headline of the evidence row ("The Gwen"). */
             summary: string;
+            /** @description Caption rendered under the summary ("521 N Rush St · 3 nights"). Absent when detection has no second line to show. */
+            detail?: string;
+            /** @description Evidence category (flight_event, hotel_email, conference_event, calendar_block, ...); drives the tag box on evidence rows. Open-ended - render unknown kinds with a generic tag. */
+            kind: string;
         };
         TodayView: {
             /** Format: uuid */
@@ -619,18 +626,34 @@ export interface components {
             /** @description Server-derived ("Day 2 of 4 - Chicago"). */
             day_label: string;
             state_word: string;
+            /** @description Second half of the state line ("Watching for schedule changes"). */
+            state_detail?: string;
             timezone: string;
             window?: components["schemas"]["WellnessWindow"];
             next_up: components["schemas"]["PlanItem"][];
         };
         WellnessWindow: {
+            /** Format: uuid */
+            id: string;
             status: components["schemas"]["WindowStatus"];
             /** Format: date-time */
             starts_at: string;
             /** Format: date-time */
             ends_at: string;
-            /** @description The calendar constraints that define the window ("after your 3pm review"). */
-            bounds: string[];
+            /** @description Headline for the window card ("90 minutes free"). */
+            label: string;
+            /** @description One sentence on the gap ("Between your workshop and dinner, 5:30 to 7:00."). */
+            gap_explanation?: string;
+            /** @description Display-shaped provenance rows for "What makes the opening". */
+            bounds: components["schemas"]["WindowBound"][];
+        };
+        WindowBound: {
+            /** @description Short mono badge (CAL, PLAN, HTL). */
+            tag: string;
+            title: string;
+            detail?: string;
+            /** @description Where this bound came from ("Calendar", "This plan", "Email"). */
+            source_label?: string;
         };
         TimelineEntry: {
             /** @enum {string} */
@@ -670,6 +693,11 @@ export interface components {
             starts_at?: string;
             /** Format: date-time */
             ends_at?: string;
+            /**
+             * Format: uuid
+             * @description Wellness window this item fills, if any. The Today screen nests the item inside its window card (design: the opening, then what fits it).
+             */
+            window_id?: string;
             /** @description Matched preferences served from plan_item_options.matched_preferences. */
             why?: string[];
             selected_option?: components["schemas"]["PlanItemOption"];
@@ -681,10 +709,19 @@ export interface components {
             /** Format: uuid */
             id: string;
             state: components["schemas"]["OptionState"];
-            place: components["schemas"]["Place"];
+            /** @description Denormalized for stable display; survives place cache churn. */
+            display_name: string;
+            /** @description "Pool + treadmill · 75 min" */
+            display_summary?: string;
+            /** @description The why-chip ("Fits your 90-minute opening"). */
+            reason?: string;
+            distance_minutes?: number;
+            duration_minutes?: number;
             matched_preferences?: string[];
             /** @description Required by schema CHECK when state = rejected. */
             rejection_reason?: string;
+            /** @description Populated once the places cache slice lands; display_* fields are authoritative until then. */
+            place?: components["schemas"]["Place"];
         };
         Provenance: {
             /** Format: uuid */

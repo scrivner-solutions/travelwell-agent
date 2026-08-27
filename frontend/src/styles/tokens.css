@@ -25,18 +25,22 @@
   --muted-soft: #8a97a8;
 
   /* State colors (StatusBadge, ProgressState) */
-  --state-confirmed: #1a7f4e;
-  --state-confirmed-soft: #e3f4ea;
-  --state-working: #185fa5;
-  --state-working-soft: #e7f0f9;
-  --state-attention: #b25e09;
-  --state-attention-soft: #fdf0e0;
+  /* Design-prototype palette: one hue per meaning, no green, no red.
+     Blue = settled, periwinkle = the agent thinking, navy = needs you. */
+  --state-suggested: #7f77dd;
+  --state-suggested-soft: #eeedfe;
+  --state-confirmed: #185fa5;
+  --state-confirmed-soft: #e6f1fb;
+  --state-working: #5b52b8;
+  --state-working-soft: #eeedfe;
+  --state-attention: #042c53;
+  --state-attention-soft: #edf1f7;
   --state-changed: #5b52b8;
-  --state-changed-soft: #edebfa;
-  --state-failed: #b3382c;
-  --state-failed-soft: #fbe9e7;
+  --state-changed-soft: #eeedfe;
+  --state-failed: #042c53;
+  --state-failed-soft: #eeedfe;
   --state-neutral: #5a6b80;
-  --state-neutral-soft: #eef1f5;
+  --state-neutral-soft: #edf1f7;
 
   /* Type */
   --font-stack-display: "Newsreader", Georgia, "Times New Roman", serif;
@@ -68,6 +72,8 @@
   --color-muted: var(--muted);
   --color-muted-soft: var(--muted-soft);
 
+  --color-state-suggested: var(--state-suggested);
+  --color-state-suggested-soft: var(--state-suggested-soft);
   --color-state-confirmed: var(--state-confirmed);
   --color-state-confirmed-soft: var(--state-confirmed-soft);
   --color-state-working: var(--state-working);

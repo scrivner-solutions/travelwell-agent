@@ -10,7 +10,7 @@ type ItemStatus = components['schemas']['ItemStatus']
 const config: Record<ItemStatus, { label: string; className: string }> = {
   suggested: {
     label: 'Suggested',
-    className: 'bg-state-neutral-soft text-state-neutral',
+    className: 'bg-state-suggested-soft text-state-suggested',
   },
   awaiting_user: {
     label: 'Needs you',

@@ -8,6 +8,8 @@ export type TodayView = components['schemas']['TodayView']
 export type PlanItem = components['schemas']['PlanItem']
 export type TripState = components['schemas']['TripState']
 export type ItemStatus = components['schemas']['ItemStatus']
+export type TimelineEntry = components['schemas']['TimelineEntry']
+export type WellnessWindow = components['schemas']['WellnessWindow']
 
 export function meQueryOptions() {
   return queryOptions({
@@ -38,4 +40,25 @@ export function todayQueryOptions(tripId: string) {
         }),
       ),
   })
+}
+
+export function timelineQueryOptions(tripId: string, day?: string) {
+  return queryOptions({
+    queryKey: ['trips', tripId, 'timeline', day ?? 'all'],
+    queryFn: async () =>
+      throwOnError(
+        await api().GET('/trips/{tripId}/timeline', {
+          params: { path: { tripId }, query: day ? { day } : {} },
+        }),
+      ).entries,
+  })
+}
+
+export async function confirmTrip(tripId: string, updatedAt: string): Promise<Trip> {
+  return throwOnError<Trip>(
+    await api().POST('/trips/{tripId}/confirm', {
+      params: { path: { tripId } },
+      body: { updated_at: updatedAt },
+    }),
+  )
 }

@@ -1,18 +1,174 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { getRouteApi } from '@tanstack/react-router'
+import { formatInTimeZone } from 'date-fns-tz'
 import { Card } from '@/components/ui/Card'
+import { StatusBadge } from '@/components/ui/StatusBadge'
 import { LoadingState, EmptyState, DegradedState } from '@/components/ui/ScreenState'
-import { tripsQueryOptions } from '@/api/queries'
+import {
+  confirmTrip,
+  timelineQueryOptions,
+  tripsQueryOptions,
+  type TimelineEntry,
+  type Trip,
+} from '@/api/queries'
+import { ApiError } from '@/api/client'
+import { evidenceTag, focusTrip, sourceLabel, stateInk, tripDays } from '@/lib/trips'
+import { formatDateRange, formatTripTime } from '@/lib/time'
 
-// Phase 1 grows this into the full timeline (Existing / Suggested / Confirmed
-// rows, detection confirm, manual create). Phase 0 renders the real trip list
-// so the tab is wired end-to-end through the contract from day one.
+const route = getRouteApi('/_shell/trip')
+
+// "Tue 25" (weekday first, like the design's day selector)
+function dayChipLabel(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`)
+  const weekday = d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })
+  return `${weekday} ${d.getUTCDate()}`
+}
+
+// Day-chip dots, one per entry: gray commitments, periwinkle unsettled
+// suggestions, blue settled plan items.
+function entryDotClass(entry: TimelineEntry): string {
+  if (entry.entry_type === 'calendar_event') return 'bg-state-neutral'
+  return entry.plan_item?.status === 'suggested'
+    ? 'bg-state-suggested'
+    : 'bg-state-confirmed'
+}
+
+function EvidenceRow({
+  kind,
+  summary,
+  detail,
+  source,
+}: {
+  kind: string
+  summary: string
+  detail?: string
+  source: string
+}) {
+  return (
+    <li className="flex items-center gap-3">
+      <span className="grid size-9 flex-none place-items-center rounded-lg bg-state-neutral-soft font-mono text-label font-semibold text-state-neutral">
+        {evidenceTag(kind)}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-body-sm font-semibold text-ink">{summary}</span>
+        {detail !== undefined && (
+          <span className="block text-caption text-muted">{detail}</span>
+        )}
+      </span>
+      <span className="flex-none text-label text-muted">{sourceLabel(source)}</span>
+    </li>
+  )
+}
+
+/** "We found an upcoming trip" card: evidence rows + confirm (409-aware). */
+function DetectionCard({ trip }: { trip: Trip }) {
+  const queryClient = useQueryClient()
+  const confirm = useMutation({
+    mutationFn: () => confirmTrip(trip.id, trip.updated_at),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['trips'] }),
+  })
+  const conflicted =
+    confirm.error instanceof ApiError && confirm.error.status === 409
+
+  return (
+    <Card>
+      <p className="text-label font-semibold uppercase tracking-wide text-muted">
+        We found an upcoming trip
+      </p>
+      <p className="mt-1 font-display text-display-sm">{trip.destination_name}</p>
+      <p className="text-caption text-muted">
+        {formatDateRange(trip.starts_on, trip.ends_on)}
+      </p>
+      {trip.evidence !== undefined && trip.evidence.length > 0 && (
+        <ul className="mt-3 flex flex-col gap-2 border-t border-border-soft pt-3">
+          {trip.evidence.map((row) => (
+            <EvidenceRow
+              key={row.summary}
+              kind={row.kind}
+              summary={row.summary}
+              detail={row.detail}
+              source={row.source}
+            />
+          ))}
+        </ul>
+      )}
+      {conflicted ? (
+        <p className="mt-3 text-caption font-semibold text-state-attention">
+          This trip changed on the server. The list below has been refreshed; try again.
+        </p>
+      ) : (
+        confirm.isError && (
+          <p className="mt-3 text-caption font-semibold text-state-attention">
+            Could not confirm the trip. Check your connection and retry.
+          </p>
+        )
+      )}
+      <button
+        onClick={() => confirm.mutate()}
+        disabled={confirm.isPending}
+        className="mt-3 h-11 w-full rounded-panel bg-primary text-body-sm font-semibold text-white disabled:opacity-60"
+      >
+        {confirm.isPending ? 'Confirming…' : 'Use this trip'}
+      </button>
+    </Card>
+  )
+}
+
 export function TripScreen() {
+  const { day } = route.useSearch()
+  const navigate = route.useNavigate()
   const trips = useQuery(tripsQueryOptions())
+  const trip = trips.data ? focusTrip(trips.data) : undefined
+  const detected = trips.data?.filter((t) => t.state === 'detected') ?? []
+
+  const days = trip ? tripDays(trip.starts_on, trip.ends_on) : []
+  const todayIso = trip
+    ? formatInTimeZone(new Date(), trip.timezone, 'yyyy-MM-dd')
+    : ''
+  const selectedDay = day ?? (days.includes(todayIso) ? todayIso : days[0])
+
+  // One unfiltered fetch: the same entries drive the day-chip dots and the
+  // selected day's timeline, so switching days never refetches.
+  const timeline = useQuery({
+    ...timelineQueryOptions(trip?.id ?? ''),
+    enabled: trip !== undefined,
+  })
+  const entriesByDay = new Map<string, TimelineEntry[]>()
+  if (trip && timeline.data) {
+    for (const entry of timeline.data) {
+      const entryDay = formatInTimeZone(entry.starts_at, trip.timezone, 'yyyy-MM-dd')
+      entriesByDay.set(entryDay, [...(entriesByDay.get(entryDay) ?? []), entry])
+    }
+  }
+  const dayEntries = entriesByDay.get(selectedDay ?? '') ?? []
+  const commitmentCount = dayEntries.filter(
+    (e) => e.entry_type === 'calendar_event',
+  ).length
+  const dayIndex = selectedDay ? days.indexOf(selectedDay) : -1
+  const weekdayLong = selectedDay
+    ? new Date(`${selectedDay}T00:00:00Z`).toLocaleDateString('en-US', {
+        weekday: 'long',
+        timeZone: 'UTC',
+      })
+    : ''
 
   return (
     <>
       <header className="mb-4">
-        <h1 className="font-display text-display font-medium">Trip</h1>
+        <p className="flex items-center gap-2 text-caption font-semibold uppercase tracking-wide text-muted">
+          {trip && (
+            <span
+              aria-hidden
+              className={`inline-block size-[7px] rounded-full bg-current ${stateInk[trip.state] ?? 'text-state-neutral'}`}
+            />
+          )}
+          {trip
+            ? `${formatDateRange(trip.starts_on, trip.ends_on)}${trip.label !== undefined ? ` · ${trip.label}` : ''}`
+            : 'Trip'}
+        </p>
+        <h1 className="font-display text-display font-medium">
+          {trip?.destination_name.split(',')[0] ?? 'Trip'}
+        </h1>
       </header>
 
       {trips.isPending && <LoadingState label="Loading your trips" />}
@@ -28,27 +184,160 @@ export function TripScreen() {
           detail="Trips detected from your calendar and trips you add by hand both live here."
         />
       )}
+
       <div className="flex flex-col gap-3">
-        {trips.data?.map((trip) => (
-          <Card key={trip.id}>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-body font-semibold">{trip.destination_name}</p>
+        {detected.map((t) => (
+          <DetectionCard key={t.id} trip={t} />
+        ))}
+
+        {trip && (
+          <>
+            {trip.evidence !== undefined && trip.evidence.length > 0 && (
+              <Card>
+                <ul className="flex flex-col gap-2.5">
+                  {trip.evidence.map((row) => (
+                    <EvidenceRow
+                      key={row.summary}
+                      kind={row.kind}
+                      summary={row.summary}
+                      detail={row.detail}
+                      source={row.source}
+                    />
+                  ))}
+                </ul>
+              </Card>
+            )}
+
+            <div className="flex gap-2 overflow-x-auto" role="tablist" aria-label="Trip days">
+              {days.map((d) => (
+                <button
+                  key={d}
+                  role="tab"
+                  aria-selected={d === selectedDay}
+                  onClick={() => void navigate({ search: { day: d } })}
+                  className={`flex-1 whitespace-nowrap rounded-panel border px-3 py-2 text-body-sm font-semibold ${
+                    d === selectedDay
+                      ? 'border-ink bg-ink text-white'
+                      : 'border-border-soft bg-surface text-ink'
+                  }`}
+                >
+                  {dayChipLabel(d)}
+                  <span className="mt-1.5 flex min-h-[4px] justify-center gap-[3px]">
+                    {(entriesByDay.get(d) ?? []).slice(0, 5).map((entry, i) => (
+                      <span
+                        key={i}
+                        className={`size-[4px] rounded-full ${entryDotClass(entry)}`}
+                      />
+                    ))}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {dayIndex >= 0 && (
+              <div className="flex items-baseline justify-between px-1">
+                <p className="font-display text-display-sm">
+                  Day {dayIndex + 1} · {weekdayLong}
+                </p>
                 <p className="text-caption text-muted">
-                  {trip.starts_on} to {trip.ends_on} · {trip.timezone}
+                  {commitmentCount}{' '}
+                  {commitmentCount === 1 ? 'commitment' : 'commitments'}
                 </p>
               </div>
-              <span className="text-label font-semibold uppercase tracking-wide text-muted">
-                {trip.state.replace('_', ' ')}
-              </span>
-            </div>
-            {trip.needs_you_count > 0 && (
-              <p className="mt-2 text-caption font-semibold text-state-attention">
-                {trip.needs_you_count} {trip.needs_you_count === 1 ? 'item needs' : 'items need'} you
-              </p>
             )}
-          </Card>
-        ))}
+
+            {timeline.isPending && <LoadingState label="Loading the day" />}
+            {timeline.isError && (
+              <DegradedState
+                title="Can't load this day"
+                onRetry={() => void timeline.refetch()}
+              />
+            )}
+            {timeline.isSuccess && dayEntries.length === 0 && (
+              <EmptyState
+                title="Nothing on this day"
+                detail="No commitments or plan items land here yet."
+              />
+            )}
+            {dayEntries.map((entry) =>
+              entry.entry_type === 'calendar_event' && entry.calendar_event ? (
+                <div
+                  key={`cal-${entry.calendar_event.id}`}
+                  className="flex items-baseline gap-3 px-1"
+                >
+                  <span className="w-16 flex-none text-right text-caption text-muted">
+                    {formatTripTime(entry.starts_at, trip.timezone)}
+                  </span>
+                  <div>
+                    <p className="text-body-sm text-muted">{entry.calendar_event.title}</p>
+                    {entry.calendar_event.location_name !== undefined && (
+                      <p className="text-caption text-muted-soft">
+                        {entry.calendar_event.location_name}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : entry.plan_item ? (
+                <div key={`item-${entry.plan_item.id}`} className="flex items-start gap-3">
+                  <span className="w-16 flex-none pt-4 text-right text-caption text-muted">
+                    {formatTripTime(entry.starts_at, trip.timezone)}
+                  </span>
+                  <Card
+                    className={`flex-1 ${
+                      entry.plan_item.status === 'suggested'
+                        ? 'border-dashed border-state-suggested'
+                        : ''
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-body font-semibold">{entry.plan_item.title}</p>
+                        {entry.plan_item.selected_option?.display_summary !== undefined && (
+                          <p className="text-caption text-muted">
+                            {entry.plan_item.selected_option.display_summary}
+                          </p>
+                        )}
+                      </div>
+                      <StatusBadge status={entry.plan_item.status} />
+                    </div>
+                  </Card>
+                </div>
+              ) : null,
+            )}
+          </>
+        )}
+
+        {trips.isSuccess && trips.data.length > 0 && (
+          <>
+            <p className="mt-2 text-label font-semibold uppercase tracking-wide text-muted">
+              All trips
+            </p>
+            {trips.data.map((t) => (
+              <Card key={t.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-body font-semibold">{t.destination_name}</p>
+                    <p className="text-caption text-muted">
+                      {formatDateRange(t.starts_on, t.ends_on)}
+                      {t.label !== undefined && ` · ${t.label}`}
+                    </p>
+                  </div>
+                  <span
+                    className={`flex items-baseline gap-1.5 text-label font-semibold uppercase tracking-wide ${stateInk[t.state] ?? 'text-state-neutral'}`}
+                  >
+                    <span aria-hidden className="size-[6px] flex-none self-center rounded-full bg-current" />
+                    {t.state.replace('_', ' ')}
+                  </span>
+                </div>
+                {t.needs_you_count > 0 && (
+                  <p className="mt-2 text-caption font-semibold text-state-attention">
+                    {t.needs_you_count} {t.needs_you_count === 1 ? 'item needs' : 'items need'} you
+                  </p>
+                )}
+              </Card>
+            ))}
+          </>
+        )}
       </div>
     </>
   )
