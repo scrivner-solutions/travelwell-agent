@@ -41,3 +41,14 @@ __pycache__/
 frontend/dist/
 frontend/dev-dist/
 *.tsbuildinfo
+
+# Local-only planning docs; the public contract set (openapi.yaml,
+# schema.sql, ERD.md) stays tracked.
+docs/ROADMAP.md
+docs/adr/
+docs/AGENT_ARCHITECTURE_GUIDE.md
+docs/AGENT_DESIGN.md
+docs/AGENT_DESIGN.html
+docs/DATA_ARCHITECTURE.md
+docs/FRONTEND_IMPLEMENTATION_PLAN.md
+docs/UX_DESIGN_BRIEF.md
