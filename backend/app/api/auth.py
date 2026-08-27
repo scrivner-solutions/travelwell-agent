@@ -12,14 +12,14 @@ from fastapi import APIRouter, Response, status
 from sqlalchemy import select
 
 from app.api import sessions
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import ApiRoute, CurrentUser, SessionDep
 from app.api.problems import Problem
 from app.api.schemas import EmailCodeRequest, EmailCodeVerify, UserOut
 from app.db.models import AuthProvider, User
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["auth"])
+router = APIRouter(tags=["auth"], route_class=ApiRoute)
 
 
 def _cookie_secure() -> bool:
@@ -41,10 +41,10 @@ def _set_session_cookie(response: Response, user_id: str) -> None:
 @router.post("/auth/email-code", status_code=status.HTTP_202_ACCEPTED)
 async def request_email_code(body: EmailCodeRequest) -> Response:
     code = sessions.issue_code(body.email)
-    # Dev placeholder: no email provider is wired yet, so the code goes to the
-    # server log. WARNING so it surfaces without any logging config. The 202
-    # is unconditional so addresses cannot be enumerated.
-    logger.warning("Sign-in code for %s: %s (dev mode, read it from this log)", body.email, code)
+    if sessions.dev_mode():
+        # No email provider yet; dev reads the code from the server log.
+        logger.warning("Sign-in code for %s: %s", body.email, code)
+    # 202 unconditionally so addresses cannot be enumerated.
     return Response(status_code=status.HTTP_202_ACCEPTED)
 
 

@@ -43,6 +43,8 @@ if not (make_url(TEST_DATABASE_URL).database or "").endswith("_test"):
 # app imports therefore live inside fixtures, never at module top.
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ.setdefault("DISABLE_TELEMETRY", "true")
+# Sessions fail hard without a secret outside dev/test (sessions.py).
+os.environ.setdefault("APP_ENV", "test")
 
 # Everything the initial migration creates, modeled or not. Truncated together
 # so FK order never matters; CASCADE covers any table a future migration adds.

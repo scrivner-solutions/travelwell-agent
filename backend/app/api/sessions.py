@@ -26,21 +26,38 @@ CODE_MAX_ATTEMPTS = 5
 _DEV_SECRET = "dev-insecure-session-secret"
 
 
-def _serializer() -> URLSafeTimedSerializer:
+def dev_mode() -> bool:
+    """Explicit local/test opt-in: allows the dev secret and logged sign-in codes."""
+    return os.getenv("APP_ENV", "").lower() in ("dev", "test")
+
+
+def _resolve_secret() -> str:
     secret = os.getenv("SESSION_SECRET")
-    if not secret:
-        secret = _DEV_SECRET
-        logger.warning("SESSION_SECRET is not set; using the insecure dev secret")
-    return URLSafeTimedSerializer(secret, salt="twl-session")
+    if secret:
+        return secret
+    if dev_mode():
+        logger.warning("SESSION_SECRET unset; using the insecure dev secret")
+        return _DEV_SECRET
+    # The signing secret IS the security model; a public fallback would let
+    # anyone mint sessions for any user_id.
+    raise RuntimeError(
+        "SESSION_SECRET is not set. Set it to a long random string, "
+        "or set APP_ENV=dev for local development."
+    )
+
+
+# Resolved at import so a misconfigured deployment fails at startup, not on
+# the first sign-in.
+_SERIALIZER = URLSafeTimedSerializer(_resolve_secret(), salt="twl-session")
 
 
 def issue_session(user_id: str) -> str:
-    return _serializer().dumps(user_id)
+    return _SERIALIZER.dumps(user_id)
 
 
 def read_session(token: str) -> str | None:
     try:
-        return _serializer().loads(token, max_age=SESSION_MAX_AGE_SECONDS)
+        return _SERIALIZER.loads(token, max_age=SESSION_MAX_AGE_SECONDS)
     except (BadSignature, SignatureExpired):
         return None
 

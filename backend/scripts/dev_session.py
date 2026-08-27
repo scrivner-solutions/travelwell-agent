@@ -9,9 +9,14 @@ Usage (from backend/):
 """
 
 import asyncio
+import os
 import sys
 
 from sqlalchemy import text
+
+# A dev tool by definition; without this, sessions.py refuses to start
+# when SESSION_SECRET is unset.
+os.environ.setdefault("APP_ENV", "dev")
 
 
 async def main() -> None:
