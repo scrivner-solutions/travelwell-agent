@@ -36,8 +36,9 @@ echo "Applying Alembic migrations to $MIG_DB"
 
 dump() {
   # -T alembic_version: bookkeeping table only the migrated side has.
+  # \restrict/\unrestrict: random per-dump token pg_dump >= 16.10 emits.
   pg_dump --schema-only --no-owner --no-privileges -T alembic_version "$1" \
-    | grep -vE '^(--|SET |SELECT pg_catalog\.set_config)' \
+    | grep -vE '^(--|SET |SELECT pg_catalog\.set_config|\\restrict|\\unrestrict)' \
     | grep -v '^$'
 }
 
