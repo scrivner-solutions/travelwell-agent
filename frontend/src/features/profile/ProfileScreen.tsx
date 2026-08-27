@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
 import {
+  logout,
   meQueryOptions,
   preferencesQueryOptions,
   sourcesQueryOptions,
@@ -235,6 +236,16 @@ export function ProfileScreen() {
   })
   const patch = (update: PreferencesUpdate) => mutation.mutate(update)
 
+  const signOut = useMutation({
+    mutationFn: logout,
+    onSuccess: () => {
+      // Hard navigation: the cleared cache must not be repopulated by
+      // in-flight queries from this page.
+      queryClient.clear()
+      window.location.assign('/sign-in')
+    },
+  })
+
   const goBack = () => {
     if (window.history.length > 1) router.history.back()
     else void router.navigate({ to: '/today' })
@@ -418,6 +429,19 @@ export function ProfileScreen() {
             </button>
           </>
         )}
+
+        {signOut.isError && (
+          <p className="mt-4 text-caption font-semibold text-state-attention">
+            Could not sign out. Check your connection and retry.
+          </p>
+        )}
+        <button
+          onClick={() => signOut.mutate()}
+          disabled={signOut.isPending}
+          className="mt-3 h-[52px] w-full rounded-control border border-border bg-card text-body font-semibold text-state-attention focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
+        >
+          {signOut.isPending ? 'Signing out…' : 'Sign out'}
+        </button>
       </main>
     </div>
   )

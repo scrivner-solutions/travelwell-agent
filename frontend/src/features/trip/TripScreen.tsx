@@ -82,9 +82,9 @@ function DetectionCard({ trip }: { trip: Trip }) {
       </p>
       {trip.evidence !== undefined && trip.evidence.length > 0 && (
         <ul className="mt-3 flex flex-col gap-2 border-t border-border-soft pt-3">
-          {trip.evidence.map((row) => (
+          {trip.evidence.map((row, i) => (
             <EvidenceRow
-              key={row.summary}
+              key={i}
               kind={row.kind}
               summary={row.summary}
               detail={row.detail}
@@ -122,11 +122,10 @@ export function TripScreen() {
   const trip = trips.data ? focusTrip(trips.data) : undefined
   const detected = trips.data?.filter((t) => t.state === 'detected') ?? []
 
-  const days = trip ? tripDays(trip.starts_on, trip.ends_on) : []
+  const rangeDays = trip ? tripDays(trip.starts_on, trip.ends_on) : []
   const todayIso = trip
     ? formatInTimeZone(new Date(), trip.timezone, 'yyyy-MM-dd')
     : ''
-  const selectedDay = day ?? (days.includes(todayIso) ? todayIso : days[0])
 
   // One unfiltered fetch: the same entries drive the day-chip dots and the
   // selected day's timeline, so switching days never refetches.
@@ -141,11 +140,24 @@ export function TripScreen() {
       entriesByDay.set(entryDay, [...(entriesByDay.get(entryDay) ?? []), entry])
     }
   }
+  // Chips cover the trip range plus any entry day outside it (red-eye,
+  // late checkout), so no entry is ever unreachable.
+  const days = [...new Set([...rangeDays, ...entriesByDay.keys()])].sort()
+  // Today wins when it is a chip; while the timeline is loading we cannot
+  // know that yet (red-eye days), so select nothing rather than a wrong day.
+  const selectedDay =
+    day ??
+    (days.includes(todayIso)
+      ? todayIso
+      : timeline.isPending
+        ? undefined
+        : rangeDays[0])
   const dayEntries = entriesByDay.get(selectedDay ?? '') ?? []
   const commitmentCount = dayEntries.filter(
     (e) => e.entry_type === 'calendar_event',
   ).length
-  const dayIndex = selectedDay ? days.indexOf(selectedDay) : -1
+  // "Day N" counts within the trip range only; 0 marks an out-of-range day.
+  const tripDayNumber = selectedDay ? rangeDays.indexOf(selectedDay) + 1 : 0
   const weekdayLong = selectedDay
     ? new Date(`${selectedDay}T00:00:00Z`).toLocaleDateString('en-US', {
         weekday: 'long',
@@ -199,9 +211,9 @@ export function TripScreen() {
             {trip.evidence !== undefined && trip.evidence.length > 0 && (
               <Card>
                 <ul className="flex flex-col gap-2.5">
-                  {trip.evidence.map((row) => (
+                  {trip.evidence.map((row, i) => (
                     <EvidenceRow
-                      key={row.summary}
+                      key={i}
                       kind={row.kind}
                       summary={row.summary}
                       detail={row.detail}
@@ -238,10 +250,10 @@ export function TripScreen() {
               ))}
             </div>
 
-            {dayIndex >= 0 && (
+            {selectedDay !== undefined && days.includes(selectedDay) && (
               <div className="flex items-baseline justify-between px-1">
                 <p className="font-display text-display-sm">
-                  Day {dayIndex + 1} · {weekdayLong}
+                  {tripDayNumber > 0 ? `Day ${tripDayNumber} · ${weekdayLong}` : weekdayLong}
                 </p>
                 <p className="text-caption text-muted">
                   {commitmentCount}{' '}

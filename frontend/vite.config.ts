@@ -38,6 +38,9 @@ export default defineConfig({
         // never be served stale from the precache.
         globIgnores: ['config.json'],
         navigateFallback: '/index.html',
+        // /api navigations (OAuth start/callback redirects) must reach the
+        // server, never the SPA shell.
+        navigateFallbackDenylist: [/^\/api\//],
       },
     }),
   ],
