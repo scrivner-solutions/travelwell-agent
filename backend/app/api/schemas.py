@@ -77,6 +77,7 @@ class TripCreateIn(BaseModel):
 class TripEvidenceOut(BaseModel):
     source: SourceKind
     summary: str
+    detail: str | None = None
     kind: str
 
 
@@ -251,7 +252,9 @@ def evidence_to_out(row: TripEvidence) -> TripEvidenceOut:
     source = _SOURCE_LABEL_TO_KIND.get(
         row.source_label.lower(), SourceKind.manual_import
     )
-    return TripEvidenceOut(source=source, summary=row.summary, kind=row.kind)
+    return TripEvidenceOut(
+        source=source, summary=row.summary, detail=row.detail, kind=row.kind
+    )
 
 
 def trip_to_out(trip: Trip, needs_you_count: int) -> TripOut:

@@ -323,5 +323,7 @@ class TripEvidence(Base):
     summary: Mapped[str]
     source_ref: Mapped[str | None]
     detected_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+    # Caption under the summary; last to match migration 0002's ADD COLUMN.
+    detail: Mapped[str | None]
 
     trip: Mapped[Trip] = relationship(back_populates="evidence")

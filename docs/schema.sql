@@ -176,9 +176,13 @@ create table trip_evidence (
   trip_id      uuid not null references trips(trip_id) on delete cascade,
   kind         text not null,                            -- 'flight_event','hotel_email',...
   source_label text not null,                            -- 'Calendar', 'Email'
-  summary      text not null,                            -- 'Flight UA 1142 · SFO → ORD'
+  summary      text not null,                            -- 'UA 1142 · SFO to ORD'
   source_ref   text,                                     -- external event/message id
-  detected_at  timestamptz not null default now()
+  detected_at  timestamptz not null default now(),
+  -- Caption under the summary ('521 N Rush St · 3 nights'). Last column on
+  -- purpose: added by migration 0002, and ADD COLUMN appends physically, so
+  -- the drift check's pg_dump diff needs it last here too.
+  detail       text
 );
 create index trip_evidence_trip_idx on trip_evidence (trip_id);
 

@@ -957,6 +957,12 @@ components:
           $ref: "#/components/schemas/SourceKind"
         summary:
           type: string
+          description: Bold headline of the evidence row ("The Gwen").
+        detail:
+          type: string
+          description: >-
+            Caption rendered under the summary ("521 N Rush St · 3 nights").
+            Absent when detection has no second line to show.
         kind:
           type: string
           description: >-
