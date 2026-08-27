@@ -54,5 +54,9 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    // Unit tests only. e2e/ belongs to Playwright's runner (playwright.config
+    // testDir), which vitest's default **/*.spec.ts glob would otherwise
+    // collect and crash on.
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
   },
 })

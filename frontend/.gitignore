@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Playwright: e2e/ currently holds only the local screenshot harness for
+# design comparison (visual.spec.ts + shots). Un-ignore when the real flow
+# suite lands.
+e2e/
+test-results/
+playwright-report/
