@@ -62,3 +62,30 @@ export async function confirmTrip(tripId: string, updatedAt: string): Promise<Tr
     }),
   )
 }
+
+export type Preferences = components['schemas']['Preferences']
+export type PreferencesUpdate = components['schemas']['PreferencesUpdate']
+export type ConnectedSource = components['schemas']['ConnectedSource']
+
+export function preferencesQueryOptions() {
+  return queryOptions({
+    queryKey: ['me', 'preferences'],
+    queryFn: async () =>
+      throwOnError<Preferences>(await api().GET('/me/preferences')),
+  })
+}
+
+export function sourcesQueryOptions() {
+  return queryOptions({
+    queryKey: ['me', 'sources'],
+    queryFn: async () => throwOnError(await api().GET('/me/sources')).sources,
+  })
+}
+
+export async function updatePreferences(
+  patch: PreferencesUpdate,
+): Promise<Preferences> {
+  return throwOnError<Preferences>(
+    await api().PATCH('/me/preferences', { body: patch }),
+  )
+}

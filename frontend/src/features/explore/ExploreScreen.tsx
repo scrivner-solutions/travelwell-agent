@@ -1,4 +1,5 @@
 import { EmptyState } from '@/components/ui/ScreenState'
+import { ProfileButton } from '@/components/ui/ProfileButton'
 
 // Placeholder until Phase 4 delivers the map-first Explore (ported
 // marker/card sync, category chips, plan route overlay). It says so plainly:
@@ -6,8 +7,9 @@ import { EmptyState } from '@/components/ui/ScreenState'
 export function ExploreScreen() {
   return (
     <>
-      <header className="mb-4">
+      <header className="mb-4 flex items-center justify-between">
         <h1 className="font-display text-display font-medium">Explore</h1>
+        <ProfileButton />
       </header>
       <EmptyState
         title="Explore isn't built yet"

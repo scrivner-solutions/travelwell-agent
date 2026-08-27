@@ -844,23 +844,44 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** @description Mirrors user_preferences 1:1. Drives Explore filters, plan ranking, and the "Matched from your profile" chips; the autonomy toggles gate what the action executor may do without asking. Array values are lowercase slugs; the profile screen owns the display labels. */
         Preferences: {
-            allow_reservations: boolean;
-            allow_calendar_writes: boolean;
-            allow_notifications: boolean;
-            workout_kinds?: string[];
-            dietary?: string[];
-            pace?: string;
+            /** @description e.g. ["vegetarian"] */
+            dietary: string[];
+            /** @description e.g. ["swim", "running", "strength"] */
+            activities: string[];
+            /** @description e.g. ["pool", "treadmill"] */
+            amenities: string[];
+            /** @description e.g. ["ymca_reciprocity", "hotel_gym"] */
+            memberships: string[];
+            /** @description Time-of-day preference, e.g. ["mornings"] */
+            preferred_times: string[];
+            /** @description 2 = "$$ or less". Absent = no cap. */
+            price_level_max?: number;
+            /** @description 0 = free only. Absent = no budget set. */
+            day_pass_budget_cents?: number;
+            session_min_minutes?: number;
+            session_max_minutes?: number;
+            allow_calendar_write: boolean;
+            allow_auto_book: boolean;
+            watch_schedule: boolean;
             /** Format: date-time */
             updated_at: string;
         };
+        /** @description Partial update: fields absent from the body are left unchanged; send null to clear an optional scalar. */
         PreferencesUpdate: {
-            allow_reservations?: boolean;
-            allow_calendar_writes?: boolean;
-            allow_notifications?: boolean;
-            workout_kinds?: string[];
             dietary?: string[];
-            pace?: string;
+            activities?: string[];
+            amenities?: string[];
+            memberships?: string[];
+            preferred_times?: string[];
+            price_level_max?: number | null;
+            day_pass_budget_cents?: number | null;
+            session_min_minutes?: number | null;
+            session_max_minutes?: number | null;
+            allow_calendar_write?: boolean;
+            allow_auto_book?: boolean;
+            watch_schedule?: boolean;
         };
         ConnectedSource: {
             /** Format: uuid */
@@ -868,7 +889,9 @@ export interface components {
             kind: components["schemas"]["SourceKind"];
             status: components["schemas"]["SourceStatus"];
             /** Format: date-time */
-            connected_at?: string;
+            connected_at: string;
+            /** Format: date-time */
+            last_synced_at?: string;
         };
         Notification: {
             /** Format: uuid */

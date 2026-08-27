@@ -36,3 +36,14 @@ export function formatDateRange(startsOn: string, endsOn: string): string {
   }
   return `${month(start)} ${start.getUTCDate()} – ${month(end)} ${end.getUTCDate()}`
 }
+
+// "Synced 4 min ago" on the profile's source rows. Coarse on purpose: sync
+// freshness needs minute resolution at most.
+export function formatAgo(iso: string): string {
+  const mins = Math.round((Date.now() - Date.parse(iso)) / 60_000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins} min ago`
+  const hours = Math.round(mins / 60)
+  if (hours < 24) return `${hours} hr ago`
+  return `${Math.round(hours / 24)} days ago`
+}

@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/Card'
 import { Sheet } from '@/components/ui/Sheet'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { LoadingState, EmptyState, DegradedState } from '@/components/ui/ScreenState'
+import { ProfileButton } from '@/components/ui/ProfileButton'
 import { formatInTimeZone } from 'date-fns-tz'
 import {
   timelineQueryOptions,
@@ -104,14 +105,17 @@ export function TodayScreen() {
             {today.data?.day_label ?? trip.destination_name}
           </p>
         )}
-        <div className="flex items-baseline justify-between">
+        <div className="flex items-center justify-between">
           <h1 className="font-display text-display font-medium">Today</h1>
-          <button
-            onClick={() => void navigate({ search: { sheet: 'trips' } })}
-            className="text-body-sm font-semibold text-primary focus-visible:outline-2 focus-visible:outline-primary"
-          >
-            Trips
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => void navigate({ search: { sheet: 'trips' } })}
+              className="text-body-sm font-semibold text-primary focus-visible:outline-2 focus-visible:outline-primary"
+            >
+              Trips
+            </button>
+            <ProfileButton />
+          </div>
         </div>
       </header>
 

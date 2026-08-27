@@ -60,3 +60,28 @@ export function tripDays(startsOn: string, endsOn: string): string[] {
   }
   return days
 }
+
+// Profile identity subline: "4 trips this year · 18 nights away". Real data
+// from /trips, never a canned figure; dismissed detections don't count.
+export function travelStats(trips: Trip[]): { tripsThisYear: number; nightsAway: number } {
+  const year = new Date().getFullYear()
+  const counted = trips.filter(
+    (trip) =>
+      trip.state !== 'dismissed' &&
+      new Date(`${trip.starts_on}T00:00:00Z`).getUTCFullYear() === year,
+  )
+  const nightsAway = counted.reduce(
+    (sum, trip) =>
+      sum +
+      Math.max(
+        0,
+        Math.round(
+          (Date.parse(`${trip.ends_on}T00:00:00Z`) -
+            Date.parse(`${trip.starts_on}T00:00:00Z`)) /
+            86_400_000,
+        ),
+      ),
+    0,
+  )
+  return { tripsThisYear: counted.length, nightsAway }
+}

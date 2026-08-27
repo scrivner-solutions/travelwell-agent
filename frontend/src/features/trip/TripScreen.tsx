@@ -4,6 +4,7 @@ import { formatInTimeZone } from 'date-fns-tz'
 import { Card } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { LoadingState, EmptyState, DegradedState } from '@/components/ui/ScreenState'
+import { ProfileButton } from '@/components/ui/ProfileButton'
 import {
   confirmTrip,
   timelineQueryOptions,
@@ -166,9 +167,12 @@ export function TripScreen() {
             ? `${formatDateRange(trip.starts_on, trip.ends_on)}${trip.label !== undefined ? ` · ${trip.label}` : ''}`
             : 'Trip'}
         </p>
-        <h1 className="font-display text-display font-medium">
-          {trip?.destination_name.split(',')[0] ?? 'Trip'}
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="font-display text-display font-medium">
+            {trip?.destination_name.split(',')[0] ?? 'Trip'}
+          </h1>
+          <ProfileButton />
+        </div>
       </header>
 
       {trips.isPending && <LoadingState label="Loading your trips" />}

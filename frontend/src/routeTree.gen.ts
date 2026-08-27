@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ShellRouteImport } from './routes/_shell'
+import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as ShellAgentRouteImport } from './routes/_shell.agent'
 import { Route as ShellExploreRouteImport } from './routes/_shell.explore'
@@ -24,6 +25,11 @@ const IndexRoute = IndexRouteImport.update({
 } as any)
 const ShellRoute = ShellRouteImport.update({
   id: '/_shell',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignInRoute = SignInRouteImport.update({
@@ -54,6 +60,7 @@ const ShellTripRoute = ShellTripRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/profile': typeof ProfileRoute
   '/sign-in': typeof SignInRoute
   '/agent': typeof ShellAgentRoute
   '/explore': typeof ShellExploreRoute
@@ -62,6 +69,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/profile': typeof ProfileRoute
   '/sign-in': typeof SignInRoute
   '/agent': typeof ShellAgentRoute
   '/explore': typeof ShellExploreRoute
@@ -72,6 +80,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_shell': typeof ShellRouteWithChildren
+  '/profile': typeof ProfileRoute
   '/sign-in': typeof SignInRoute
   '/_shell/agent': typeof ShellAgentRoute
   '/_shell/explore': typeof ShellExploreRoute
@@ -80,13 +89,15 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/sign-in' | '/agent' | '/explore' | '/today' | '/trip'
+  fullPaths:
+    '/' | '/profile' | '/sign-in' | '/agent' | '/explore' | '/today' | '/trip'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/sign-in' | '/agent' | '/explore' | '/today' | '/trip'
+  to: '/' | '/profile' | '/sign-in' | '/agent' | '/explore' | '/today' | '/trip'
   id:
     | '__root__'
     | '/'
     | '/_shell'
+    | '/profile'
     | '/sign-in'
     | '/_shell/agent'
     | '/_shell/explore'
@@ -97,6 +108,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ShellRoute: typeof ShellRouteWithChildren
+  ProfileRoute: typeof ProfileRoute
   SignInRoute: typeof SignInRoute
 }
 
@@ -114,6 +126,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof ShellRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sign-in': {
@@ -173,6 +192,7 @@ const ShellRouteWithChildren = ShellRoute._addFileChildren(ShellRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ShellRoute: ShellRouteWithChildren,
+  ProfileRoute: ProfileRoute,
   SignInRoute: SignInRoute,
 }
 export const routeTree = rootRouteImport
