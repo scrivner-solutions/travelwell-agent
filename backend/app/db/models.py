@@ -4,8 +4,8 @@ Storage layer only; API shapes live in app/api/schemas.py (ADR-001 point 6).
 All DDL, including the Postgres enum types, is created by migrations, never by
 metadata.create_all: every pg enum here is declared with create_type=False.
 
-Covered so far: users, user_preferences, connected_sources, trips,
-trip_evidence, wellness_windows, plans, plan_items, plan_item_options. The
+Covered so far: users, user_preferences, login_codes, connected_sources,
+trips, trip_evidence, wellness_windows, plans, plan_items, plan_item_options. The
 remaining tables exist in the database via
 the initial migration and are reached with textual SQL until their vertical
 slice lands; migrations/env.py limits drift comparison to the tables modeled
@@ -154,6 +154,21 @@ class UserPreferences(Base):
     preferred_times: Mapped[list[str]] = mapped_column(
         pg.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]")
     )
+
+
+class LoginCode(Base):
+    """One live email sign-in code per address; only the code's HMAC is stored.
+
+    No FK to users: a code is issued before the account may exist.
+    """
+
+    __tablename__ = "login_codes"
+
+    email: Mapped[str] = mapped_column(pg.CITEXT(), primary_key=True)
+    code_hmac: Mapped[str]
+    expires_at: Mapped[datetime]
+    attempts_left: Mapped[int] = mapped_column(sa.SmallInteger)
+    created_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
 
 
 class ConnectedSource(Base):

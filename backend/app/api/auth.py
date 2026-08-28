@@ -15,11 +15,12 @@ from fastapi import APIRouter, Request, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 
-from app.api import sessions
+from app.api import login_codes, sessions
 from app.api.deps import ApiRoute, CurrentUser, SessionDep
 from app.api.problems import Problem
 from app.api.schemas import DemoLoginRequest, EmailCodeRequest, EmailCodeVerify, UserOut
 from app.db.models import AuthProvider, User
+from app.services import mailer
 from app.services.demo_scene import build_demo_scene
 
 logger = logging.getLogger(__name__)
@@ -56,12 +57,12 @@ def _email_allowed(email: str) -> bool:
 
 
 @router.post("/auth/email-code", status_code=status.HTTP_202_ACCEPTED)
-async def request_email_code(body: EmailCodeRequest) -> Response:
+async def request_email_code(body: EmailCodeRequest, session: SessionDep) -> Response:
     if _email_allowed(body.email):
-        code = sessions.issue_code(body.email)
-        if sessions.dev_mode():
-            # No email provider yet; dev reads the code from the server log.
-            logger.warning("Sign-in code for %s: %s", body.email, code)
+        # None on resend cooldown: the earlier code is still in their inbox.
+        code = await login_codes.issue(session, body.email)
+        if code is not None:
+            await mailer.send_sign_in_code(body.email, code)
     # 202 unconditionally so addresses cannot be enumerated.
     return Response(status_code=status.HTTP_202_ACCEPTED)
 
@@ -70,7 +71,7 @@ async def request_email_code(body: EmailCodeRequest) -> Response:
 async def verify_email_code(
     body: EmailCodeVerify, response: Response, session: SessionDep
 ) -> UserOut:
-    if not sessions.verify_code(body.email, body.code):
+    if not await login_codes.verify(session, body.email, body.code):
         raise Problem(400, "Invalid or expired code", "code_invalid")
 
     user = (

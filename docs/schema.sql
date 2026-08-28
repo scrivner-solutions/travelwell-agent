@@ -120,6 +120,17 @@ create table user_preferences (
   preferred_times      text[] not null default '{}'     -- {'mornings'}
 );
 
+-- One live email sign-in code per address; verify consumes the row. Only an
+-- HMAC of the code is stored (key = SESSION_SECRET), so a leaked table cannot
+-- sign anyone in. No FK to users: codes precede account creation.
+create table login_codes (
+  email          citext primary key,
+  code_hmac      text not null,
+  expires_at     timestamptz not null,
+  attempts_left  smallint not null,
+  created_at     timestamptz not null default now()
+);
+
 -- OAuth grants. Tokens live in Secret Manager; only the reference is here.
 create table connected_sources (
   source_id      uuid primary key default gen_random_uuid(),

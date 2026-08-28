@@ -153,8 +153,8 @@ async def test_callback_handshake_failure_redirects(client, google_login):
     assert "twl_session" not in client.cookies
 
 
-async def test_email_code_respects_allowlist(client, monkeypatch):
-    from app.api import sessions
+async def test_email_code_respects_allowlist(client, monkeypatch, sent_codes, db_session):
+    import sqlalchemy as sa
 
     monkeypatch.setenv("ALLOWED_SIGNIN_EMAILS", "invited@example.com")
 
@@ -163,7 +163,10 @@ async def test_email_code_respects_allowlist(client, monkeypatch):
     )
     # Still 202 so the allowlist cannot be probed; no code is ever issued.
     assert r.status_code == 202
-    assert "stranger@example.com" not in sessions._codes
+    assert sent_codes == []
+    assert (
+        await db_session.scalar(sa.text("select count(*) from login_codes"))
+    ) == 0
 
     r = await client.post(
         "/api/v1/auth/email-code/verify",

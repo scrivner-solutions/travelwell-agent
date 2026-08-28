@@ -49,10 +49,10 @@ os.environ.setdefault("APP_ENV", "test")
 # Everything the initial migration creates, modeled or not. Truncated together
 # so FK order never matters; CASCADE covers any table a future migration adds.
 ALL_TABLES = (
-    "users, user_preferences, connected_sources, trips, trip_evidence, "
-    "calendar_events, places, wellness_windows, plans, plan_items, "
-    "plan_item_options, pending_actions, reservations, agent_runs, "
-    "agent_events, notifications"
+    "users, user_preferences, login_codes, connected_sources, trips, "
+    "trip_evidence, calendar_events, places, wellness_windows, plans, "
+    "plan_items, plan_item_options, pending_actions, reservations, "
+    "agent_runs, agent_events, notifications"
 )
 
 
@@ -109,6 +109,20 @@ def app_instance(database):
     from app.fast_api_app import app
 
     return app
+
+
+@pytest.fixture
+def sent_codes(monkeypatch):
+    """Sign-in emails captured at the mailer seam, as (address, code) tuples."""
+    from app.services import mailer
+
+    sent: list[tuple[str, str]] = []
+
+    async def capture(email: str, code: str) -> None:
+        sent.append((email, code))
+
+    monkeypatch.setattr(mailer, "send_sign_in_code", capture)
+    return sent
 
 
 @pytest_asyncio.fixture
