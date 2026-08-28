@@ -1,11 +1,11 @@
 /// <reference types="vitest/config" />
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     tanstackRouter({ target: 'react', autoCodeSplitting: true }),
     react(),
@@ -49,9 +49,15 @@ export default defineConfig({
   },
   server: {
     // Dev only: same-origin /api (per the runtime config default) forwards to
-    // the local backend, mirroring how nginx fronts it in deployment.
+    // the local backend, mirroring how nginx fronts it in deployment. Point
+    // it at a deployed backend via frontend/.env.local:
+    //   API_PROXY_TARGET=https://travelwell-backend-<hash>.run.app
     proxy: {
-      '/api': 'http://localhost:8000',
+      '/api': {
+        target: loadEnv(mode, '.', '').API_PROXY_TARGET ?? 'http://localhost:8000',
+        // Cloud Run's front end routes by Host header; localhost:5173 404s.
+        changeOrigin: true,
+      },
     },
   },
   test: {
@@ -62,4 +68,4 @@ export default defineConfig({
     // collect and crash on.
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
   },
-})
+}))
