@@ -61,6 +61,19 @@ export function tripDays(startsOn: string, endsOn: string): string[] {
   return days
 }
 
+// Calendar-strip span: pad [first, last] out to full Sunday-to-Saturday weeks
+// so the day selector reads like a slice of a real calendar, not a bare list.
+export function calendarSpan(first: string, last: string): string[] {
+  const start = new Date(`${first}T00:00:00Z`)
+  start.setUTCDate(start.getUTCDate() - start.getUTCDay())
+  const end = new Date(`${last}T00:00:00Z`)
+  end.setUTCDate(end.getUTCDate() + (6 - end.getUTCDay()))
+  return tripDays(
+    start.toISOString().slice(0, 10),
+    end.toISOString().slice(0, 10),
+  )
+}
+
 // Profile identity subline: "4 trips this year · 18 nights away". Real data
 // from /trips, never a canned figure; dismissed detections don't count.
 export function travelStats(trips: Trip[]): { tripsThisYear: number; nightsAway: number } {

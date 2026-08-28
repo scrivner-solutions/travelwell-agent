@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { formatInTimeZone } from 'date-fns-tz'
@@ -14,17 +15,26 @@ import {
   type Trip,
 } from '@/api/queries'
 import { ApiError } from '@/api/client'
-import { evidenceTag, focusTrip, sourceLabel, stateInk, tripDays } from '@/lib/trips'
+import {
+  calendarSpan,
+  evidenceTag,
+  focusTrip,
+  sourceLabel,
+  stateInk,
+  tripDays,
+} from '@/lib/trips'
 import { formatDateRange, formatTripTime } from '@/lib/time'
 import { AddTripSheet } from './AddTripSheet'
 
 const route = getRouteApi('/_shell/trip')
 
-// "Tue 25" (weekday first, like the design's day selector)
-function dayChipLabel(iso: string): string {
+// Calendar-strip cell text: "TUE" stacked over "25".
+function cellParts(iso: string): { weekday: string; dayOfMonth: number } {
   const d = new Date(`${iso}T00:00:00Z`)
-  const weekday = d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })
-  return `${weekday} ${d.getUTCDate()}`
+  return {
+    weekday: d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' }),
+    dayOfMonth: d.getUTCDate(),
+  }
 }
 
 // Day-chip dots, one per entry: gray commitments, periwinkle unsettled
@@ -148,6 +158,21 @@ export function TripScreen() {
   // Chips cover the trip range plus any entry day outside it (red-eye,
   // late checkout), so no entry is ever unreachable.
   const days = [...new Set([...rangeDays, ...entriesByDay.keys()])].sort()
+  // The strip pads those days to whole weeks for calendar context; padding
+  // days render but stay inert, so `days` alone decides what is selectable.
+  const firstDay = days[0]
+  const lastDay = days[days.length - 1]
+  const strip =
+    firstDay !== undefined && lastDay !== undefined
+      ? calendarSpan(firstDay, lastDay)
+      : []
+  // Stable ref identity: fires only when the selected cell (re)mounts, so a
+  // deep link lands centered without re-scrolling on every render.
+  const centerSelected = useCallback(
+    (node: HTMLButtonElement | null) =>
+      node?.scrollIntoView({ inline: 'center', block: 'nearest' }),
+    [],
+  )
   // Today wins when it is a chip; while the timeline is loading we cannot
   // know that yet (red-eye days), so select nothing rather than a wrong day.
   const selectedDay =
@@ -238,32 +263,50 @@ export function TripScreen() {
               </Card>
             )}
 
-            <div className="flex gap-2 overflow-x-auto" role="tablist" aria-label="Trip days">
-              {days.map((d) => (
-                <button
-                  key={d}
-                  role="tab"
-                  aria-selected={d === selectedDay}
-                  onClick={() =>
-                    void navigate({ search: (prev) => ({ ...prev, day: d }) })
-                  }
-                  className={`flex-1 whitespace-nowrap rounded-panel border px-3 py-2 text-body-sm font-semibold ${
-                    d === selectedDay
-                      ? 'border-ink bg-ink text-white'
-                      : 'border-border-soft bg-surface text-ink'
-                  }`}
-                >
-                  {dayChipLabel(d)}
-                  <span className="mt-1.5 flex min-h-[4px] justify-center gap-[3px]">
-                    {(entriesByDay.get(d) ?? []).slice(0, 5).map((entry, i) => (
-                      <span
-                        key={i}
-                        className={`size-[4px] rounded-full ${entryDotClass(entry)}`}
-                      />
-                    ))}
-                  </span>
-                </button>
-              ))}
+            <div className="flex gap-1.5 overflow-x-auto" role="tablist" aria-label="Trip days">
+              {strip.map((d) => {
+                const selectable = days.includes(d)
+                const selected = d === selectedDay
+                const { weekday, dayOfMonth } = cellParts(d)
+                return (
+                  <button
+                    key={d}
+                    role="tab"
+                    aria-selected={selected}
+                    disabled={!selectable}
+                    ref={selected ? centerSelected : undefined}
+                    onClick={() =>
+                      void navigate({ search: (prev) => ({ ...prev, day: d }) })
+                    }
+                    className={`w-12 flex-none rounded-panel border py-2 text-center ${
+                      selected
+                        ? 'border-ink bg-ink text-white'
+                        : selectable
+                          ? 'border-border-soft bg-surface text-ink'
+                          : 'border-transparent text-muted-soft'
+                    }`}
+                  >
+                    <span
+                      className={`block text-label uppercase tracking-wide ${
+                        selected ? 'text-white/70' : selectable ? 'text-muted' : ''
+                      }`}
+                    >
+                      {weekday}
+                    </span>
+                    <span className="block text-body-sm font-semibold">
+                      {dayOfMonth}
+                    </span>
+                    <span className="mt-1 flex min-h-[4px] justify-center gap-[3px]">
+                      {(entriesByDay.get(d) ?? []).slice(0, 3).map((entry, i) => (
+                        <span
+                          key={i}
+                          className={`size-[4px] rounded-full ${entryDotClass(entry)}`}
+                        />
+                      ))}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
 
             {selectedDay !== undefined && days.includes(selectedDay) && (
