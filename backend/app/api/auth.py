@@ -27,7 +27,7 @@ from app.api.schemas import (
 )
 from app.db.models import AuthProvider, User
 from app.services import mailer
-from app.services.demo_scene import build_demo_scene
+from app.services.demo_user import build_demo_user
 
 logger = logging.getLogger(__name__)
 
@@ -107,26 +107,25 @@ def _demo_login_enabled() -> bool:
 async def demo_login(
     response: Response, session: SessionDep, body: DemoLoginRequest | None = None
 ) -> UserOut:
-    """Mint a fresh demo account pre-populated with the demo scene.
+    """Mint a fresh demo account pre-populated with the demo trips.
 
     Per-tap accounts keep testers isolated (mutations are real and would
-    collide on a shared account) and build the scene's dates fresh, so the
-    demo never goes stale. The optional name is just a label, not a
-    credential: the account lives only in this browser's session cookie.
+    collide on a shared account) and build the dates fresh, so the demo never
+    goes stale. The optional name is just a label, not a credential: the
+    account lives only in this browser's session cookie.
+
+    The email is the one thing this route owns; everything else about the
+    account is content, and lives in app/services/demo_user/data.py.
     """
     if not _demo_login_enabled():
         raise Problem(403, "Demo sign-in is disabled", "demo_disabled")
 
     name = (body.name or "").strip() if body else ""
-    user = User(
-        email=f"demo-{secrets.token_hex(4)}@travelwell.dev",
-        display_name=name or "Demo Traveler",
-        auth_provider=AuthProvider.email,
-        home_timezone="America/Los_Angeles",
+    user = await build_demo_user(
+        session,
+        f"demo-{secrets.token_hex(4)}@travelwell.dev",
+        display_name=name or None,
     )
-    session.add(user)
-    await session.flush()
-    await build_demo_scene(session, user)
     await session.commit()
 
     _set_session_cookie(response, str(user.user_id))

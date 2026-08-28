@@ -1,19 +1,21 @@
 """Per-tap demo accounts: minting, isolation, the name label, and the flag.
 
-Each demo sign-in creates its own user with the full demo scene
-(app/services/demo_scene.py), so testers never share mutable state.
+Each demo sign-in creates its own user with the full account
+(app/services/demo_user/), so testers never share mutable state.
 """
 
 import re
 
 import pytest
 
+from app.services.demo_user import data
+
 pytestmark = pytest.mark.asyncio
 
 DEMO_EMAIL_SHAPE = re.compile(r"^demo-[0-9a-f]{8}@travelwell\.dev$")
 
 
-async def test_demo_login_mints_account_with_scene(client):
+async def test_demo_login_mints_a_populated_account(client):
     r = await client.post("/api/v1/auth/demo")
 
     assert r.status_code == 200, r.text
@@ -26,13 +28,37 @@ async def test_demo_login_mints_account_with_scene(client):
     assert me.status_code == 200
     assert me.json()["email"] == body["email"]
 
-    # The scene arrived with the account: the three demo trips, ready to show.
+    # Every trip in the roster except the dismissed tombstone, which the list
+    # endpoint hides unless asked for by name.
     trips = (await client.get("/api/v1/trips")).json()["trips"]
-    assert {t["destination_name"] for t in trips} == {
-        "Chicago, IL",
-        "New York, NY",
-        "Austin, TX",
+    assert len(trips) == len(data.TRIPS) - 1
+    assert "Nashville, TN" not in {t["destination_name"] for t in trips}
+
+
+async def test_demo_account_covers_every_badge_the_ui_can_draw(client):
+    """The roster exists to make each rendering reachable, not to be pretty.
+
+    A screen showing nothing should mean a bug, so this fails the moment the
+    fixture stops exercising one of the states the trip list renders.
+    """
+    await client.post("/api/v1/auth/demo")
+    trips = (await client.get("/api/v1/trips")).json()["trips"]
+
+    assert {t["plan_progress"] for t in trips} == {
+        "none",
+        "preparing",
+        "planned",
+        "booking",
     }
+    # Absent rather than null when no work is open, so .get is the honest read.
+    assert {k for t in trips if (k := t.get("needs_you_kind"))} == {
+        "plan",
+        "approval",
+        "mixed",
+    }
+    # Detections need two or more before the compact row layout is ever used.
+    assert len([t for t in trips if t["state"] == "detected"]) >= 2
+    assert {"completed", "archived"} <= {t["state"] for t in trips}
 
 
 async def test_demo_login_uses_given_name(client):
