@@ -18,7 +18,13 @@ from sqlalchemy import select
 from app.api import login_codes, sessions
 from app.api.deps import ApiRoute, CurrentUser, SessionDep
 from app.api.problems import Problem
-from app.api.schemas import DemoLoginRequest, EmailCodeRequest, EmailCodeVerify, UserOut
+from app.api.schemas import (
+    DemoLoginRequest,
+    EmailCodeRequest,
+    EmailCodeVerify,
+    UserOut,
+    UserUpdateIn,
+)
 from app.db.models import AuthProvider, User
 from app.services import mailer
 from app.services.demo_scene import build_demo_scene
@@ -212,4 +218,19 @@ async def logout(response: Response) -> Response:
 
 @router.get("/me")
 async def get_me(user: CurrentUser) -> UserOut:
+    return UserOut.from_model(user)
+
+
+@router.patch("/me")
+async def update_me(
+    body: UserUpdateIn, user: CurrentUser, session: SessionDep
+) -> UserOut:
+    """Fields on users itself; preferences live on PATCH /me/preferences."""
+    patch = body.model_dump(exclude_unset=True)
+    if "display_name" in patch:
+        user.display_name = patch["display_name"]
+    # home_timezone is NOT NULL: an explicit null is a no-op, not a clear.
+    if patch.get("home_timezone") is not None:
+        user.home_timezone = patch["home_timezone"]
+    await session.commit()
     return UserOut.from_model(user)

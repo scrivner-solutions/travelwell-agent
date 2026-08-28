@@ -7,8 +7,9 @@ table stores, so mapping from models is explicit, never automatic.
 
 import uuid
 from datetime import date, datetime
+from zoneinfo import available_timezones
 
-from pydantic import BaseModel, EmailStr, Field, model_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 from app.db.models import (
     AuthProvider,
@@ -43,12 +44,21 @@ class DemoLoginRequest(BaseModel):
     name: str | None = Field(default=None, max_length=80)
 
 
+# Built once: available_timezones() walks the tzdata tree on every call.
+_IANA_ZONES = frozenset(available_timezones())
+
+# users.home_timezone is NOT NULL default 'UTC', so 'UTC' doubles as "never
+# asked" — no real home zone is literally UTC (Britain is Europe/London).
+UNSET_HOME_TIMEZONE = "UTC"
+
+
 class UserOut(BaseModel):
     id: uuid.UUID
     email: str
     display_name: str | None = None
     auth_provider: AuthProvider
     created_at: datetime
+    home_timezone: str
 
     @classmethod
     def from_model(cls, user) -> "UserOut":
@@ -58,7 +68,21 @@ class UserOut(BaseModel):
             display_name=user.display_name,
             auth_provider=user.auth_provider,
             created_at=user.created_at,
+            home_timezone=user.home_timezone,
         )
+
+
+class UserUpdateIn(BaseModel):
+    display_name: str | None = Field(default=None, max_length=80)
+    home_timezone: str | None = None
+
+    @field_validator("home_timezone")
+    @classmethod
+    def _known_zone(cls, v: str | None) -> str | None:
+        # Stored unvalidated, this reaches ZoneInfo() on every /today read.
+        if v is not None and v not in _IANA_ZONES:
+            raise ValueError("unknown IANA timezone")
+        return v
 
 
 class TripCreateIn(BaseModel):

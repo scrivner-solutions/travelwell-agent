@@ -6,6 +6,13 @@ import { formatInTimeZone } from 'date-fns-tz'
  * still on San Francisco time. Every screen formats through these helpers.
  */
 
+// The one sanctioned read of the device zone: it answers "where is the user
+// now" - labelling trip times shown from another zone, dating the screens
+// between trips - never "what time is this trip event".
+export function deviceTimeZone(): string | undefined {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined
+}
+
 export function formatTripTime(iso: string, timeZone: string): string {
   return formatInTimeZone(iso, timeZone, 'h:mm a')
 }

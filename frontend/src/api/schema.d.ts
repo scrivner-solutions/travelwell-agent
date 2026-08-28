@@ -137,7 +137,13 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update fields stored on the user (partial)
+         * @description Fields on the user record itself. Wellness preferences and autonomy
+         *     toggles are a separate row and a separate endpoint (PATCH
+         *     /me/preferences).
+         */
+        patch: operations["updateMe"];
         trace?: never;
     };
     "/trips": {
@@ -612,6 +618,22 @@ export interface components {
             auth_provider: components["schemas"]["AuthProvider"];
             /** Format: date-time */
             created_at: string;
+            /**
+             * @description IANA name of the user's home base, used as the fallback zone for
+             *     manually added trips. "UTC" means it has never been set: the client
+             *     offers the browser zone rather than treating it as a real answer.
+             * @example America/Los_Angeles
+             */
+            home_timezone: string;
+        };
+        UserUpdate: {
+            display_name?: string;
+            /**
+             * @description IANA name; unknown zones are rejected with 422. Null is a no-op,
+             *     not a clear, because the stored field is never empty.
+             * @example Europe/Berlin
+             */
+            home_timezone?: string;
         };
         TripCreate: {
             destination_name: string;
@@ -1149,6 +1171,31 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description The signed-in user */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    updateMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserUpdate"];
+            };
+        };
+        responses: {
+            /** @description The updated user */
             200: {
                 headers: {
                     [name: string]: unknown;

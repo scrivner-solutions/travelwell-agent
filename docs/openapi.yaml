@@ -3,8 +3,8 @@ info:
   title: TravelWell API
   version: 1.0.0-draft
   description: |
-    Contract-first API for the TravelWell frontend (see docs/FRONTEND_IMPLEMENTATION_PLAN.md,
-    section 5). This spec is the only interface the frontend knows: the TypeScript client and
+    Contract-first API for the TravelWell frontend. This spec is the only interface
+    the frontend knows: the TypeScript client and
     all status enums are generated from this file (npm run generate:api in frontend/).
 
     Conventions:
@@ -17,8 +17,8 @@ info:
       under the user and the client must refetch.
     - Live progress uses SSE (text/event-stream); polling is the fallback, not the default.
 
-    Status: v1 draft agreed in Phase 0. Endpoints are implemented by the backend per phase;
-    the tracking table in docs/API_CONTRACTS.md records which are live vs mocked.
+    Status: v1 draft agreed in Phase 0. Endpoints are implemented by the backend in
+    vertical slices; docs/API_CONTRACTS.md summarizes the conventions.
 servers:
   - url: /api/v1
 
@@ -183,6 +183,29 @@ paths:
       responses:
         "200":
           description: The signed-in user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          $ref: "#/components/responses/Problem"
+    patch:
+      tags: [auth]
+      operationId: updateMe
+      summary: Update fields stored on the user (partial)
+      description: |
+        Fields on the user record itself. Wellness preferences and autonomy
+        toggles are a separate row and a separate endpoint (PATCH
+        /me/preferences).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: The updated user
           content:
             application/json:
               schema:
@@ -920,7 +943,7 @@ components:
 
     User:
       type: object
-      required: [id, email, auth_provider, created_at]
+      required: [id, email, auth_provider, created_at, home_timezone]
       properties:
         id:
           type: string
@@ -935,6 +958,26 @@ components:
         created_at:
           type: string
           format: date-time
+        home_timezone:
+          type: string
+          description: |
+            IANA name of the user's home base, used as the fallback zone for
+            manually added trips. "UTC" means it has never been set: the client
+            offers the browser zone rather than treating it as a real answer.
+          example: America/Los_Angeles
+
+    UserUpdate:
+      type: object
+      properties:
+        display_name:
+          type: string
+          maxLength: 80
+        home_timezone:
+          type: string
+          description: |
+            IANA name; unknown zones are rejected with 422. Null is a no-op,
+            not a clear, because the stored field is never empty.
+          example: Europe/Berlin
 
     TripCreate:
       type: object
