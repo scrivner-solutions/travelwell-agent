@@ -140,7 +140,7 @@ export function AddTripSheet({
         />
 
         <p className="text-caption text-muted">
-          I'll watch your calendar for anything that lands in these dates.
+          Calendar events that land in these dates will be added to this trip.
         </p>
         <Button type="submit" disabled={!ready || create.isPending}>
           {create.isPending ? 'Creating…' : 'Create trip'}

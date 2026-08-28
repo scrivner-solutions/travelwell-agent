@@ -66,3 +66,23 @@ async def test_today_before_trip_starts(authed_client, user, make_trip):
     # None fields are omitted from responses, never sent as null (ApiRoute).
     assert "window" not in t
     assert t["next_up"] == []
+
+
+async def test_today_detail_derived_from_activation(authed_client, user, make_trip):
+    """Confirmed and upcoming have no table detail, so it is derived here; the
+    copy stays person-free like every _STATE_WORDS entry beside it."""
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    from app.db.models import TripState
+
+    tz = "America/Chicago"
+    trip = await make_trip(
+        user, state=TripState.confirmed, city="Austin", region="TX",
+        tz=tz, start_in=10, activation_in=3,
+    )
+    r = await authed_client.get(f"/api/v1/trips/{trip.trip_id}/today")
+    assert r.status_code == 200, r.text
+
+    expected = (datetime.now(ZoneInfo(tz)) + timedelta(days=3)).strftime("%b %d")
+    assert r.json()["state_detail"] == f"Preparing from {expected}"

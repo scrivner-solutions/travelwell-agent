@@ -107,11 +107,11 @@ const PERMS: Perm[] = [
   {
     field: 'allow_auto_book',
     label: 'Book tables under $40 without asking',
-    // Prototype copy for off; the on state must not claim it is off.
+    // Person-free voice rule; the on state must not claim it is off.
     sub: (on) =>
       on
         ? 'Reservations in budget are booked for you'
-        : 'Currently off. I confirm every reservation',
+        : 'Currently off. Every reservation is confirmed with you',
   },
   {
     field: 'watch_schedule',

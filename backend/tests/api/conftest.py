@@ -191,6 +191,7 @@ def make_trip(clean_tables):
         start_in=30,
         nights=3,
         evidence=(),
+        activation_in=None,
     ):
         import app.db.engine as db
         from app.db.models import Trip, TripEvidence, TripOrigin, TripState
@@ -209,6 +210,11 @@ def make_trip(clean_tables):
                 state=state or TripState.detected,
                 origin=TripOrigin.calendar_detection,
                 detection_confidence=0.9,
+                activation_at=(
+                    None
+                    if activation_in is None
+                    else datetime.now(ZoneInfo(tz)) + timedelta(days=activation_in)
+                ),
                 evidence=[
                     TripEvidence(
                         kind=kind, source_label=label, summary=summary, detail=detail

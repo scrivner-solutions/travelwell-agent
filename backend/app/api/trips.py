@@ -182,7 +182,7 @@ async def get_trip_today(
         TripState.confirmed,
         TripState.upcoming,
     ):
-        detail = f"I start work {trip.activation_at.astimezone(ZoneInfo(trip.timezone)):%b %d}"
+        detail = f"Preparing from {trip.activation_at.astimezone(ZoneInfo(trip.timezone)):%b %d}"
 
     # Entity-shaped read: ORM with eager loads (ADR-001 point 3 reserves
     # textual SQL for aggregate shapes like needs_you_count).
