@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { formatInTimeZone } from 'date-fns-tz'
-import { Card } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
+import { Card, CardButton } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { LoadingState, EmptyState, DegradedState } from '@/components/ui/ScreenState'
 import { ProfileButton } from '@/components/ui/ProfileButton'
@@ -15,6 +16,7 @@ import {
 import { ApiError } from '@/api/client'
 import { evidenceTag, focusTrip, sourceLabel, stateInk, tripDays } from '@/lib/trips'
 import { formatDateRange, formatTripTime } from '@/lib/time'
+import { AddTripSheet } from './AddTripSheet'
 
 const route = getRouteApi('/_shell/trip')
 
@@ -116,10 +118,13 @@ function DetectionCard({ trip }: { trip: Trip }) {
 }
 
 export function TripScreen() {
-  const { day } = route.useSearch()
+  const { day, trip: tripId, sheet } = route.useSearch()
   const navigate = route.useNavigate()
   const trips = useQuery(tripsQueryOptions())
-  const trip = trips.data ? focusTrip(trips.data) : undefined
+  // ?trip= (a tapped card or a deep link) wins; otherwise the agent's focus.
+  const trip = trips.data
+    ? (trips.data.find((t) => t.id === tripId) ?? focusTrip(trips.data))
+    : undefined
   const detected = trips.data?.filter((t) => t.state === 'detected') ?? []
 
   const rangeDays = trip ? tripDays(trip.starts_on, trip.ends_on) : []
@@ -198,6 +203,15 @@ export function TripScreen() {
         <EmptyState
           title="No trips yet"
           detail="Trips detected from your calendar and trips you add by hand both live here."
+          action={
+            <Button
+              onClick={() =>
+                void navigate({ search: (prev) => ({ ...prev, sheet: 'new' }) })
+              }
+            >
+              Add a trip yourself
+            </Button>
+          }
         />
       )}
 
@@ -230,7 +244,9 @@ export function TripScreen() {
                   key={d}
                   role="tab"
                   aria-selected={d === selectedDay}
-                  onClick={() => void navigate({ search: { day: d } })}
+                  onClick={() =>
+                    void navigate({ search: (prev) => ({ ...prev, day: d }) })
+                  }
                   className={`flex-1 whitespace-nowrap rounded-panel border px-3 py-2 text-body-sm font-semibold ${
                     d === selectedDay
                       ? 'border-ink bg-ink text-white'
@@ -329,7 +345,15 @@ export function TripScreen() {
               All trips
             </p>
             {trips.data.map((t) => (
-              <Card key={t.id}>
+              <CardButton
+                key={t.id}
+                aria-current={t.id === trip?.id || undefined}
+                className={t.id === trip?.id ? 'border-ink' : ''}
+                // day resets: the old selection belongs to the previous trip's range
+                onClick={() =>
+                  void navigate({ search: { trip: t.id, day: undefined } })
+                }
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-body font-semibold">{t.destination_name}</p>
@@ -350,11 +374,30 @@ export function TripScreen() {
                     {t.needs_you_count} {t.needs_you_count === 1 ? 'item needs' : 'items need'} you
                   </p>
                 )}
-              </Card>
+              </CardButton>
             ))}
+            <button
+              onClick={() =>
+                void navigate({ search: (prev) => ({ ...prev, sheet: 'new' }) })
+              }
+              className="h-[50px] w-full rounded-panel border border-dashed border-border text-body-sm font-semibold text-muted hover:bg-card"
+            >
+              Add a trip manually
+            </button>
           </>
         )}
       </div>
+
+      <AddTripSheet
+        open={sheet === 'new'}
+        onClose={() =>
+          void navigate({ search: (prev) => ({ ...prev, sheet: undefined }) })
+        }
+        // Land on the new trip; the old day belongs to another trip's range.
+        onCreated={(t) =>
+          void navigate({ search: { trip: t.id, day: undefined, sheet: undefined } })
+        }
+      />
     </>
   )
 }

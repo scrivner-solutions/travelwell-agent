@@ -4,15 +4,19 @@ import { tripsQueryOptions } from '@/api/queries'
 import { TripScreen } from '@/features/trip/TripScreen'
 
 /**
- * URL contract: /trip?day=YYYY-MM-DD. The selected day is a search param so
- * a notification can deep-link straight to the day it is talking about.
+ * URL contract: /trip?trip=<uuid>&day=YYYY-MM-DD&sheet=new. All are search
+ * params so a notification can deep-link straight to the trip and day it is
+ * talking about, and sheets restore exactly (same rule as /today?sheet=).
+ * An unknown trip id degrades to the default focus trip rather than erroring.
  */
 export const Route = createFileRoute('/_shell/trip')({
   validateSearch: z.object({
+    trip: z.string().uuid().optional().catch(undefined),
     day: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .optional(),
+    sheet: z.enum(['new']).optional(),
   }),
   loader: ({ context }) => {
     void context.queryClient.prefetchQuery(tripsQueryOptions())

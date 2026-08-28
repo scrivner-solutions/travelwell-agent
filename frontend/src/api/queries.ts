@@ -63,6 +63,23 @@ export function timelineQueryOptions(tripId: string, day?: string) {
   })
 }
 
+export type TripCreate = components['schemas']['TripCreate']
+
+// The key must be stable across retries of the same logical create (the
+// server contract dedupes on it, even though dedup itself lands later).
+export async function createTrip(
+  body: TripCreate,
+  idempotencyKey: string,
+): Promise<Trip> {
+  const client = await api()
+  return throwOnError<Trip>(
+    await client.POST('/trips', {
+      body,
+      params: { header: { 'Idempotency-Key': idempotencyKey } },
+    }),
+  )
+}
+
 export async function confirmTrip(tripId: string, updatedAt: string): Promise<Trip> {
   const client = await api()
   return throwOnError<Trip>(
