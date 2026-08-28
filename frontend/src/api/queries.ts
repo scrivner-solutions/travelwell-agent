@@ -90,6 +90,16 @@ export async function confirmTrip(tripId: string, updatedAt: string): Promise<Tr
   )
 }
 
+export async function dismissTrip(tripId: string, updatedAt: string): Promise<Trip> {
+  const client = await api()
+  return throwOnError<Trip>(
+    await client.POST('/trips/{tripId}/dismiss', {
+      params: { path: { tripId } },
+      body: { updated_at: updatedAt },
+    }),
+  )
+}
+
 export async function logout(): Promise<void> {
   const client = await api()
   throwOnError(await client.POST('/auth/logout'))

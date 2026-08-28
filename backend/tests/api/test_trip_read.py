@@ -22,7 +22,8 @@ async def test_get_trip_shape(authed_client, user, make_trip):
     assert body["state"] == "detected"
     assert body["destination_name"] == "Denver, CO"
     assert body["state_line"] == "Found in your calendar"
-    assert body["needs_you_count"] == 0
+    # A detection is itself an open ask: "is this a trip?" is the first gate.
+    assert body["needs_you_count"] == 1
     # source_label display text maps onto the contract's source_kind enum
     assert [e["source"] for e in body["evidence"]] == ["google_calendar", "gmail"]
     # kind passes through verbatim; it drives the FLT/HTL/EVT tag boxes
@@ -60,9 +61,10 @@ async def test_list_filters_by_state_and_counts_needs_you(
     assert r.status_code == 200
     trips = {t["destination_name"]: t for t in r.json()["trips"]}
     assert set(trips) == {"Chicago, IL", "Denver, CO"}
-    # The scene's awaiting_user dinner is the one open ask.
+    # One term per gate: Chicago's open ask is the scene's awaiting_user dinner,
+    # Denver's is the unanswered detection itself.
     assert trips["Chicago, IL"]["needs_you_count"] == 1
-    assert trips["Denver, CO"]["needs_you_count"] == 0
+    assert trips["Denver, CO"]["needs_you_count"] == 1
 
     r = await authed_client.get("/api/v1/trips", params={"state": "detected"})
     assert [t["destination_name"] for t in r.json()["trips"]] == ["Denver, CO"]

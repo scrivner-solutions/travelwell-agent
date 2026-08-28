@@ -1,5 +1,7 @@
 import type { ReactNode, SVGProps } from 'react'
 import { Link } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
+import { tripsQueryOptions } from '@/api/queries'
 
 /**
  * Tab icons traced from the design prototype's tab bar (exact SVG paths, not
@@ -77,10 +79,12 @@ function Tab({
   to,
   label,
   Icon,
+  count = 0,
 }: {
   to: string
   label: string
   Icon: () => ReactNode
+  count?: number
 }) {
   return (
     <Link
@@ -89,13 +93,30 @@ function Tab({
       className="flex flex-1 flex-col items-center gap-[5px] pb-2.5 pt-2 text-[10.5px] font-semibold leading-none text-muted-soft focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
       activeProps={{ className: 'text-primary', 'aria-current': 'page' }}
     >
-      <Icon />
+      <span className="relative">
+        <Icon />
+        {count > 0 && (
+          <span
+            aria-hidden
+            className="absolute -right-2 -top-1 grid min-w-[16px] place-items-center rounded-full bg-state-attention px-1 text-[10px] font-semibold leading-[16px] text-white"
+          >
+            {count}
+          </span>
+        )}
+      </span>
       {label}
+      {count > 0 && <span className="sr-only">, {count} need you</span>}
     </Link>
   )
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
+  // Server-derived, one term per gate (confirm the trip, decide a suggestion,
+  // approve an action). Only the last two are notified, so this badge is the
+  // whole discovery path for a detection sitting below the fold.
+  const trips = useQuery(tripsQueryOptions())
+  const needsYou = (trips.data ?? []).reduce((n, t) => n + t.needs_you_count, 0)
+
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col">
       <main className="flex-1 px-4 pb-24 pt-[max(1rem,env(safe-area-inset-top))]">
@@ -107,7 +128,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       >
         <div className="mx-auto flex w-full max-w-lg items-start px-2 pt-1">
           {leftTabs.map((tab) => (
-            <Tab key={tab.to} {...tab} />
+            <Tab
+              key={tab.to}
+              {...tab}
+              count={tab.to === '/trip' ? needsYou : 0}
+            />
           ))}
           {/* Center mic FAB (design: the agent's voice entry point). Voice
               capture ships in Phase 5; until then it opens the Agent tab. */}

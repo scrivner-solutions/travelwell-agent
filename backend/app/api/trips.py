@@ -43,11 +43,14 @@ from app.db.models import (
 
 router = APIRouter(tags=["trips"], route_class=ApiRoute)
 
-# Open work per trip: plan items waiting on the user + proposed actions that
-# need approval. Contract: "derived ... never computed client-side".
+# Open work per trip, one term per gate the user can be standing at: confirm
+# the trip, decide a suggestion, approve an action. Contract: "derived ...
+# never computed client-side".
 NEEDS_YOU_SQL = text(
     """
-    select t.trip_id, coalesce(pi.n, 0) + coalesce(pa.n, 0) as needs_you
+    select t.trip_id,
+           case when t.state = 'detected' then 1 else 0 end
+           + coalesce(pi.n, 0) + coalesce(pa.n, 0) as needs_you
     from trips t
     left join (
         select trip_id, count(*) as n
@@ -83,6 +86,11 @@ async def list_trips(
     )
     if state is not None:
         stmt = stmt.where(Trip.state == state)
+    else:
+        # Tombstones are invisible unless asked for by name. Filtering here and
+        # not per screen is what stops a rejected detection reappearing in the
+        # next list someone builds.
+        stmt = stmt.where(Trip.state != TripState.dismissed)
     trips = (await session.execute(stmt)).scalars().all()
     counts = await _needs_you_counts(session, user.user_id)
     return TripListOut(
@@ -304,6 +312,47 @@ async def confirm_trip(
             "Trip is not confirmable",
             "invalid_state",
             f"A {trip.state.value} trip cannot be confirmed.",
+        )
+
+    await session.commit()
+    counts = await _needs_you_counts(session, user.user_id)
+    return trip_to_out(trip, counts.get(trip.trip_id, 0))
+
+
+@router.post("/trips/{trip_id}/dismiss")
+async def dismiss_trip(
+    trip_id: uuid.UUID,
+    body: TripConfirmIn,
+    user: CurrentUser,
+    session: SessionDep,
+) -> TripOut:
+    """"Not a trip". Detection is noisy, so the gate has to open both ways."""
+    trip = await _owned_trip(session, user, trip_id, with_evidence=True)
+
+    if trip.state == TripState.dismissed:
+        # Postcondition first, as in confirm: a retry holding a stale token
+        # must get success, not 409.
+        pass
+    elif body.updated_at != trip.updated_at:
+        raise Problem(
+            409,
+            "Trip was modified",
+            "conflict",
+            "The trip changed since you loaded it. Refetch and retry.",
+        )
+    elif trip.state == TripState.detected:
+        # A tombstone, not a delete: the row has to outlive the detection so
+        # the next calendar sync cannot re-offer what the user rejected.
+        trip.state = TripState.dismissed
+        trip.updated_at = datetime.now(UTC)
+    else:
+        # Dismiss only answers the detection gate. Discarding a trip the user
+        # already confirmed is a different act and needs its own affordance.
+        raise Problem(
+            409,
+            "Trip is not dismissable",
+            "invalid_state",
+            f"A {trip.state.value} trip cannot be dismissed.",
         )
 
     await session.commit()

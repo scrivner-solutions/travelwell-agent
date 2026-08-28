@@ -9,6 +9,7 @@ import { LoadingState, EmptyState, DegradedState } from '@/components/ui/ScreenS
 import { ProfileButton } from '@/components/ui/ProfileButton'
 import {
   confirmTrip,
+  dismissTrip,
   timelineQueryOptions,
   tripsQueryOptions,
   type TimelineEntry,
@@ -139,19 +140,26 @@ function EvidenceCard({ evidence }: { evidence: NonNullable<Trip['evidence']> })
 /** "We found an upcoming trip" card: evidence rows + confirm (409-aware). */
 function DetectionCard({ trip }: { trip: Trip }) {
   const queryClient = useQueryClient()
+  const onSettled = () => queryClient.invalidateQueries({ queryKey: ['trips'] })
   const confirm = useMutation({
     mutationFn: () => confirmTrip(trip.id, trip.updated_at),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['trips'] }),
+    onSettled,
   })
-  const conflicted =
-    confirm.error instanceof ApiError && confirm.error.status === 409
+  // Detection is noisy, so the gate opens both ways: without this the list can
+  // only ever grow.
+  const dismiss = useMutation({
+    mutationFn: () => dismissTrip(trip.id, trip.updated_at),
+    onSettled,
+  })
+  const pending = confirm.isPending || dismiss.isPending
+  const error = confirm.error ?? dismiss.error
+  const conflicted = error instanceof ApiError && error.status === 409
 
   return (
     <Card>
-      <p className="text-label font-semibold uppercase tracking-wide text-muted">
-        We found an upcoming trip
-      </p>
-      <p className="mt-1 font-display text-display-sm">{trip.destination_name}</p>
+      {/* No per-card label: the section heading above already says these were
+          found for you. */}
+      <p className="font-display text-display-sm">{trip.destination_name}</p>
       <p className="text-caption text-muted">
         {formatDateRange(trip.starts_on, trip.ends_on)}
       </p>
@@ -170,22 +178,31 @@ function DetectionCard({ trip }: { trip: Trip }) {
       )}
       {conflicted ? (
         <p className="mt-3 text-caption font-semibold text-state-attention">
-          This trip changed on the server. The list below has been refreshed; try again.
+          This trip changed on the server. It has been refreshed; try again.
         </p>
       ) : (
-        confirm.isError && (
+        error !== null && (
           <p className="mt-3 text-caption font-semibold text-state-attention">
-            Could not confirm the trip. Check your connection and retry.
+            Could not update the trip. Check your connection and retry.
           </p>
         )
       )}
-      <button
-        onClick={() => confirm.mutate()}
-        disabled={confirm.isPending}
-        className="mt-3 h-11 w-full rounded-panel bg-primary text-body-sm font-semibold text-white disabled:opacity-60"
-      >
-        {confirm.isPending ? 'Confirming…' : 'Use this trip'}
-      </button>
+      <div className="mt-3 flex gap-2">
+        <button
+          onClick={() => confirm.mutate()}
+          disabled={pending}
+          className="h-11 flex-1 rounded-panel bg-primary text-body-sm font-semibold text-white disabled:opacity-60"
+        >
+          {confirm.isPending ? 'Confirming…' : 'Use this trip'}
+        </button>
+        <button
+          onClick={() => dismiss.mutate()}
+          disabled={pending}
+          className="h-11 rounded-panel border border-border px-4 text-body-sm font-semibold text-muted disabled:opacity-60"
+        >
+          {dismiss.isPending ? 'Dismissing…' : 'Not a trip'}
+        </button>
+      </div>
     </Card>
   )
 }
@@ -201,6 +218,7 @@ export function TripScreen() {
     ? (trips.data.find((t) => t.id === tripId) ?? focusTrip(trips.data))
     : undefined
   const detected = trips.data?.filter((t) => t.state === 'detected') ?? []
+  const confirmedTrips = trips.data?.filter((t) => t.state !== 'detected') ?? []
 
   const rangeDays = trip ? tripDays(trip.starts_on, trip.ends_on) : []
   const todayIso = trip
@@ -328,10 +346,6 @@ export function TripScreen() {
       )}
 
       <div className="flex flex-col gap-3">
-        {detected.map((t) => (
-          <DetectionCard key={t.id} trip={t} />
-        ))}
-
         {trip && (
           <>
             {trip.evidence !== undefined && trip.evidence.length > 0 && (
@@ -461,7 +475,21 @@ export function TripScreen() {
           </>
         )}
 
-        {trips.isSuccess && trips.data.length > 0 && (
+        {/* Gate 1 lives below the trip you came to see, not on top of it, and
+            out of All trips: a detection is a claim that a trip exists, not a
+            trip. It gets no notification, so the tab count is what surfaces it. */}
+        {detected.length > 0 && (
+          <>
+            <p className="mt-2 border-t border-border-soft pt-4 text-label font-semibold uppercase tracking-wide text-muted">
+              Found for you · {detected.length}
+            </p>
+            {detected.map((t) => (
+              <DetectionCard key={t.id} trip={t} />
+            ))}
+          </>
+        )}
+
+        {trips.isSuccess && confirmedTrips.length > 0 && (
           <>
             <button
               onClick={() => setAllTripsOpen((open) => !open)}
@@ -469,12 +497,12 @@ export function TripScreen() {
               aria-controls="all-trips"
               className="mt-2 flex w-full items-center justify-between border-t border-border-soft pt-4 text-label font-semibold uppercase tracking-wide text-muted"
             >
-              All trips · {trips.data.length}
+              All trips · {confirmedTrips.length}
               <Chevron open={allTripsOpen} />
             </button>
             {allTripsOpen && (
               <div id="all-trips" className="flex flex-col gap-3">
-                {trips.data.map((t) => (
+                {confirmedTrips.map((t) => (
                   <CardButton
                     key={t.id}
                     aria-current={t.id === trip?.id || undefined}
@@ -484,21 +512,14 @@ export function TripScreen() {
                       void navigate({ search: { trip: t.id, day: undefined } })
                     }
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-body font-semibold">{t.destination_name}</p>
-                        <p className="text-caption text-muted">
-                          {formatDateRange(t.starts_on, t.ends_on)}
-                          {t.label !== undefined && ` · ${t.label}`}
-                        </p>
-                      </div>
-                      <span
-                        className={`flex items-baseline gap-1.5 text-label font-semibold uppercase tracking-wide ${stateInk[t.state] ?? 'text-state-neutral'}`}
-                      >
-                        <span aria-hidden className="size-[6px] flex-none self-center rounded-full bg-current" />
-                        {t.state.replace('_', ' ')}
-                      </span>
-                    </div>
+                    {/* No state pill: the dates say where the trip sits and the
+                        selected row is already marked, so the only marker left
+                        is the one that asks for something. */}
+                    <p className="text-body font-semibold">{t.destination_name}</p>
+                    <p className="text-caption text-muted">
+                      {formatDateRange(t.starts_on, t.ends_on)}
+                      {t.label !== undefined && ` · ${t.label}`}
+                    </p>
                     {t.needs_you_count > 0 && (
                       <p className="mt-2 text-caption font-semibold text-state-attention">
                         {t.needs_you_count} {t.needs_you_count === 1 ? 'item needs' : 'items need'} you

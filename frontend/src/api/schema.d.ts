@@ -198,6 +198,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips/{tripId}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject a detected trip ("not a trip")
+         * @description The other half of the detection gate. Detection is noisy, so the list must be clearable; a dismissed trip stops being re-offered rather than being deleted, so re-detection cannot resurrect it.
+         */
+        post: operations["dismissTrip"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/trips/{tripId}/today": {
         parameters: {
             query?: never;
@@ -1302,6 +1322,37 @@ export interface operations {
         };
         responses: {
             /** @description Trip confirmed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Trip"];
+                };
+            };
+            409: components["responses"]["Conflict"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    dismissTrip: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: date-time */
+                    updated_at: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Trip dismissed */
             200: {
                 headers: {
                     [name: string]: unknown;

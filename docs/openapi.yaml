@@ -308,6 +308,40 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /trips/{tripId}/dismiss:
+    post:
+      tags: [trips]
+      operationId: dismissTrip
+      summary: Reject a detected trip ("not a trip")
+      description: >-
+        The other half of the detection gate. Detection is noisy, so the list
+        must be clearable; a dismissed trip stops being re-offered rather than
+        being deleted, so re-detection cannot resurrect it.
+      parameters:
+        - $ref: "#/components/parameters/TripId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [updated_at]
+              properties:
+                updated_at:
+                  type: string
+                  format: date-time
+      responses:
+        "200":
+          description: Trip dismissed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trip"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /trips/{tripId}/today:
     get:
       tags: [trips]
