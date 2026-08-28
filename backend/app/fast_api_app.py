@@ -138,6 +138,18 @@ app.include_router(api_router)
 install_problem_handlers(app)
 
 
+@app.get("/healthz")
+async def healthz() -> dict[str, str]:
+    """Deploy smoke check: process up and database reachable."""
+    from sqlalchemy import text
+
+    from app.db.engine import engine
+
+    async with engine.connect() as conn:
+        await conn.execute(text("select 1"))
+    return {"status": "ok"}
+
+
 @app.post("/feedback")
 def collect_feedback(feedback: Feedback) -> dict[str, str]:
     """Collect and log feedback.

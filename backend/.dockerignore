@@ -1,0 +1,14 @@
+# Secrets must never enter a build context or image layer.
+.env
+
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+tests
+Dockerfile
+compose.yaml
+GEMINI.md
+README.md
+agents-cli-manifest.yaml
