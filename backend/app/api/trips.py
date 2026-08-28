@@ -332,6 +332,7 @@ async def create_trip(
         start_date=body.starts_on,
         end_date=body.ends_on,
         hotel_name=body.lodging_name,
+        label=body.label,
         state=TripState.confirmed,
         origin=TripOrigin.manual,
     )

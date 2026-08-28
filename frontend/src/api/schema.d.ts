@@ -620,6 +620,8 @@ export interface components {
             /** Format: date */
             ends_on: string;
             lodging_name?: string;
+            /** @description Short trip descriptor for the header eyebrow ("Conference trip"). */
+            label?: string;
         };
         Trip: {
             /** Format: uuid */

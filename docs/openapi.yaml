@@ -950,6 +950,9 @@ components:
           format: date
         lodging_name:
           type: string
+        label:
+          type: string
+          description: 'Short trip descriptor for the header eyebrow ("Conference trip").'
 
     Trip:
       type: object

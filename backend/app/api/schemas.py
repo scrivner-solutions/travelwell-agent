@@ -66,6 +66,7 @@ class TripCreateIn(BaseModel):
     starts_on: date
     ends_on: date
     lodging_name: str | None = None
+    label: str | None = None
 
     @model_validator(mode="after")
     def _dates_ordered(self) -> "TripCreateIn":
