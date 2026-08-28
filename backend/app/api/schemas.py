@@ -5,7 +5,9 @@ carries derived fields (destination_name, needs_you_count, state_line) that no
 table stores, so mapping from models is explicit, never automatic.
 """
 
+import enum
 import uuid
+from dataclasses import dataclass
 from datetime import date, datetime
 from zoneinfo import available_timezones
 
@@ -106,6 +108,37 @@ class TripEvidenceOut(BaseModel):
     kind: str
 
 
+class PlanProgress(enum.StrEnum):
+    """The one badge a trip row carries. `none` renders as no badge at all."""
+
+    none = "none"
+    preparing = "preparing"
+    planned = "planned"
+    booking = "booking"
+
+
+class NeedsYouKind(enum.StrEnum):
+    """Which gate the open work belongs to, so a row can name the ask."""
+
+    plan = "plan"
+    approval = "approval"
+    mixed = "mixed"
+
+
+@dataclass(frozen=True)
+class TripProgress:
+    """Per-trip rollup over plan_items and pending_actions, computed in one query."""
+
+    needs_you_count: int
+    needs_you_kind: NeedsYouKind | None
+    plan_progress: PlanProgress
+
+
+EMPTY_PROGRESS = TripProgress(
+    needs_you_count=0, needs_you_kind=None, plan_progress=PlanProgress.none
+)
+
+
 class TripOut(BaseModel):
     id: uuid.UUID
     state: TripState
@@ -118,7 +151,9 @@ class TripOut(BaseModel):
     detection_confidence: float | None = None
     evidence: list[TripEvidenceOut] = []
     state_line: str
+    plan_progress: PlanProgress
     needs_you_count: int
+    needs_you_kind: NeedsYouKind | None = None
     updated_at: datetime
 
 
@@ -357,7 +392,7 @@ def evidence_to_out(row: TripEvidence) -> TripEvidenceOut:
     )
 
 
-def trip_to_out(trip: Trip, needs_you_count: int) -> TripOut:
+def trip_to_out(trip: Trip, progress: TripProgress) -> TripOut:
     destination_name = trip.destination_city
     if trip.destination_region:
         destination_name = f"{trip.destination_city}, {trip.destination_region}"
@@ -378,6 +413,8 @@ def trip_to_out(trip: Trip, needs_you_count: int) -> TripOut:
         ),
         evidence=[evidence_to_out(e) for e in trip.evidence],
         state_line=_STATE_LINES[trip.state],
-        needs_you_count=needs_you_count,
+        plan_progress=progress.plan_progress,
+        needs_you_count=progress.needs_you_count,
+        needs_you_kind=progress.needs_you_kind,
         updated_at=trip.updated_at,
     )

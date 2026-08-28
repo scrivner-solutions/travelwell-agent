@@ -1033,7 +1033,7 @@ components:
 
     Trip:
       type: object
-      required: [id, state, origin, destination_name, timezone, starts_on, ends_on, needs_you_count, updated_at]
+      required: [id, state, origin, destination_name, timezone, starts_on, ends_on, plan_progress, needs_you_count, updated_at]
       properties:
         id:
           type: string
@@ -1068,12 +1068,34 @@ components:
         state_line:
           type: string
           description: Real trust indicator ("Active - watching your schedule"), server-derived.
+        plan_progress:
+          $ref: "#/components/schemas/PlanProgress"
         needs_you_count:
           type: integer
           description: Derived from open plan_items / pending_actions; never computed client-side.
+        needs_you_kind:
+          $ref: "#/components/schemas/NeedsYouKind"
         updated_at:
           type: string
           format: date-time
+
+    PlanProgress:
+      type: string
+      description: >
+        How far along this trip's plan is, rolled up from plan_items over the
+        current (non-draft, non-superseded) plan. Drives the one badge a trip
+        row carries; `none` renders as no badge at all. Server-derived: the
+        client has no plan items in the trips payload.
+      enum: [none, preparing, planned, booking]
+
+    NeedsYouKind:
+      type: string
+      description: >
+        Which gate the open work belongs to, so the row can name the ask rather
+        than only count it. `plan` = decisions on plan items, `approval` =
+        pending actions awaiting approval, `mixed` = both. Absent when
+        needs_you_count is 0.
+      enum: [plan, approval, mixed]
 
     TripEvidence:
       type: object

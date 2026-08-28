@@ -42,13 +42,17 @@ const config: Record<ItemStatus, { label: string; className: string }> = {
   },
 }
 
-export function StatusBadge({ status }: { status: ItemStatus }) {
-  const { label, className } = config[status]
+/** The app's one pill shape. Never shrinks or wraps: a truncated status lies. */
+export function Pill({ label, className }: { label: string; className: string }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-label font-semibold uppercase tracking-wide ${className}`}
+      className={`inline-flex flex-none items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-label font-semibold uppercase tracking-wide ${className}`}
     >
       {label}
     </span>
   )
+}
+
+export function StatusBadge({ status }: { status: ItemStatus }) {
+  return <Pill {...config[status]} />
 }

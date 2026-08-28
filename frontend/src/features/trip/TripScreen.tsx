@@ -4,7 +4,7 @@ import { getRouteApi } from '@tanstack/react-router'
 import { formatInTimeZone } from 'date-fns-tz'
 import { Button } from '@/components/ui/Button'
 import { Card, CardButton } from '@/components/ui/Card'
-import { StatusBadge } from '@/components/ui/StatusBadge'
+import { Pill, StatusBadge } from '@/components/ui/StatusBadge'
 import { LoadingState, EmptyState, DegradedState } from '@/components/ui/ScreenState'
 import { ProfileButton } from '@/components/ui/ProfileButton'
 import {
@@ -22,8 +22,10 @@ import {
   evidenceSourceSummary,
   evidenceTag,
   focusTrip,
+  isPast,
+  needsYouLabel,
   sourceLabel,
-  stateInk,
+  tripBadge,
   tripDays,
 } from '@/lib/trips'
 import { formatDateRange, formatTripTime } from '@/lib/time'
@@ -137,8 +139,9 @@ function EvidenceCard({ evidence }: { evidence: NonNullable<Trip['evidence']> })
   )
 }
 
-/** "We found an upcoming trip" card: evidence rows + confirm (409-aware). */
-function DetectionCard({ trip }: { trip: Trip }) {
+// Both detection layouts answer the same gate, so the mutations live here and
+// neither layout can drift from the other.
+function useDetectionGate(trip: Trip) {
   const queryClient = useQueryClient()
   const onSettled = () => queryClient.invalidateQueries({ queryKey: ['trips'] })
   const confirm = useMutation({
@@ -151,9 +154,82 @@ function DetectionCard({ trip }: { trip: Trip }) {
     mutationFn: () => dismissTrip(trip.id, trip.updated_at),
     onSettled,
   })
-  const pending = confirm.isPending || dismiss.isPending
   const error = confirm.error ?? dismiss.error
-  const conflicted = error instanceof ApiError && error.status === 409
+  return {
+    confirm,
+    dismiss,
+    error,
+    pending: confirm.isPending || dismiss.isPending,
+    conflicted: error instanceof ApiError && error.status === 409,
+  }
+}
+
+type DetectionGate = ReturnType<typeof useDetectionGate>
+
+function GateError({ gate }: { gate: DetectionGate }) {
+  if (gate.conflicted) {
+    return (
+      <p className="mt-3 text-caption font-semibold text-state-attention">
+        This trip changed on the server. It has been refreshed; try again.
+      </p>
+    )
+  }
+  if (gate.error === null) return null
+  return (
+    <p className="mt-3 text-caption font-semibold text-state-attention">
+      Could not update the trip. Check your connection and retry.
+    </p>
+  )
+}
+
+function GateButtons({
+  gate,
+  compact = false,
+}: {
+  gate: DetectionGate
+  compact?: boolean
+}) {
+  const height = compact ? 'h-9' : 'h-11'
+  return (
+    <div className={`mt-3 flex gap-2 ${compact ? 'justify-end' : ''}`}>
+      <button
+        onClick={() => gate.confirm.mutate()}
+        disabled={gate.pending}
+        className={`${height} ${compact ? 'px-4' : 'flex-1'} rounded-panel bg-primary text-body-sm font-semibold text-white disabled:opacity-60`}
+      >
+        {gate.confirm.isPending ? 'Confirming…' : 'Use this trip'}
+      </button>
+      <button
+        onClick={() => gate.dismiss.mutate()}
+        disabled={gate.pending}
+        className={`${height} rounded-panel border border-border px-4 text-body-sm font-semibold text-muted disabled:opacity-60`}
+      >
+        {gate.dismiss.isPending ? 'Dismissing…' : 'Not a trip'}
+      </button>
+    </div>
+  )
+}
+
+function EvidenceList({ trip, className = '' }: { trip: Trip; className?: string }) {
+  if (trip.evidence === undefined || trip.evidence.length === 0) return null
+  return (
+    <ul className={`flex flex-col gap-2 ${className}`}>
+      {trip.evidence.map((row, i) => (
+        <EvidenceRow
+          key={i}
+          kind={row.kind}
+          summary={row.summary}
+          detail={row.detail}
+          source={row.source}
+        />
+      ))}
+    </ul>
+  )
+}
+
+/** The detection gate at full size: evidence rows, confirm and dismiss. */
+function DetectionCard({ trip }: { trip: Trip }) {
+  const gate = useDetectionGate(trip)
 
   return (
     <Card>
@@ -163,62 +239,154 @@ function DetectionCard({ trip }: { trip: Trip }) {
       <p className="text-caption text-muted">
         {formatDateRange(trip.starts_on, trip.ends_on)}
       </p>
-      {trip.evidence !== undefined && trip.evidence.length > 0 && (
-        <ul className="mt-3 flex flex-col gap-2 border-t border-border-soft pt-3">
-          {trip.evidence.map((row, i) => (
-            <EvidenceRow
-              key={i}
-              kind={row.kind}
-              summary={row.summary}
-              detail={row.detail}
-              source={row.source}
+      <EvidenceList trip={trip} className="mt-3 border-t border-border-soft pt-3" />
+      <GateError gate={gate} />
+      <GateButtons gate={gate} />
+    </Card>
+  )
+}
+
+// The second detection onward. The card above already showed what evidence
+// looks like, so here it sits behind a tap; the two buttons never do, because
+// collapsing an action is how a decision gets lost.
+function DetectionRow({ trip }: { trip: Trip }) {
+  const [showEvidence, setShowEvidence] = useState(false)
+  const gate = useDetectionGate(trip)
+  const hasEvidence = trip.evidence !== undefined && trip.evidence.length > 0
+
+  return (
+    <Card>
+      <p className="text-body font-semibold">{trip.destination_name}</p>
+      <p className="text-caption text-muted">
+        {formatDateRange(trip.starts_on, trip.ends_on)}
+      </p>
+      {hasEvidence && (
+        <button
+          onClick={() => setShowEvidence((open) => !open)}
+          aria-expanded={showEvidence}
+          className="mt-2 flex items-center gap-1 text-caption font-semibold text-muted"
+        >
+          Why this looks like a trip
+          <Chevron open={showEvidence} className="size-4" />
+        </button>
+      )}
+      {showEvidence && (
+        <EvidenceList trip={trip} className="mt-2 border-t border-border-soft pt-3" />
+      )}
+      <GateError gate={gate} />
+      <GateButtons gate={gate} compact />
+    </Card>
+  )
+}
+
+function TripRow({
+  trip,
+  selected,
+  onSelect,
+}: {
+  trip: Trip
+  selected: boolean
+  onSelect: (id: string) => void
+}) {
+  const badge = tripBadge(trip)
+  const needsYou = needsYouLabel(trip.needs_you_count, trip.needs_you_kind)
+
+  return (
+    <CardButton
+      aria-current={selected || undefined}
+      className={selected ? 'border-ink' : ''}
+      onClick={() => onSelect(trip.id)}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <span className="min-w-0">
+          <span className="block text-body font-semibold">{trip.destination_name}</span>
+          <span className="block text-caption text-muted">
+            {formatDateRange(trip.starts_on, trip.ends_on)}
+            {trip.label !== undefined && ` · ${trip.label}`}
+          </span>
+        </span>
+        {badge !== null && <Pill {...badge} />}
+      </div>
+      {/* Below the badge, not beside it: the badge is the thing you cannot act
+          on, so it must not outrank the thing you can. */}
+      {needsYou !== null && (
+        <p className="mt-2 text-caption font-semibold text-state-attention">
+          {needsYou}
+        </p>
+      )}
+    </CardButton>
+  )
+}
+
+function TripSection({
+  id,
+  title,
+  trips,
+  open,
+  onToggle,
+  selectedId,
+  onSelect,
+}: {
+  id: string
+  title: string
+  trips: Trip[]
+  open: boolean
+  onToggle: () => void
+  selectedId?: string
+  onSelect: (id: string) => void
+}) {
+  return (
+    <>
+      <button
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls={id}
+        className="mt-2 flex w-full items-center justify-between border-t border-border-soft pt-4 text-label font-semibold uppercase tracking-wide text-muted"
+      >
+        {title} · {trips.length}
+        <Chevron open={open} />
+      </button>
+      {open && (
+        <div id={id} className="flex flex-col gap-3">
+          {trips.map((t) => (
+            <TripRow
+              key={t.id}
+              trip={t}
+              selected={t.id === selectedId}
+              onSelect={onSelect}
             />
           ))}
-        </ul>
+        </div>
       )}
-      {conflicted ? (
-        <p className="mt-3 text-caption font-semibold text-state-attention">
-          This trip changed on the server. It has been refreshed; try again.
-        </p>
-      ) : (
-        error !== null && (
-          <p className="mt-3 text-caption font-semibold text-state-attention">
-            Could not update the trip. Check your connection and retry.
-          </p>
-        )
-      )}
-      <div className="mt-3 flex gap-2">
-        <button
-          onClick={() => confirm.mutate()}
-          disabled={pending}
-          className="h-11 flex-1 rounded-panel bg-primary text-body-sm font-semibold text-white disabled:opacity-60"
-        >
-          {confirm.isPending ? 'Confirming…' : 'Use this trip'}
-        </button>
-        <button
-          onClick={() => dismiss.mutate()}
-          disabled={pending}
-          className="h-11 rounded-panel border border-border px-4 text-body-sm font-semibold text-muted disabled:opacity-60"
-        >
-          {dismiss.isPending ? 'Dismissing…' : 'Not a trip'}
-        </button>
-      </div>
-    </Card>
+    </>
   )
 }
 
 export function TripScreen() {
   const { day, trip: tripId, sheet } = route.useSearch()
   const navigate = route.useNavigate()
-  // Ephemeral disclosure, not URL state: collapses again on any navigation.
-  const [allTripsOpen, setAllTripsOpen] = useState(false)
+  // Ephemeral disclosures, not URL state: they collapse again on any navigation.
+  const [upcomingOpen, setUpcomingOpen] = useState(false)
+  const [pastOpen, setPastOpen] = useState(false)
   const trips = useQuery(tripsQueryOptions())
   // ?trip= (a tapped card or a deep link) wins; otherwise the agent's focus.
   const trip = trips.data
     ? (trips.data.find((t) => t.id === tripId) ?? focusTrip(trips.data))
     : undefined
   const detected = trips.data?.filter((t) => t.state === 'detected') ?? []
-  const confirmedTrips = trips.data?.filter((t) => t.state !== 'detected') ?? []
+  const [firstDetection, ...restDetections] = detected
+  // Detections have their own section above; the rest split by tense, so the
+  // heading carries what a per-row badge would otherwise have to repeat.
+  const listedTrips = trips.data?.filter((t) => t.state !== 'detected') ?? []
+  const upcomingTrips = listedTrips.filter((t) => !isPast(t))
+  const pastTrips = listedTrips.filter(isPast)
+
+  // day resets: the old selection belongs to the previous trip's range.
+  const onSelectTrip = useCallback(
+    (id: string) => void navigate({ search: { trip: id, day: undefined } }),
+    [navigate],
+  )
+  const headerBadge = trip ? tripBadge(trip) : null
 
   const rangeDays = trip ? tripDays(trip.starts_on, trip.ends_on) : []
   const todayIso = trip
@@ -281,16 +449,14 @@ export function TripScreen() {
   return (
     <>
       <header className="mb-4">
+        {/* The dot this replaces encoded five states in two hues with no
+            legend and aria-hidden on top, so it told nobody anything. Same
+            word the row carries, so there is one trip vocabulary. */}
         <p className="flex items-center gap-2 text-caption font-semibold uppercase tracking-wide text-muted">
-          {trip && (
-            <span
-              aria-hidden
-              className={`inline-block size-[7px] rounded-full bg-current ${stateInk[trip.state] ?? 'text-state-neutral'}`}
-            />
-          )}
           {trip
             ? `${formatDateRange(trip.starts_on, trip.ends_on)}${trip.label !== undefined ? ` · ${trip.label}` : ''}`
             : 'Trip'}
+          {trip && headerBadge !== null && <Pill {...headerBadge} />}
         </p>
         <div className="flex items-center justify-between">
           <h1 className="font-display text-display font-medium">
@@ -483,53 +649,45 @@ export function TripScreen() {
             <p className="mt-2 border-t border-border-soft pt-4 text-label font-semibold uppercase tracking-wide text-muted">
               Found for you · {detected.length}
             </p>
-            {detected.map((t) => (
-              <DetectionCard key={t.id} trip={t} />
+            {/* Density-adaptive rather than capped at N: one full card teaches
+                the format, the rest are rows, so ten detections cost about what
+                two cards used to and nothing gets hidden behind a "show more". */}
+            {firstDetection !== undefined && (
+              // Keyed so answering one detection remounts the next into the
+              // card slot instead of inheriting its mutation state.
+              <DetectionCard key={firstDetection.id} trip={firstDetection} />
+            )}
+            {restDetections.map((t) => (
+              <DetectionRow key={t.id} trip={t} />
             ))}
           </>
         )}
 
-        {trips.isSuccess && confirmedTrips.length > 0 && (
-          <>
-            <button
-              onClick={() => setAllTripsOpen((open) => !open)}
-              aria-expanded={allTripsOpen}
-              aria-controls="all-trips"
-              className="mt-2 flex w-full items-center justify-between border-t border-border-soft pt-4 text-label font-semibold uppercase tracking-wide text-muted"
-            >
-              All trips · {confirmedTrips.length}
-              <Chevron open={allTripsOpen} />
-            </button>
-            {allTripsOpen && (
-              <div id="all-trips" className="flex flex-col gap-3">
-                {confirmedTrips.map((t) => (
-                  <CardButton
-                    key={t.id}
-                    aria-current={t.id === trip?.id || undefined}
-                    className={t.id === trip?.id ? 'border-ink' : ''}
-                    // day resets: the old selection belongs to the previous trip's range
-                    onClick={() =>
-                      void navigate({ search: { trip: t.id, day: undefined } })
-                    }
-                  >
-                    {/* No state pill: the dates say where the trip sits and the
-                        selected row is already marked, so the only marker left
-                        is the one that asks for something. */}
-                    <p className="text-body font-semibold">{t.destination_name}</p>
-                    <p className="text-caption text-muted">
-                      {formatDateRange(t.starts_on, t.ends_on)}
-                      {t.label !== undefined && ` · ${t.label}`}
-                    </p>
-                    {t.needs_you_count > 0 && (
-                      <p className="mt-2 text-caption font-semibold text-state-attention">
-                        {t.needs_you_count} {t.needs_you_count === 1 ? 'item needs' : 'items need'} you
-                      </p>
-                    )}
-                  </CardButton>
-                ))}
-              </div>
-            )}
-          </>
+        {/* Two sections, not one list with a tense badge on every row: a
+            heading labels the group once, which is the whole reason `Past`
+            is not a word the user has to read N times. */}
+        {trips.isSuccess && upcomingTrips.length > 0 && (
+          <TripSection
+            id="upcoming-trips"
+            title="Upcoming"
+            trips={upcomingTrips}
+            open={upcomingOpen}
+            onToggle={() => setUpcomingOpen((open) => !open)}
+            selectedId={trip?.id}
+            onSelect={onSelectTrip}
+          />
+        )}
+
+        {trips.isSuccess && pastTrips.length > 0 && (
+          <TripSection
+            id="past-trips"
+            title="Past"
+            trips={pastTrips}
+            open={pastOpen}
+            onToggle={() => setPastOpen((open) => !open)}
+            selectedId={trip?.id}
+            onSelect={onSelectTrip}
+          />
         )}
       </div>
 

@@ -1,4 +1,8 @@
 import type { Trip } from '@/api/queries'
+import type { components } from '@/api/schema'
+
+type PlanProgress = components['schemas']['PlanProgress']
+type NeedsYouKind = components['schemas']['NeedsYouKind']
 
 // The Today and Trip tabs surface the trip the agent is currently working:
 // active beats preparing beats upcoming; the server orders /trips by start
@@ -11,6 +15,59 @@ export function focusTrip(trips: Trip[]): Trip | undefined {
     if (match) return match
   }
   return undefined
+}
+
+// A trip that has ended gets a section rather than a badge, so tense never has
+// to be read off a row. Set by the agent runtime, so it stays empty until then.
+const pastStates: readonly Trip['state'][] = ['completed', 'archived']
+
+export function isPast(trip: Trip): boolean {
+  return pastStates.includes(trip.state)
+}
+
+export type Badge = { label: string; className: string }
+
+// Two visual classes, and the difference survives greyscale: a working badge
+// ends in an ellipsis and will change on its own, a settled badge is a fact.
+// `none` renders nothing at all, because for a trip months out "no plan yet"
+// is expected rather than news. Keyed by the generated enum, so a new contract
+// value fails the typecheck until the design decides how to render it.
+const progressBadges: Record<PlanProgress, Badge | null> = {
+  none: null,
+  preparing: {
+    label: 'Preparing…',
+    className: 'bg-state-working-soft text-state-working',
+  },
+  booking: {
+    label: 'Booking…',
+    className: 'bg-state-working-soft text-state-working',
+  },
+  planned: {
+    label: 'Planned',
+    className: 'bg-state-confirmed-soft text-state-confirmed',
+  },
+}
+
+// Being on the trip outranks how far along its plan is: it is the one thing on
+// the row that no date can tell you, so it takes the slot and the solid fill.
+const nowBadge: Badge = { label: 'Now', className: 'bg-state-confirmed text-white' }
+
+export function tripBadge(trip: Trip): Badge | null {
+  // A finished trip's plan progress is history, and its section already says
+  // where it sits, so nothing is left that the row needs to declare.
+  if (isPast(trip)) return null
+  if (trip.state === 'active') return nowBadge
+  return progressBadges[trip.plan_progress]
+}
+
+// Naming the gate beats counting it: when scanning a list, what kind of work
+// decides whether you open a trip. Mixed kinds fall back to the count, because
+// no single phrase covers two gates honestly.
+export function needsYouLabel(count: number, kind?: NeedsYouKind): string | null {
+  if (count < 1) return null
+  if (kind === 'plan') return 'Plan ready'
+  if (kind === 'approval') return `${count} to approve`
+  return `${count} ${count === 1 ? 'item needs' : 'items need'} you`
 }
 
 // Design rule: state reads as a dot and a word, one hue per meaning.

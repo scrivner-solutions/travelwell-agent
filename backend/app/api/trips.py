@@ -1,8 +1,8 @@
 """Trips endpoints: the walking-skeleton read path plus manual create.
 
-needs_you_count is computed here with textual SQL over plan_items and
-pending_actions (ADR-001 point 3: shaped reads may skip the ORM). Those
-tables exist via the initial migration even though they have no models yet.
+needs_you_count, needs_you_kind and plan_progress are computed here with
+textual SQL over plan_items and pending_actions (ADR-001 point 3: shaped reads
+may skip the ORM), in one pass per user.
 """
 
 import uuid
@@ -18,13 +18,17 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import ApiRoute, CurrentUser, SessionDep
 from app.api.problems import Problem
 from app.api.schemas import (
+    EMPTY_PROGRESS,
     CalendarEventSummaryOut,
+    NeedsYouKind,
+    PlanProgress,
     TimelineEntryOut,
     TimelineOut,
     TodayViewOut,
     TripCreateIn,
     TripListOut,
     TripOut,
+    TripProgress,
     plan_item_to_out,
     trip_to_out,
     window_to_out,
@@ -43,20 +47,37 @@ from app.db.models import (
 
 router = APIRouter(tags=["trips"], route_class=ApiRoute)
 
-# Open work per trip, one term per gate the user can be standing at: confirm
-# the trip, decide a suggestion, approve an action. Contract: "derived ...
-# never computed client-side".
-NEEDS_YOU_SQL = text(
+# Everything a trip row renders that cannot be read off the trip itself, in one
+# pass: the open-work terms (one per gate -- confirm the trip, decide a
+# suggestion, approve an action) and the plan rollup behind the badge. Contract:
+# "derived ... never computed client-side".
+#
+# The plan_items joins go through plans so a superseded version's leftovers
+# cannot count; the old query filtered on item status alone.
+TRIP_PROGRESS_SQL = text(
     """
     select t.trip_id,
-           case when t.state = 'detected' then 1 else 0 end
-           + coalesce(pi.n, 0) + coalesce(pa.n, 0) as needs_you
+           t.state,
+           case when t.state = 'detected' then 1 else 0 end as detection_n,
+           coalesce(pi.awaiting_n, 0) as awaiting_n,
+           coalesce(pi.working_n, 0) as working_n,
+           coalesce(pi.undecided_n, 0) as undecided_n,
+           coalesce(pi.live_n, 0) as live_n,
+           coalesce(pa.n, 0) as approval_n
     from trips t
     left join (
-        select trip_id, count(*) as n
-        from plan_items
-        where status = 'awaiting_user'
-        group by trip_id
+        select pi.trip_id,
+               count(*) filter (where pi.status = 'awaiting_user') as awaiting_n,
+               count(*) filter (where pi.status = 'working') as working_n,
+               count(*) filter (
+                   where pi.status in ('suggested', 'awaiting_user')
+               ) as undecided_n,
+               count(*) as live_n
+        from plan_items pi
+        join plans p on p.plan_id = pi.plan_id
+        where p.status not in ('draft', 'superseded')
+          and pi.status not in ('skipped', 'removed')
+        group by pi.trip_id
     ) pi on pi.trip_id = t.trip_id
     left join (
         select trip_id, count(*) as n
@@ -69,9 +90,50 @@ NEEDS_YOU_SQL = text(
 )
 
 
-async def _needs_you_counts(session, user_id: uuid.UUID) -> dict[uuid.UUID, int]:
-    rows = await session.execute(NEEDS_YOU_SQL, {"user_id": user_id})
-    return {row.trip_id: row.needs_you for row in rows}
+def _plan_progress(row) -> PlanProgress:
+    """The single badge a trip row carries, in precedence order.
+
+    A working state outranks the settled one it will revert to: `Preparing...`
+    stands where nothing stood, `Booking...` where `Planned` will stand again.
+    That is what keeps a row to one badge instead of one per combination.
+    """
+    if row.state == TripState.preparing.value:
+        return PlanProgress.preparing
+    if row.working_n:
+        return PlanProgress.booking
+    # An empty plan is not an accepted plan, so live_n has to be positive.
+    if row.live_n and not row.undecided_n:
+        return PlanProgress.planned
+    return PlanProgress.none
+
+
+def _needs_you_kind(row) -> NeedsYouKind | None:
+    """Which gate the open work belongs to, so the row can name the ask.
+
+    A detection is its own section rather than a row in the list, so it only
+    ever adds to the count here; it never names the kind.
+    """
+    plan = bool(row.awaiting_n)
+    approval = bool(row.approval_n)
+    if plan and approval:
+        return NeedsYouKind.mixed
+    if plan:
+        return NeedsYouKind.plan
+    if approval:
+        return NeedsYouKind.approval
+    return None
+
+
+async def _trip_progress(session, user_id: uuid.UUID) -> dict[uuid.UUID, TripProgress]:
+    rows = await session.execute(TRIP_PROGRESS_SQL, {"user_id": user_id})
+    return {
+        row.trip_id: TripProgress(
+            needs_you_count=row.detection_n + row.awaiting_n + row.approval_n,
+            needs_you_kind=_needs_you_kind(row),
+            plan_progress=_plan_progress(row),
+        )
+        for row in rows
+    }
 
 
 @router.get("/trips")
@@ -92,9 +154,9 @@ async def list_trips(
         # next list someone builds.
         stmt = stmt.where(Trip.state != TripState.dismissed)
     trips = (await session.execute(stmt)).scalars().all()
-    counts = await _needs_you_counts(session, user.user_id)
+    progress = await _trip_progress(session, user.user_id)
     return TripListOut(
-        trips=[trip_to_out(t, counts.get(t.trip_id, 0)) for t in trips]
+        trips=[trip_to_out(t, progress.get(t.trip_id, EMPTY_PROGRESS)) for t in trips]
     )
 
 
@@ -175,8 +237,8 @@ async def get_trip(
     trip_id: uuid.UUID, user: CurrentUser, session: SessionDep
 ) -> TripOut:
     trip = await _owned_trip(session, user, trip_id, with_evidence=True)
-    counts = await _needs_you_counts(session, user.user_id)
-    return trip_to_out(trip, counts.get(trip.trip_id, 0))
+    progress = await _trip_progress(session, user.user_id)
+    return trip_to_out(trip, progress.get(trip.trip_id, EMPTY_PROGRESS))
 
 
 @router.get("/trips/{trip_id}/today")
@@ -315,8 +377,8 @@ async def confirm_trip(
         )
 
     await session.commit()
-    counts = await _needs_you_counts(session, user.user_id)
-    return trip_to_out(trip, counts.get(trip.trip_id, 0))
+    progress = await _trip_progress(session, user.user_id)
+    return trip_to_out(trip, progress.get(trip.trip_id, EMPTY_PROGRESS))
 
 
 @router.post("/trips/{trip_id}/dismiss")
@@ -356,8 +418,8 @@ async def dismiss_trip(
         )
 
     await session.commit()
-    counts = await _needs_you_counts(session, user.user_id)
-    return trip_to_out(trip, counts.get(trip.trip_id, 0))
+    progress = await _trip_progress(session, user.user_id)
+    return trip_to_out(trip, progress.get(trip.trip_id, EMPTY_PROGRESS))
 
 
 @router.post("/trips", status_code=status.HTTP_201_CREATED)
@@ -388,4 +450,4 @@ async def create_trip(
     session.add(trip)
     await session.commit()
     await session.refresh(trip, attribute_names=["evidence"])
-    return trip_to_out(trip, 0)
+    return trip_to_out(trip, EMPTY_PROGRESS)

@@ -684,11 +684,23 @@ export interface components {
             evidence?: components["schemas"]["TripEvidence"][];
             /** @description Real trust indicator ("Active - watching your schedule"), server-derived. */
             state_line?: string;
+            plan_progress: components["schemas"]["PlanProgress"];
             /** @description Derived from open plan_items / pending_actions; never computed client-side. */
             needs_you_count: number;
+            needs_you_kind?: components["schemas"]["NeedsYouKind"];
             /** Format: date-time */
             updated_at: string;
         };
+        /**
+         * @description How far along this trip's plan is, rolled up from plan_items over the current (non-draft, non-superseded) plan. Drives the one badge a trip row carries; `none` renders as no badge at all. Server-derived: the client has no plan items in the trips payload.
+         * @enum {string}
+         */
+        PlanProgress: "none" | "preparing" | "planned" | "booking";
+        /**
+         * @description Which gate the open work belongs to, so the row can name the ask rather than only count it. `plan` = decisions on plan items, `approval` = pending actions awaiting approval, `mixed` = both. Absent when needs_you_count is 0.
+         * @enum {string}
+         */
+        NeedsYouKind: "plan" | "approval" | "mixed";
         TripEvidence: {
             source: components["schemas"]["SourceKind"];
             /** @description Bold headline of the evidence row ("The Gwen"). */
