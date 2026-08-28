@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Button } from '@/components/ui/Button'
 import { api, throwOnError, ApiError } from '@/api/client'
 import { loadRuntimeConfig } from '@/lib/config'
@@ -24,8 +24,15 @@ function errorCopy(error: unknown): string {
   return 'TravelWell is unreachable. Check your connection and try again.'
 }
 
+// The OAuth callback redirects back here with ?error= instead of a cookie.
+const oauthErrorCopy = {
+  oauth_failed: 'Google sign-in did not complete. Try again.',
+  not_allowed: 'That Google account is not on the tester list yet.',
+} as const
+
 export function SignInScreen() {
   const navigate = useNavigate()
+  const { error: oauthError } = useSearch({ from: '/sign-in' })
   const [askDemoName, setAskDemoName] = useState(false)
   const [demoName, setDemoName] = useState('')
   const [email, setEmail] = useState('')
@@ -118,6 +125,11 @@ export function SignInScreen() {
           <Button variant="secondary" onClick={() => void startOauth('google')}>
             Continue with Google
           </Button>
+          {oauthError && (
+            <p role="alert" className="text-body-sm text-state-failed">
+              {oauthErrorCopy[oauthError]}
+            </p>
+          )}
         </div>
 
         <div className="flex items-center gap-3 text-caption text-muted-soft">
