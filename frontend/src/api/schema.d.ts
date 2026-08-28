@@ -64,7 +64,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Sign into the seeded demo account (flag-gated; off outside dev) */
+        /** Mint a fresh pre-populated demo account (flag-gated; off outside dev) */
         post: operations["demoLogin"];
         delete?: never;
         options?: never;
@@ -1058,7 +1058,14 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description Display name for the demo account; just a label */
+                    name?: string;
+                };
+            };
+        };
         responses: {
             /** @description Session established; Set-Cookie carries the httpOnly session */
             200: {

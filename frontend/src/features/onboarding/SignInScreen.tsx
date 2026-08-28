@@ -8,10 +8,7 @@ import { loadRuntimeConfig } from '@/lib/config'
 function errorCopy(error: unknown): string {
   if (error instanceof ApiError) {
     // Checked before the 401/403 branch: demo_disabled is also a 403.
-    if (
-      error.problem?.code === 'demo_disabled' ||
-      error.problem?.code === 'demo_unseeded'
-    ) {
+    if (error.problem?.code === 'demo_disabled') {
       return 'The demo is not available right now.'
     }
     // A wrong or expired code answers 400 code_invalid.
@@ -29,6 +26,8 @@ function errorCopy(error: unknown): string {
 
 export function SignInScreen() {
   const navigate = useNavigate()
+  const [askDemoName, setAskDemoName] = useState(false)
+  const [demoName, setDemoName] = useState('')
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
 
@@ -52,7 +51,10 @@ export function SignInScreen() {
   const demoLogin = useMutation({
     mutationFn: async () => {
       const client = await api()
-      return throwOnError(await client.POST('/auth/demo', {}))
+      const name = demoName.trim()
+      return throwOnError(
+        await client.POST('/auth/demo', name ? { body: { name } } : {}),
+      )
     },
     onSuccess: () => void navigate({ to: '/today' }),
   })
@@ -75,87 +77,118 @@ export function SignInScreen() {
         </p>
       </header>
 
-      <div className="flex flex-col gap-3">
-        <Button onClick={() => demoLogin.mutate()} disabled={demoLogin.isPending}>
-          {demoLogin.isPending ? 'Opening the demo…' : 'Demo sign-in'}
-        </Button>
-        <Button variant="secondary" onClick={() => void startOauth('google')}>
-          Continue with Google
-        </Button>
-        {demoLogin.isError && (
-          <p role="alert" className="text-body-sm text-state-failed">
-            {errorCopy(demoLogin.error)}
-          </p>
-        )}
-      </div>
-
-      <div className="flex items-center gap-3 text-caption text-muted-soft">
-        <span className="h-px flex-1 bg-border" aria-hidden />
-        or use email
-        <span className="h-px flex-1 bg-border" aria-hidden />
-      </div>
-
-      {!codeSent ? (
-        <form
-          className="flex flex-col gap-3"
-          onSubmit={(event) => {
-            event.preventDefault()
-            requestCode.mutate()
-          }}
-        >
-          <label className="text-body-sm font-medium" htmlFor="email">
-            Email
-          </label>
-          <input
-            id="email"
-            type="email"
-            required
-            autoComplete="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className="h-[var(--control-height)] rounded-control border border-border bg-card px-4 text-body focus-visible:outline-2 focus-visible:outline-primary"
-          />
-          <Button type="submit" disabled={requestCode.isPending}>
-            {requestCode.isPending ? 'Sending code…' : 'Email me a code'}
+      {askDemoName ? (
+        <div className="flex flex-col gap-3">
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(event) => {
+              event.preventDefault()
+              demoLogin.mutate()
+            }}
+          >
+            <label className="text-body-sm font-medium" htmlFor="demo-name">
+              Test user name <span className="font-normal text-muted">(optional)</span>
+            </label>
+            <input
+              id="demo-name"
+              autoComplete="name"
+              maxLength={80}
+              autoFocus
+              value={demoName}
+              onChange={(event) => setDemoName(event.target.value)}
+              className="h-[var(--control-height)] rounded-control border border-border bg-card px-4 text-body focus-visible:outline-2 focus-visible:outline-primary"
+            />
+            <Button type="submit" disabled={demoLogin.isPending}>
+              {demoLogin.isPending ? 'Opening the demo…' : 'Start the demo'}
+            </Button>
+            {demoLogin.isError && (
+              <p role="alert" className="text-body-sm text-state-failed">
+                {errorCopy(demoLogin.error)}
+              </p>
+            )}
+          </form>
+          <Button variant="ghost" onClick={() => setAskDemoName(false)}>
+            Back
           </Button>
-          {requestCode.isError && (
-            <p role="alert" className="text-body-sm text-state-failed">
-              {errorCopy(requestCode.error)}
-            </p>
-          )}
-        </form>
+        </div>
       ) : (
-        <form
-          className="flex flex-col gap-3"
-          onSubmit={(event) => {
-            event.preventDefault()
-            verifyCode.mutate()
-          }}
-        >
-          <p className="text-body-sm text-muted">
-            We sent a code to <span className="font-semibold text-ink">{email}</span>.
-          </p>
-          <label className="text-body-sm font-medium" htmlFor="code">
-            Code
-          </label>
-          <input
-            id="code"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            required
-            value={code}
-            onChange={(event) => setCode(event.target.value)}
-            className="h-[var(--control-height)] rounded-control border border-border bg-card px-4 text-body tracking-widest focus-visible:outline-2 focus-visible:outline-primary"
-          />
-          <Button type="submit" disabled={verifyCode.isPending}>
-            {verifyCode.isPending ? 'Signing in…' : 'Sign in'}
+        <>
+        <div className="flex flex-col gap-3">
+          <Button onClick={() => setAskDemoName(true)}>Demo sign-in</Button>
+          <Button variant="secondary" onClick={() => void startOauth('google')}>
+            Continue with Google
           </Button>
-          {verifyCode.isError && (
-            <p role="alert" className="text-body-sm text-state-failed">
-              {errorCopy(verifyCode.error)}
+        </div>
+
+        <div className="flex items-center gap-3 text-caption text-muted-soft">
+          <span className="h-px flex-1 bg-border" aria-hidden />
+          or use email
+          <span className="h-px flex-1 bg-border" aria-hidden />
+        </div>
+
+        {!codeSent ? (
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(event) => {
+              event.preventDefault()
+              requestCode.mutate()
+            }}
+          >
+            <label className="text-body-sm font-medium" htmlFor="email">
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              className="h-[var(--control-height)] rounded-control border border-border bg-card px-4 text-body focus-visible:outline-2 focus-visible:outline-primary"
+            />
+            <Button type="submit" disabled={requestCode.isPending}>
+              {requestCode.isPending ? 'Sending code…' : 'Email me a code'}
+            </Button>
+            {requestCode.isError && (
+              <p role="alert" className="text-body-sm text-state-failed">
+                {errorCopy(requestCode.error)}
+              </p>
+            )}
+          </form>
+        ) : (
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(event) => {
+              event.preventDefault()
+              verifyCode.mutate()
+            }}
+          >
+            <p className="text-body-sm text-muted">
+              We sent a code to <span className="font-semibold text-ink">{email}</span>.
             </p>
-          )}
-        </form>
+            <label className="text-body-sm font-medium" htmlFor="code">
+              Code
+            </label>
+            <input
+              id="code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              required
+              value={code}
+              onChange={(event) => setCode(event.target.value)}
+              className="h-[var(--control-height)] rounded-control border border-border bg-card px-4 text-body tracking-widest focus-visible:outline-2 focus-visible:outline-primary"
+            />
+            <Button type="submit" disabled={verifyCode.isPending}>
+              {verifyCode.isPending ? 'Signing in…' : 'Sign in'}
+            </Button>
+            {verifyCode.isError && (
+              <p role="alert" className="text-body-sm text-state-failed">
+                {errorCopy(verifyCode.error)}
+              </p>
+            )}
+          </form>
+        )}
+        </>
       )}
     </main>
   )

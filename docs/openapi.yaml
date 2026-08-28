@@ -107,8 +107,19 @@ paths:
     post:
       tags: [auth]
       operationId: demoLogin
-      summary: Sign into the seeded demo account (flag-gated; off outside dev)
+      summary: Mint a fresh pre-populated demo account (flag-gated; off outside dev)
       security: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 80
+                  description: Display name for the demo account; just a label
       responses:
         "200":
           description: Session established; Set-Cookie carries the httpOnly session

@@ -39,6 +39,10 @@ class EmailCodeVerify(BaseModel):
     code: str
 
 
+class DemoLoginRequest(BaseModel):
+    name: str | None = Field(default=None, max_length=80)
+
+
 class UserOut(BaseModel):
     id: uuid.UUID
     email: str

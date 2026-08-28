@@ -8,6 +8,7 @@ URLs, so provider tokens never reach the frontend.
 
 import logging
 import os
+import secrets
 
 from authlib.integrations.starlette_client import OAuth, OAuthError
 from fastapi import APIRouter, Request, Response, status
@@ -17,8 +18,9 @@ from sqlalchemy import select
 from app.api import sessions
 from app.api.deps import ApiRoute, CurrentUser, SessionDep
 from app.api.problems import Problem
-from app.api.schemas import EmailCodeRequest, EmailCodeVerify, UserOut
+from app.api.schemas import DemoLoginRequest, EmailCodeRequest, EmailCodeVerify, UserOut
 from app.db.models import AuthProvider, User
+from app.services.demo_scene import build_demo_scene
 
 logger = logging.getLogger(__name__)
 
@@ -95,23 +97,30 @@ def _demo_login_enabled() -> bool:
 
 
 @router.post("/auth/demo")
-async def demo_login(response: Response, session: SessionDep) -> UserOut:
-    """Sign into the pre-seeded demo account for hackathon walkthroughs."""
+async def demo_login(
+    response: Response, session: SessionDep, body: DemoLoginRequest | None = None
+) -> UserOut:
+    """Mint a fresh demo account pre-populated with the demo scene.
+
+    Per-tap accounts keep testers isolated (mutations are real and would
+    collide on a shared account) and build the scene's dates fresh, so the
+    demo never goes stale. The optional name is just a label, not a
+    credential: the account lives only in this browser's session cookie.
+    """
     if not _demo_login_enabled():
         raise Problem(403, "Demo sign-in is disabled", "demo_disabled")
 
-    email = os.getenv("DEMO_USER_EMAIL", "demo@travelwell.dev")
-    user = (
-        await session.execute(select(User).where(User.email == email))
-    ).scalar_one_or_none()
-    if user is None:
-        # Find-only on purpose: auto-creating here would demo an empty app.
-        raise Problem(
-            503,
-            "Demo account is not seeded",
-            "demo_unseeded",
-            detail="Run scripts/seed.py against this database first.",
-        )
+    name = (body.name or "").strip() if body else ""
+    user = User(
+        email=f"demo-{secrets.token_hex(4)}@travelwell.dev",
+        display_name=name or "Demo Traveler",
+        auth_provider=AuthProvider.email,
+        home_timezone="America/Los_Angeles",
+    )
+    session.add(user)
+    await session.flush()
+    await build_demo_scene(session, user)
+    await session.commit()
 
     _set_session_cookie(response, str(user.user_id))
     return UserOut.from_model(user)
