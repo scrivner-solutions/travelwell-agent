@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calendarSpan } from './trips'
+import { calendarSpan, evidenceKindSummary, evidenceSourceSummary } from './trips'
 
 describe('calendarSpan', () => {
   it('pads a mid-week range out to Sunday-to-Saturday', () => {
@@ -25,5 +25,29 @@ describe('calendarSpan', () => {
     expect(span[0]).toBe('2026-08-23')
     expect(span[span.length - 1]).toBe('2026-08-29')
     expect(span).toHaveLength(7)
+  })
+})
+
+describe('collapsed evidence copy', () => {
+  it('joins deduped sources into a natural list', () => {
+    expect(
+      evidenceSourceSummary([
+        { source: 'google_calendar' },
+        { source: 'gmail' },
+        { source: 'google_calendar' },
+      ]),
+    ).toBe('calendar and email')
+    expect(evidenceSourceSummary([{ source: 'google_calendar' }])).toBe('calendar')
+  })
+
+  it('summarizes kinds as capitalized plain words with a fallback', () => {
+    expect(
+      evidenceKindSummary([
+        { kind: 'flight_event' },
+        { kind: 'hotel_email' },
+        { kind: 'conference_event' },
+      ]),
+    ).toBe('Flight, hotel and conference')
+    expect(evidenceKindSummary([{ kind: 'something_new' }])).toBe('Calendar item')
   })
 })

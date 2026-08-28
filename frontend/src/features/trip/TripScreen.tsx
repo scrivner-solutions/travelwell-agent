@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { formatInTimeZone } from 'date-fns-tz'
@@ -17,6 +17,8 @@ import {
 import { ApiError } from '@/api/client'
 import {
   calendarSpan,
+  evidenceKindSummary,
+  evidenceSourceSummary,
   evidenceTag,
   focusTrip,
   sourceLabel,
@@ -70,6 +72,67 @@ function EvidenceRow({
       </span>
       <span className="flex-none text-label text-muted">{sourceLabel(source)}</span>
     </li>
+  )
+}
+
+function Chevron({ open, className = '' }: { open: boolean; className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 16 16"
+      fill="none"
+      className={`size-4 flex-none transition-transform motion-reduce:transition-none ${open ? 'rotate-180' : ''} ${className}`}
+    >
+      <path
+        d="M4 6.5l4 4 4-4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+/** Focused trip's provenance, collapsed to "Found in your calendar and email"
+ * until tapped. Mount with key={trip.id} so it re-collapses per trip. */
+function EvidenceCard({ evidence }: { evidence: NonNullable<Trip['evidence']> }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Card>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-controls="trip-evidence"
+        className="flex w-full items-center justify-between gap-3 text-left"
+      >
+        <span className="min-w-0">
+          <span className="block text-body-sm font-semibold text-ink">
+            Found in your {evidenceSourceSummary(evidence)}
+          </span>
+          <span className="block text-caption text-muted">
+            {evidenceKindSummary(evidence)}
+          </span>
+        </span>
+        <Chevron open={open} className="text-muted" />
+      </button>
+      {open && (
+        <ul
+          id="trip-evidence"
+          className="mt-3 flex flex-col gap-2.5 border-t border-border-soft pt-3"
+        >
+          {evidence.map((row, i) => (
+            <EvidenceRow
+              key={i}
+              kind={row.kind}
+              summary={row.summary}
+              detail={row.detail}
+              source={row.source}
+            />
+          ))}
+        </ul>
+      )}
+    </Card>
   )
 }
 
@@ -130,6 +193,8 @@ function DetectionCard({ trip }: { trip: Trip }) {
 export function TripScreen() {
   const { day, trip: tripId, sheet } = route.useSearch()
   const navigate = route.useNavigate()
+  // Ephemeral disclosure, not URL state: collapses again on any navigation.
+  const [allTripsOpen, setAllTripsOpen] = useState(false)
   const trips = useQuery(tripsQueryOptions())
   // ?trip= (a tapped card or a deep link) wins; otherwise the agent's focus.
   const trip = trips.data
@@ -213,7 +278,29 @@ export function TripScreen() {
           <h1 className="font-display text-display font-medium">
             {trip?.destination_name.split(',')[0] ?? 'Trip'}
           </h1>
-          <ProfileButton />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() =>
+                void navigate({ search: (prev) => ({ ...prev, sheet: 'new' }) })
+              }
+              aria-label="Add a trip"
+              className="grid size-10 flex-none place-items-center rounded-full border border-border bg-card text-muted hover:bg-state-neutral-soft focus-visible:outline-2 focus-visible:outline-primary"
+            >
+              <svg
+                width="19"
+                height="19"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.8}
+                strokeLinecap="round"
+                aria-hidden
+              >
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </button>
+            <ProfileButton />
+          </div>
         </div>
       </header>
 
@@ -248,19 +335,7 @@ export function TripScreen() {
         {trip && (
           <>
             {trip.evidence !== undefined && trip.evidence.length > 0 && (
-              <Card>
-                <ul className="flex flex-col gap-2.5">
-                  {trip.evidence.map((row, i) => (
-                    <EvidenceRow
-                      key={i}
-                      kind={row.kind}
-                      summary={row.summary}
-                      detail={row.detail}
-                      source={row.source}
-                    />
-                  ))}
-                </ul>
-              </Card>
+              <EvidenceCard key={trip.id} evidence={trip.evidence} />
             )}
 
             <div className="flex gap-1.5 overflow-x-auto" role="tablist" aria-label="Trip days">
@@ -309,124 +384,130 @@ export function TripScreen() {
               })}
             </div>
 
-            {selectedDay !== undefined && days.includes(selectedDay) && (
-              <div className="flex items-baseline justify-between px-1">
-                <p className="font-display text-display-sm">
-                  {tripDayNumber > 0 ? `Day ${tripDayNumber} · ${weekdayLong}` : weekdayLong}
-                </p>
-                <p className="text-caption text-muted">
-                  {commitmentCount}{' '}
-                  {commitmentCount === 1 ? 'commitment' : 'commitments'}
-                </p>
-              </div>
-            )}
+            {/* min-height so switching between busy and empty days never
+                shifts the sections below within the visible viewport. */}
+            <div className="flex min-h-[55dvh] flex-col gap-3">
+              {selectedDay !== undefined && days.includes(selectedDay) && (
+                <div className="flex items-baseline justify-between px-1">
+                  <p className="font-display text-display-sm">
+                    {tripDayNumber > 0 ? `Day ${tripDayNumber} · ${weekdayLong}` : weekdayLong}
+                  </p>
+                  <p className="text-caption text-muted">
+                    {commitmentCount}{' '}
+                    {commitmentCount === 1 ? 'commitment' : 'commitments'}
+                  </p>
+                </div>
+              )}
 
-            {timeline.isPending && <LoadingState label="Loading the day" />}
-            {timeline.isError && (
-              <DegradedState
-                title="Can't load this day"
-                onRetry={() => void timeline.refetch()}
-              />
-            )}
-            {timeline.isSuccess && dayEntries.length === 0 && (
-              <EmptyState
-                title="Nothing on this day"
-                detail="No commitments or plan items land here yet."
-              />
-            )}
-            {dayEntries.map((entry) =>
-              entry.entry_type === 'calendar_event' && entry.calendar_event ? (
-                <div
-                  key={`cal-${entry.calendar_event.id}`}
-                  className="flex items-baseline gap-3 px-1"
-                >
-                  <span className="w-16 flex-none text-right text-caption text-muted">
-                    {formatTripTime(entry.starts_at, trip.timezone)}
-                  </span>
-                  <div>
-                    <p className="text-body-sm text-muted">{entry.calendar_event.title}</p>
-                    {entry.calendar_event.location_name !== undefined && (
-                      <p className="text-caption text-muted-soft">
-                        {entry.calendar_event.location_name}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ) : entry.plan_item ? (
-                <div key={`item-${entry.plan_item.id}`} className="flex items-start gap-3">
-                  <span className="w-16 flex-none pt-4 text-right text-caption text-muted">
-                    {formatTripTime(entry.starts_at, trip.timezone)}
-                  </span>
-                  <Card
-                    className={`flex-1 ${
-                      entry.plan_item.status === 'suggested'
-                        ? 'border-dashed border-state-suggested'
-                        : ''
-                    }`}
+              {timeline.isPending && <LoadingState label="Loading the day" />}
+              {timeline.isError && (
+                <DegradedState
+                  title="Can't load this day"
+                  onRetry={() => void timeline.refetch()}
+                />
+              )}
+              {timeline.isSuccess && dayEntries.length === 0 && (
+                <EmptyState
+                  title="Nothing on this day"
+                  detail="No commitments or plan items land here yet."
+                />
+              )}
+              {dayEntries.map((entry) =>
+                entry.entry_type === 'calendar_event' && entry.calendar_event ? (
+                  <div
+                    key={`cal-${entry.calendar_event.id}`}
+                    className="flex items-baseline gap-3 px-1"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-body font-semibold">{entry.plan_item.title}</p>
-                        {entry.plan_item.selected_option?.display_summary !== undefined && (
-                          <p className="text-caption text-muted">
-                            {entry.plan_item.selected_option.display_summary}
-                          </p>
-                        )}
-                      </div>
-                      <StatusBadge status={entry.plan_item.status} />
+                    <span className="w-16 flex-none text-right text-caption text-muted">
+                      {formatTripTime(entry.starts_at, trip.timezone)}
+                    </span>
+                    <div>
+                      <p className="text-body-sm text-muted">{entry.calendar_event.title}</p>
+                      {entry.calendar_event.location_name !== undefined && (
+                        <p className="text-caption text-muted-soft">
+                          {entry.calendar_event.location_name}
+                        </p>
+                      )}
                     </div>
-                  </Card>
-                </div>
-              ) : null,
-            )}
+                  </div>
+                ) : entry.plan_item ? (
+                  <div key={`item-${entry.plan_item.id}`} className="flex items-start gap-3">
+                    <span className="w-16 flex-none pt-4 text-right text-caption text-muted">
+                      {formatTripTime(entry.starts_at, trip.timezone)}
+                    </span>
+                    <Card
+                      className={`flex-1 ${
+                        entry.plan_item.status === 'suggested'
+                          ? 'border-dashed border-state-suggested'
+                          : ''
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-body font-semibold">{entry.plan_item.title}</p>
+                          {entry.plan_item.selected_option?.display_summary !== undefined && (
+                            <p className="text-caption text-muted">
+                              {entry.plan_item.selected_option.display_summary}
+                            </p>
+                          )}
+                        </div>
+                        <StatusBadge status={entry.plan_item.status} />
+                      </div>
+                    </Card>
+                  </div>
+                ) : null,
+              )}
+            </div>
           </>
         )}
 
         {trips.isSuccess && trips.data.length > 0 && (
           <>
-            <p className="mt-2 text-label font-semibold uppercase tracking-wide text-muted">
-              All trips
-            </p>
-            {trips.data.map((t) => (
-              <CardButton
-                key={t.id}
-                aria-current={t.id === trip?.id || undefined}
-                className={t.id === trip?.id ? 'border-ink' : ''}
-                // day resets: the old selection belongs to the previous trip's range
-                onClick={() =>
-                  void navigate({ search: { trip: t.id, day: undefined } })
-                }
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-body font-semibold">{t.destination_name}</p>
-                    <p className="text-caption text-muted">
-                      {formatDateRange(t.starts_on, t.ends_on)}
-                      {t.label !== undefined && ` · ${t.label}`}
-                    </p>
-                  </div>
-                  <span
-                    className={`flex items-baseline gap-1.5 text-label font-semibold uppercase tracking-wide ${stateInk[t.state] ?? 'text-state-neutral'}`}
-                  >
-                    <span aria-hidden className="size-[6px] flex-none self-center rounded-full bg-current" />
-                    {t.state.replace('_', ' ')}
-                  </span>
-                </div>
-                {t.needs_you_count > 0 && (
-                  <p className="mt-2 text-caption font-semibold text-state-attention">
-                    {t.needs_you_count} {t.needs_you_count === 1 ? 'item needs' : 'items need'} you
-                  </p>
-                )}
-              </CardButton>
-            ))}
             <button
-              onClick={() =>
-                void navigate({ search: (prev) => ({ ...prev, sheet: 'new' }) })
-              }
-              className="h-[50px] w-full rounded-panel border border-dashed border-border text-body-sm font-semibold text-muted hover:bg-card"
+              onClick={() => setAllTripsOpen((open) => !open)}
+              aria-expanded={allTripsOpen}
+              aria-controls="all-trips"
+              className="mt-2 flex w-full items-center justify-between border-t border-border-soft pt-4 text-label font-semibold uppercase tracking-wide text-muted"
             >
-              Add a trip manually
+              All trips · {trips.data.length}
+              <Chevron open={allTripsOpen} />
             </button>
+            {allTripsOpen && (
+              <div id="all-trips" className="flex flex-col gap-3">
+                {trips.data.map((t) => (
+                  <CardButton
+                    key={t.id}
+                    aria-current={t.id === trip?.id || undefined}
+                    className={t.id === trip?.id ? 'border-ink' : ''}
+                    // day resets: the old selection belongs to the previous trip's range
+                    onClick={() =>
+                      void navigate({ search: { trip: t.id, day: undefined } })
+                    }
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-body font-semibold">{t.destination_name}</p>
+                        <p className="text-caption text-muted">
+                          {formatDateRange(t.starts_on, t.ends_on)}
+                          {t.label !== undefined && ` · ${t.label}`}
+                        </p>
+                      </div>
+                      <span
+                        className={`flex items-baseline gap-1.5 text-label font-semibold uppercase tracking-wide ${stateInk[t.state] ?? 'text-state-neutral'}`}
+                      >
+                        <span aria-hidden className="size-[6px] flex-none self-center rounded-full bg-current" />
+                        {t.state.replace('_', ' ')}
+                      </span>
+                    </div>
+                    {t.needs_you_count > 0 && (
+                      <p className="mt-2 text-caption font-semibold text-state-attention">
+                        {t.needs_you_count} {t.needs_you_count === 1 ? 'item needs' : 'items need'} you
+                      </p>
+                    )}
+                  </CardButton>
+                ))}
+              </div>
+            )}
           </>
         )}
       </div>

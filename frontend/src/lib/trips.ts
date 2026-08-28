@@ -61,6 +61,47 @@ export function tripDays(startsOn: string, endsOn: string): string[] {
   return days
 }
 
+// Collapsed evidence-card copy. Voice rule: plain past-tense provenance
+// ("Found in your calendar and email"), matching the server's state_line for
+// detected trips; never first-person agent copy.
+const evidenceSourceNouns: Record<string, string> = {
+  google_calendar: 'calendar',
+  apple_calendar: 'calendar',
+  gmail: 'email',
+  manual_import: 'imports',
+}
+
+const evidenceKindNouns: Record<string, string> = {
+  flight_event: 'flight',
+  hotel_email: 'hotel',
+  conference_event: 'conference',
+  calendar_block: 'calendar block',
+}
+
+function joinNaturally(words: string[]): string {
+  if (words.length <= 1) return words[0] ?? ''
+  return `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`
+}
+
+export function evidenceSourceSummary(evidence: { source: string }[]): string {
+  const nouns = [
+    ...new Set(
+      evidence.map(
+        (e) => evidenceSourceNouns[e.source] ?? sourceLabel(e.source).toLowerCase(),
+      ),
+    ),
+  ]
+  return joinNaturally(nouns)
+}
+
+export function evidenceKindSummary(evidence: { kind: string }[]): string {
+  const nouns = [
+    ...new Set(evidence.map((e) => evidenceKindNouns[e.kind] ?? 'calendar item')),
+  ]
+  const joined = joinNaturally(nouns)
+  return joined.charAt(0).toUpperCase() + joined.slice(1)
+}
+
 // Calendar-strip span: pad [first, last] out to full Sunday-to-Saturday weeks
 // so the day selector reads like a slice of a real calendar, not a bare list.
 export function calendarSpan(first: string, last: string): string[] {
