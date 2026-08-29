@@ -31,7 +31,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
-    "postgresql+asyncpg://travelwell:travelwell@localhost:5432/travelwell_test",
+    "postgresql+psycopg://travelwell:travelwell@localhost:5432/travelwell_test",
 )
 if not (make_url(TEST_DATABASE_URL).database or "").endswith("_test"):
     raise RuntimeError(
@@ -61,11 +61,13 @@ def database():
     """Fresh test database at migration head; app engine rebound to NullPool.
 
     NullPool matters: pytest-asyncio gives every test its own event loop, and
-    pooled asyncpg connections are bound to the loop they were created on.
-    With NullPool each session gets a fresh connection, so nothing leaks
-    across loops.
+    pooled connections are bound to the loop they were created on. With
+    NullPool each session gets a fresh connection, so nothing leaks across
+    loops.
     """
-    sync_url = make_url(TEST_DATABASE_URL.replace("+asyncpg", "+psycopg"))
+    import app.db.engine as db
+
+    sync_url = db.database_url()
     admin = sa.create_engine(
         sync_url.set(database="postgres"), isolation_level="AUTOCOMMIT"
     )
@@ -80,9 +82,7 @@ def database():
     cfg.set_main_option("script_location", str(BACKEND_DIR / "migrations"))
     command.upgrade(cfg, "head")
 
-    import app.db.engine as db
-
-    db.engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
+    db.engine = create_async_engine(db.database_url(), poolclass=NullPool)
     db.SessionFactory = async_sessionmaker(db.engine, expire_on_commit=False)
     yield
 
@@ -334,7 +334,7 @@ async def scene(user):
         session.add(plan)
         await session.flush()
 
-        def item(window, kind, status, start, end, options):
+        def item(window, kind, status, start, end, options, needs_res=False):
             it = PlanItem(
                 plan_id=plan.plan_id,
                 trip_id=trip.trip_id,
@@ -343,6 +343,7 @@ async def scene(user):
                 status=status,
                 scheduled_start=start,
                 scheduled_end=end,
+                needs_reservation=needs_res,
             )
             it.options = [
                 PlanItemOption(state=state, rank=rank, **fields)
@@ -389,6 +390,7 @@ async def scene(user):
                     "rejection_reason": "$$$, above the budget you set",
                 }),
             ],
+            needs_res=True,
         )
         run = item(
             None, ItemKind.activity, ItemStatus.suggested,

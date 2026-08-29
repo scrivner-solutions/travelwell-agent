@@ -119,4 +119,4 @@ jobs:
       - name: API integration tests
         run: uv run pytest tests/api -q
         env:
-          TEST_DATABASE_URL: postgresql+asyncpg://travelwell:travelwell@localhost:5432/travelwell_test
+          TEST_DATABASE_URL: postgresql+psycopg://travelwell:travelwell@localhost:5432/travelwell_test

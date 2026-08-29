@@ -32,7 +32,7 @@ echo "Applying docs/schema.sql to $REF_DB"
 psql -q -v ON_ERROR_STOP=1 -d "$REF_DB" -f "$SCHEMA_SQL"
 
 echo "Applying Alembic migrations to $MIG_DB"
-(cd "$BACKEND_DIR" && DATABASE_URL="postgresql+asyncpg://$PGUSER:$PGPASSWORD@$PGHOST:$PGPORT/$MIG_DB" uv run alembic upgrade head)
+(cd "$BACKEND_DIR" && DATABASE_URL="postgresql+psycopg://$PGUSER:$PGPASSWORD@$PGHOST:$PGPORT/$MIG_DB" uv run alembic upgrade head)
 
 dump() {
   # -T alembic_version: bookkeeping table only the migrated side has.
@@ -49,6 +49,6 @@ if ! diff -u <(dump "$REF_DB") <(dump "$MIG_DB"); then
 fi
 
 echo "Checking models against the migrated database (alembic check)"
-(cd "$BACKEND_DIR" && DATABASE_URL="postgresql+asyncpg://$PGUSER:$PGPASSWORD@$PGHOST:$PGPORT/$MIG_DB" uv run alembic check)
+(cd "$BACKEND_DIR" && DATABASE_URL="postgresql+psycopg://$PGUSER:$PGPASSWORD@$PGHOST:$PGPORT/$MIG_DB" uv run alembic check)
 
 echo "Schema drift checks passed."
