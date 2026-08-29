@@ -1,58 +1,33 @@
 import type { components } from '@/api/schema'
+import { itemBadge } from '@/lib/timeline'
 
-type ItemStatus = components['schemas']['ItemStatus']
+type PlanItem = components['schemas']['PlanItem']
 
 /**
- * The only source of status pills. Driven by the generated item_status enum:
- * when the contract gains a value, this Record fails the typecheck until the
- * design decides how to render it. Labels match the canvas badges.
+ * The only place an item's status becomes a word.
+ *
+ * Renders nothing for most items, which is the point: a badge is reserved for
+ * something true that the user cannot act on and would not otherwise know, so
+ * only a booking in flight, a booking done, a booking refused and a plan the
+ * agent changed under them get one. Everything else is a place they can go or
+ * a state they already chose, and those say nothing.
+ *
+ * It takes the whole item rather than the status because two of the four
+ * badges are not decidable from the status alone - `confirmed` is only "Booked"
+ * if a reservation was ever wanted, and "Couldn't book" lives on the
+ * reservation. The decision itself is in `lib/timeline`, where it is tested.
+ *
+ * A badge is ink on the page, never a chip: colour carries the state, and a
+ * background would make it compete with the row it annotates.
  */
-const config: Record<ItemStatus, { label: string; className: string }> = {
-  suggested: {
-    label: 'Suggested',
-    className: 'bg-state-suggested-soft text-state-suggested',
-  },
-  awaiting_user: {
-    label: 'Needs you',
-    className: 'bg-state-attention-soft text-state-attention',
-  },
-  planned: {
-    label: 'In plan',
-    className: 'bg-state-working-soft text-state-working',
-  },
-  confirmed: {
-    label: 'Confirmed',
-    className: 'bg-state-confirmed-soft text-state-confirmed',
-  },
-  working: {
-    label: 'Working',
-    className: 'bg-state-working-soft text-state-working',
-  },
-  changed: {
-    label: 'Changed',
-    className: 'bg-state-changed-soft text-state-changed',
-  },
-  skipped: {
-    label: 'Skipped',
-    className: 'bg-state-neutral-soft text-state-neutral',
-  },
-  removed: {
-    label: 'Removed',
-    className: 'bg-state-neutral-soft text-state-neutral',
-  },
-}
-
-/** The app's one pill shape. Never shrinks or wraps: a truncated status lies. */
-export function Pill({ label, className }: { label: string; className: string }) {
+export function StatusBadge({ item }: { item: PlanItem }) {
+  const badge = itemBadge(item)
+  if (badge === null) return null
   return (
     <span
-      className={`inline-flex flex-none items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-label font-semibold uppercase tracking-wide ${className}`}
+      className={`flex-none self-center whitespace-nowrap text-badge font-semibold uppercase ${badge.className}`}
     >
-      {label}
+      {badge.label}
     </span>
   )
-}
-
-export function StatusBadge({ status }: { status: ItemStatus }) {
-  return <Pill {...config[status]} />
 }

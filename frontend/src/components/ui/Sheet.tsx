@@ -36,7 +36,7 @@ export function Sheet({
     >
       <div className="mx-auto w-full max-w-lg p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
         <header className="mb-4 flex items-start justify-between gap-4">
-          <h2 className="font-display text-display-sm font-medium text-balance">{title}</h2>
+          <h2 className="font-display text-display-sm text-balance">{title}</h2>
           <button
             onClick={onClose}
             aria-label="Close"

@@ -17,6 +17,7 @@ import { Route as ShellAgentRouteImport } from './routes/_shell.agent'
 import { Route as ShellExploreRouteImport } from './routes/_shell.explore'
 import { Route as ShellTodayRouteImport } from './routes/_shell.today'
 import { Route as ShellTripRouteImport } from './routes/_shell.trip'
+import { Route as ShellTripTripIdRouteImport } from './routes/_shell.trip_.$tripId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -57,6 +58,11 @@ const ShellTripRoute = ShellTripRouteImport.update({
   path: '/trip',
   getParentRoute: () => ShellRoute,
 } as any)
+const ShellTripTripIdRoute = ShellTripTripIdRouteImport.update({
+  id: '/trip_/$tripId',
+  path: '/trip/$tripId',
+  getParentRoute: () => ShellRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -66,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/explore': typeof ShellExploreRoute
   '/today': typeof ShellTodayRoute
   '/trip': typeof ShellTripRoute
+  '/trip/$tripId': typeof ShellTripTripIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -75,6 +82,7 @@ export interface FileRoutesByTo {
   '/explore': typeof ShellExploreRoute
   '/today': typeof ShellTodayRoute
   '/trip': typeof ShellTripRoute
+  '/trip/$tripId': typeof ShellTripTripIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -86,13 +94,29 @@ export interface FileRoutesById {
   '/_shell/explore': typeof ShellExploreRoute
   '/_shell/today': typeof ShellTodayRoute
   '/_shell/trip': typeof ShellTripRoute
+  '/_shell/trip_/$tripId': typeof ShellTripTripIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/profile' | '/sign-in' | '/agent' | '/explore' | '/today' | '/trip'
+    | '/'
+    | '/profile'
+    | '/sign-in'
+    | '/agent'
+    | '/explore'
+    | '/today'
+    | '/trip'
+    | '/trip/$tripId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/profile' | '/sign-in' | '/agent' | '/explore' | '/today' | '/trip'
+  to:
+    | '/'
+    | '/profile'
+    | '/sign-in'
+    | '/agent'
+    | '/explore'
+    | '/today'
+    | '/trip'
+    | '/trip/$tripId'
   id:
     | '__root__'
     | '/'
@@ -103,6 +127,7 @@ export interface FileRouteTypes {
     | '/_shell/explore'
     | '/_shell/today'
     | '/_shell/trip'
+    | '/_shell/trip_/$tripId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -170,6 +195,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellTripRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/trip_/$tripId': {
+      id: '/_shell/trip_/$tripId'
+      path: '/trip/$tripId'
+      fullPath: '/trip/$tripId'
+      preLoaderRoute: typeof ShellTripTripIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
   }
 }
 
@@ -178,6 +210,7 @@ interface ShellRouteChildren {
   ShellExploreRoute: typeof ShellExploreRoute
   ShellTodayRoute: typeof ShellTodayRoute
   ShellTripRoute: typeof ShellTripRoute
+  ShellTripTripIdRoute: typeof ShellTripTripIdRoute
 }
 
 const ShellRouteChildren: ShellRouteChildren = {
@@ -185,6 +218,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellExploreRoute: ShellExploreRoute,
   ShellTodayRoute: ShellTodayRoute,
   ShellTripRoute: ShellTripRoute,
+  ShellTripTripIdRoute: ShellTripTripIdRoute,
 }
 
 const ShellRouteWithChildren = ShellRoute._addFileChildren(ShellRouteChildren)

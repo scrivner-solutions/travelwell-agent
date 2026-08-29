@@ -106,7 +106,7 @@ export function TodayScreen() {
           </p>
         )}
         <div className="flex items-center justify-between">
-          <h1 className="font-display text-display font-medium">Today</h1>
+          <h1 className="font-display text-display">Today</h1>
           <div className="flex items-center gap-3">
             <button
               onClick={() => void navigate({ search: { sheet: 'trips' } })}
@@ -264,7 +264,7 @@ export function TodayScreen() {
                         </p>
                       )}
                     </div>
-                    <StatusBadge status={item.status} />
+                    <StatusBadge item={item} />
                   </div>
                   {item.selected_option?.reason !== undefined && (
                     <p className="mt-2 inline-flex rounded-full bg-state-working-soft px-2.5 py-0.5 text-caption text-state-working">

@@ -7,12 +7,12 @@ import {
   sourcesQueryOptions,
   tripsQueryOptions,
   updatePreferences,
-  type ConnectedSource,
   type Preferences,
   type PreferencesUpdate,
 } from '@/api/queries'
 import { LoadingState, DegradedState } from '@/components/ui/ScreenState'
 import { formatAgo } from '@/lib/time'
+import { SOURCE_META, SOURCE_STATE } from '@/lib/sources'
 import { travelStats } from '@/lib/trips'
 
 /**
@@ -121,19 +121,6 @@ const PERMS: Perm[] = [
 ]
 
 // source_kind -> the profile row's tag box and display copy.
-const SOURCE_META: Record<string, { tag: string; name: string; sub?: string }> = {
-  google_calendar: { tag: 'CAL', name: 'Google Calendar' },
-  gmail: { tag: 'MAI', name: 'Email receipts', sub: 'Flights and hotels only' },
-  apple_calendar: { tag: 'CAL', name: 'Apple Calendar' },
-  manual_import: { tag: 'IMP', name: 'Manual import' },
-}
-
-const SOURCE_STATE: Record<ConnectedSource['status'], { text: string; ink: string }> = {
-  connected: { text: 'Connected', ink: 'text-primary-deep' },
-  error: { text: 'Needs attention', ink: 'text-state-attention' },
-  revoked: { text: 'Reconnect', ink: 'text-agent' },
-}
-
 function initials(name: string): string {
   return name
     .split(/\s+/)
@@ -285,7 +272,7 @@ export function ProfileScreen() {
             {initials(name)}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="font-display text-display-sm font-medium leading-tight">
+            <p className="font-display text-display-sm leading-tight">
               {name}
             </p>
             {stats && (

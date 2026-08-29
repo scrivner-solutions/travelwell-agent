@@ -1,7 +1,8 @@
 import type { ButtonHTMLAttributes, HTMLAttributes } from 'react'
 
-const cardClass =
-  'rounded-card border border-border-soft bg-card p-4 shadow-[var(--shadow-card)]'
+/* No shadow: depth comes from border and surface. A surface that genuinely
+ * floats above the page opts in with shadow-[var(--shadow-card)]. */
+const cardClass = 'rounded-card border border-border-soft bg-card p-4'
 
 export function Card({ className = '', ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={`${cardClass} ${className}`} {...props} />

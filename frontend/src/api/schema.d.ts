@@ -269,6 +269,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips/{tripId}/plan/accept-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept every item still open for a decision
+         * @description Takes no `updated_at`: the operation is "accept whatever is open right now", which is well defined at any moment, so there is no single row a caller could hold a stale token for. Items already decided are left alone, which also makes a retry safe. Returns the whole plan so one response settles the screen.
+         */
+        post: operations["acceptAllPlanItems"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/plan-items/{itemId}/accept": {
         parameters: {
             query?: never;
@@ -295,7 +315,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Swap the selected option for an item (no data loss, flips option_state) */
+        /**
+         * Choose which option an item uses (no data loss, flips option_state)
+         * @description The named option becomes `selected` and the previous one falls back to `alternative`; nothing is deleted. Rejected options are not selectable (422): promoting one would have to clear the `rejection_reason` a CHECK constraint ties to the state, erasing the text "Also considered" shows.
+         */
         post: operations["selectPlanItemOption"];
         delete?: never;
         options?: never;
@@ -769,6 +792,8 @@ export interface components {
             version: number;
             status: components["schemas"]["PlanStatus"];
             headline: string;
+            /** @description How the plan was built, in one line ("Prepared Aug 11, seven days out, read 11 calendar events, found 3 open windows"). */
+            provenance_summary?: string;
             items: components["schemas"]["PlanItem"][];
             /** Format: date-time */
             updated_at: string;
@@ -780,7 +805,7 @@ export interface components {
             status: components["schemas"]["ItemStatus"];
             title: string;
             /** Format: date-time */
-            starts_at?: string;
+            starts_at: string;
             /** Format: date-time */
             ends_at?: string;
             /**
@@ -788,9 +813,15 @@ export interface components {
              * @description Wellness window this item fills, if any. The Today screen nests the item inside its window card (design: the opening, then what fits it).
              */
             window_id?: string;
+            /** @description The opening itself, embedded. The review flow leads with it (label, headline, gap) before naming the place, so a card that had to fetch provenance per item could not render in one pass. */
+            window?: components["schemas"]["WellnessWindow"];
+            /** @description Somebody has to say yes to a booking. Drives the "Needs a reservation" chip and the review summary's list of what the plan still wants from the user. */
+            needs_reservation: boolean;
             /** @description Matched preferences served from plan_item_options.matched_preferences. */
             why?: string[];
             selected_option?: components["schemas"]["PlanItemOption"];
+            /** @description The selected option and its live alternatives, by rank. Rejected candidates are excluded and appear only in Provenance, so a card can offer every option here without clearing a rejection_reason. */
+            options?: components["schemas"]["PlanItemOption"][];
             reservation?: components["schemas"]["Reservation"];
             /** Format: date-time */
             updated_at: string;
@@ -816,7 +847,8 @@ export interface components {
         Provenance: {
             /** Format: uuid */
             item_id: string;
-            window: components["schemas"]["WellnessWindow"];
+            /** @description Absent for items that fill no opening; a dinner is placed against the day, not against a gap the agent had to find. */
+            window?: components["schemas"]["WellnessWindow"];
             /** @description All options including rejected ones with their stored rejection_reason. */
             considered: components["schemas"]["PlanItemOption"][];
         };
@@ -1451,6 +1483,29 @@ export interface operations {
             default: components["responses"]["Problem"];
         };
     };
+    acceptAllPlanItems: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tripId: components["parameters"]["TripId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The plan after acceptance */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Plan"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
     acceptPlanItem: {
         parameters: {
             query?: never;
@@ -1512,6 +1567,7 @@ export interface operations {
                 };
             };
             409: components["responses"]["Conflict"];
+            422: components["responses"]["Problem"];
             default: components["responses"]["Problem"];
         };
     };

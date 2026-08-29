@@ -78,7 +78,7 @@ export function SignInScreen() {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center gap-6 px-6">
       <header>
-        <h1 className="font-display text-display font-medium">TravelWell</h1>
+        <h1 className="font-display text-display">TravelWell</h1>
         <p className="mt-1 text-body text-muted">
           Wellness that travels with your calendar.
         </p>

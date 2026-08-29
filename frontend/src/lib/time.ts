@@ -25,6 +25,16 @@ export function formatTripDay(iso: string, timeZone: string): string {
   return formatInTimeZone(iso, timeZone, 'EEE, MMM d')
 }
 
+/** "Tue" alone, for a row that puts the weekday over the time in one column. */
+export function formatTripWeekday(iso: string, timeZone: string): string {
+  return formatInTimeZone(iso, timeZone, 'EEE')
+}
+
+/** Hour 0-23 in the trip's zone, for bucketing a time into part of the day. */
+export function tripHour(iso: string, timeZone: string): number {
+  return Number(formatInTimeZone(iso, timeZone, 'H'))
+}
+
 /**
  * "Aug 25–28", crossing months "Aug 30 – Sep 2" (design: header eyebrows and
  * trip rows never show raw ISO dates). Date-only strings are calendar dates,

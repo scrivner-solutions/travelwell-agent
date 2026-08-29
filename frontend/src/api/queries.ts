@@ -9,6 +9,7 @@ export type PlanItem = components['schemas']['PlanItem']
 export type TripState = components['schemas']['TripState']
 export type ItemStatus = components['schemas']['ItemStatus']
 export type TimelineEntry = components['schemas']['TimelineEntry']
+export type CalendarEventSummary = components['schemas']['CalendarEventSummary']
 export type WellnessWindow = components['schemas']['WellnessWindow']
 
 export function meQueryOptions() {
@@ -31,6 +32,22 @@ export function tripsQueryOptions(state?: TripState) {
       return throwOnError(
         await client.GET('/trips', { params: { query: state ? { state } : {} } }),
       ).trips
+    },
+  })
+}
+
+// One trip by id, for the detail route. Deliberately not a lookup in the
+// /trips list: the detail screen is where an archived or dismissed trip is
+// read, and a deep link to one must resolve whatever the list happens to
+// carry. Same cache key prefix, so a confirm still invalidates both.
+export function tripQueryOptions(tripId: string) {
+  return queryOptions({
+    queryKey: ['trips', tripId],
+    queryFn: async () => {
+      const client = await api()
+      return throwOnError<Trip>(
+        await client.GET('/trips/{tripId}', { params: { path: { tripId } } }),
+      )
     },
   })
 }
@@ -61,6 +78,91 @@ export function timelineQueryOptions(tripId: string, day?: string) {
       ).entries
     },
   })
+}
+
+export type Plan = components['schemas']['Plan']
+export type PlanItemOption = components['schemas']['PlanItemOption']
+export type Provenance = components['schemas']['Provenance']
+
+export function planQueryOptions(tripId: string) {
+  return queryOptions({
+    queryKey: ['trips', tripId, 'plan'],
+    queryFn: async () => {
+      const client = await api()
+      return throwOnError<Plan>(
+        await client.GET('/trips/{tripId}/plan', { params: { path: { tripId } } }),
+      )
+    },
+    // A trip the agent has not planned yet answers 404, which is an answer,
+    // not a transient failure worth retrying.
+    retry: false,
+  })
+}
+
+export function provenanceQueryOptions(itemId: string) {
+  return queryOptions({
+    queryKey: ['plan-items', itemId, 'provenance'],
+    queryFn: async () => {
+      const client = await api()
+      return throwOnError<Provenance>(
+        await client.GET('/plan-items/{itemId}/provenance', {
+          params: { path: { itemId } },
+        }),
+      )
+    },
+  })
+}
+
+export async function acceptPlanItem(
+  itemId: string,
+  updatedAt: string,
+): Promise<PlanItem> {
+  const client = await api()
+  return throwOnError<PlanItem>(
+    await client.POST('/plan-items/{itemId}/accept', {
+      params: { path: { itemId } },
+      body: { updated_at: updatedAt },
+    }),
+  )
+}
+
+export async function acceptAllPlanItems(tripId: string): Promise<Plan> {
+  const client = await api()
+  // No token: the server accepts whatever is open at the moment it runs, so
+  // there is nothing here for the client to hold a stale copy of.
+  return throwOnError<Plan>(
+    await client.POST('/trips/{tripId}/plan/accept-all', {
+      params: { path: { tripId } },
+    }),
+  )
+}
+
+export async function selectPlanItemOption(
+  itemId: string,
+  optionId: string,
+  updatedAt: string,
+): Promise<PlanItem> {
+  const client = await api()
+  return throwOnError<PlanItem>(
+    await client.POST('/plan-items/{itemId}/select-option', {
+      params: { path: { itemId } },
+      body: { option_id: optionId, updated_at: updatedAt },
+    }),
+  )
+}
+
+export async function skipPlanItem(
+  itemId: string,
+  updatedAt: string,
+  remove = false,
+): Promise<PlanItem> {
+  const client = await api()
+  return throwOnError<PlanItem>(
+    await client.POST('/plan-items/{itemId}/skip', {
+      params: { path: { itemId } },
+      body: { updated_at: updatedAt, remove },
+    }),
+  )
 }
 
 export type TripCreate = components['schemas']['TripCreate']

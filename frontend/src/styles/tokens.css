@@ -1,7 +1,8 @@
 /*
  * TravelWell design tokens - the single source for color, type, radius,
  * spacing, and motion. Extracted from the Claude Design canvas
- * (design/TravelWellPlan.dc.html); the canvas annotates, this file decides.
+ * (TravelWellPlan.dc.html - see "Design source" in the frontend README for
+ * where it lives); the canvas annotates, this file decides.
  *
  * Rules (enforced by lint): no hex/color literals anywhere else in src/.
  * Tailwind consumes the tokens via @theme inline, so utilities like
@@ -17,12 +18,20 @@
   --primary-deep: #0f4c8a;
   --agent: #5b52b8;
   --agent-bright: #7f77dd;
+  /* Border for a surface the agent is proposing, not reporting. */
+  --agent-soft: #dedcf8;
   --surface: #f4f7fb;
   --card: #ffffff;
+  /* A card the agent is reporting rather than proposing: calendar commitments,
+     connected-source strips. Reads as inset without a shadow. */
+  --card-muted: #fafcfe;
   --border-strong: #e1e7f0;
   --border-soft: #edf1f7;
   --muted: #5a6b80;
   --muted-soft: #8a97a8;
+  --muted-faint: #a8b4c2;
+  /* Dashed borders and spent dots. Never a solid border. */
+  --border-faint: #d9dfe8;
 
   /* State colors (StatusBadge, ProgressState) */
   /* Design-prototype palette: one hue per meaning, no green, no red.
@@ -41,6 +50,20 @@
   --state-failed-soft: #eeedfe;
   --state-neutral: #5a6b80;
   --state-neutral-soft: #edf1f7;
+  /* A calendar commitment: the agent did not put this here. */
+  --state-existing: #b9c4d2;
+  /* A past trip. The one warm grey in the palette, and deliberately so. */
+  --state-archived: #c4c1b6;
+
+  /* State borders, 1px, on the card that owns a lifecycle stage.
+     --agent-soft above is this set's "proposed" member. */
+  --border-needs: #c8d6e6;
+  --border-confirmed: #c8ddf2;
+
+  /* State borders, 1.5px, on a timeline row. A distinct set: a row states its
+     status at a smaller scale than a card and needs more contrast to do it. */
+  --border-row-suggested: #cfccf3;
+  --border-row-settled: #c9def3;
 
   /* Type */
   --font-stack-display: "Newsreader", Georgia, "Times New Roman", serif;
@@ -67,12 +90,20 @@
   --color-primary-deep: var(--primary-deep);
   --color-agent: var(--agent);
   --color-agent-bright: var(--agent-bright);
+  --color-agent-soft: var(--agent-soft);
   --color-surface: var(--surface);
   --color-card: var(--card);
+  --color-card-muted: var(--card-muted);
   --color-border: var(--border-strong);
   --color-border-soft: var(--border-soft);
+  --color-border-faint: var(--border-faint);
+  --color-border-needs: var(--border-needs);
+  --color-border-confirmed: var(--border-confirmed);
+  --color-border-row-suggested: var(--border-row-suggested);
+  --color-border-row-settled: var(--border-row-settled);
   --color-muted: var(--muted);
   --color-muted-soft: var(--muted-soft);
+  --color-muted-faint: var(--muted-faint);
   --color-track-off: var(--control-track-off);
 
   --color-state-suggested: var(--state-suggested);
@@ -89,15 +120,29 @@
   --color-state-failed-soft: var(--state-failed-soft);
   --color-state-neutral: var(--state-neutral);
   --color-state-neutral-soft: var(--state-neutral-soft);
+  --color-state-existing: var(--state-existing);
+  --color-state-archived: var(--state-archived);
 
   --font-display: var(--font-stack-display);
   --font-body: var(--font-stack-body);
 
-  /* Canvas type scale: 28/26 display, 15/14.5/13.5/12.5 UI */
+  /* Canvas type scale: 34/30/28/26/24/22 display, 15/14.5/13.5/12.5 UI.
+   * Serif is always weight 400 — the scale carries emphasis, never bold. */
+  --text-display-xl: 2.125rem;
+  --text-display-xl--line-height: 1.05;
+  --text-display-xl--letter-spacing: -0.015em;
+  --text-display-lg: 1.875rem;
+  --text-display-lg--line-height: 1.1;
+  --text-display-lg--letter-spacing: -0.01em;
   --text-display: 1.75rem;
-  --text-display--line-height: 1.2;
+  --text-display--line-height: 1.08;
+  --text-display--letter-spacing: -0.01em;
   --text-display-sm: 1.625rem;
-  --text-display-sm--line-height: 1.25;
+  --text-display-sm--line-height: 1.15;
+  --text-heading: 1.5rem;
+  --text-heading--line-height: 1.2;
+  --text-heading-sm: 1.375rem;
+  --text-heading-sm--line-height: 1.2;
   --text-body: 0.9375rem;
   --text-body--line-height: 1.5;
   --text-body-sm: 0.90625rem;
@@ -106,14 +151,40 @@
   --text-caption--line-height: 1.4;
   --text-label: 0.78125rem;
   --text-label--line-height: 1.3;
+  /* The uppercase micro sizes. Tracking is part of the size — never set one
+   * without it. They are four separate jobs, not one size reused:
+   * eyebrow-wide names the trip a screen is about, section names a group of
+   * rows, eyebrow labels a card, badge annotates a single row. */
+  --text-eyebrow-wide: 0.65625rem;
+  --text-eyebrow-wide--line-height: 1;
+  --text-eyebrow-wide--letter-spacing: 0.13em;
+  --text-section: 0.71875rem;
+  --text-section--line-height: 1;
+  --text-section--letter-spacing: 0.09em;
+  --text-eyebrow: 0.6875rem;
+  --text-eyebrow--line-height: 1;
+  --text-eyebrow--letter-spacing: 0.09em;
+  --text-badge: 0.65625rem;
+  --text-badge--line-height: 1.2;
+  --text-badge--letter-spacing: 0.07em;
 }
 
 @theme {
-  /* Radius (canvas: cards 22, sheets/inner 16, controls 14). Defined here as
-   * literals; emitted as --radius-* custom properties for non-Tailwind use. */
+  /* Radius. Defined here as literals; emitted as --radius-* custom properties
+   * for non-Tailwind use. Names are ours, not the canvas's: what the canvas
+   * calls r-card is 20px and lands here as `section`, because `card` was
+   * already the 22px hero. Do not invent intermediate values. */
   --radius-card: 22px;
+  --radius-section: 20px;
   --radius-panel: 16px;
   --radius-control: 14px;
+  --radius-chip: 13px;
+  --radius-tile: 10px;
+
+  /* Fixed sizes that fall between Tailwind's 4px steps. Everything else the
+   * canvas specifies (32px tiles, 40px avatars) is already on the scale. */
+  --spacing-dot: 7px;
+  --spacing-control-inline: 46px;
 }
 
 html {

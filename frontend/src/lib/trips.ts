@@ -1,4 +1,4 @@
-import type { Trip } from '@/api/queries'
+import type { Preferences, Trip } from '@/api/queries'
 import type { components } from '@/api/schema'
 
 type PlanProgress = components['schemas']['PlanProgress']
@@ -80,6 +80,36 @@ export const stateInk: Record<string, string> = {
   detected: 'text-state-suggested',
 }
 
+// The one-word lifecycle state, for the right-hand slot of a trip row where a
+// full state_line ("Confirmed - will start preparing closer to the trip") will
+// not fit. Keyed on the generated enum so a new state fails the typecheck.
+// `upcoming` is dead in practice - see the trip enum audit - but stays keyed.
+const stateWords: Record<Trip['state'], string> = {
+  detected: 'Found for you',
+  confirmed: 'Confirmed',
+  upcoming: 'Upcoming',
+  preparing: 'Preparing',
+  active: 'Active',
+  completed: 'Complete',
+  archived: 'Archived',
+  dismissed: 'Dismissed',
+}
+
+export function tripStateWord(trip: Trip): string {
+  return stateWords[trip.state]
+}
+
+// The dot beside a trip's name, in the header switcher and on every sheet row.
+// One hue per meaning, same as the badges: blue = the agent is on it now,
+// periwinkle = it is thinking, warm grey = done and filed.
+export function tripDot(trip: Trip): string {
+  if (trip.state === 'active') return 'bg-state-confirmed'
+  if (trip.state === 'preparing' || trip.state === 'detected')
+    return 'bg-state-suggested'
+  if (isPast(trip)) return 'bg-state-archived'
+  return 'bg-muted-faint'
+}
+
 // trip_evidence.kind -> the mono tag box on evidence rows (FLT/HTL/EVT per
 // the design canvas). kind is open-ended, so unknown kinds get CAL.
 const evidenceTags: Record<string, string> = {
@@ -103,6 +133,52 @@ const sourceLabels: Record<string, string> = {
 
 export function sourceLabel(source: string): string {
   return sourceLabels[source] ?? source
+}
+
+/**
+ * One line of what is known about a trip. `muted` is a fact the agent expects
+ * and does not have yet — a dashed tile and grey ink, so an absence reads as
+ * an absence rather than as a row that failed to load. Nothing produces muted
+ * rows today: the trips contract carries only evidence that exists, and the
+ * missing-fact list arrives with the trip detail screen.
+ */
+export type FactRow = {
+  tag: string
+  title: string
+  sub?: string
+  source?: string
+  muted?: boolean
+}
+
+export function evidenceRows(evidence: NonNullable<Trip['evidence']>): FactRow[] {
+  return evidence.map((row) => ({
+    tag: evidenceTag(row.kind),
+    title: row.summary,
+    sub: row.detail,
+    source: sourceLabel(row.source),
+  }))
+}
+
+/**
+ * Your standing instructions as one more fact row ("Vegetarian · swim and
+ * run"). It sits with the flights and hotels because it is the other half of
+ * what a plan is built from, and the only half you can change - which is why
+ * the source reads "Profile" rather than "Calendar".
+ */
+export function preferenceRow(prefs: Preferences | undefined): FactRow | null {
+  if (prefs === undefined) return null
+  const parts = [
+    prefs.dietary.join(', '),
+    joinNaturally(prefs.activities),
+  ].filter((part) => part !== '')
+  if (parts.length === 0) return null
+  const text = parts.join(' · ')
+  return {
+    tag: 'PRF',
+    title: text.charAt(0).toUpperCase() + text.slice(1),
+    sub: 'From your profile',
+    source: 'Profile',
+  }
 }
 
 // Trip-local calendar days as YYYY-MM-DD, for the day selector chips. Dates
@@ -135,7 +211,7 @@ const evidenceKindNouns: Record<string, string> = {
   calendar_block: 'calendar block',
 }
 
-function joinNaturally(words: string[]): string {
+export function joinNaturally(words: string[]): string {
   if (words.length <= 1) return words[0] ?? ''
   return `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`
 }

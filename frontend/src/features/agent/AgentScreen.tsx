@@ -8,7 +8,7 @@ export function AgentScreen() {
   return (
     <>
       <header className="mb-4 flex items-center justify-between">
-        <h1 className="font-display text-display font-medium">Agent</h1>
+        <h1 className="font-display text-display">Agent</h1>
         <ProfileButton />
       </header>
       <EmptyState

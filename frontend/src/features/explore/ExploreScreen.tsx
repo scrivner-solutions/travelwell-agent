@@ -8,7 +8,7 @@ export function ExploreScreen() {
   return (
     <>
       <header className="mb-4 flex items-center justify-between">
-        <h1 className="font-display text-display font-medium">Explore</h1>
+        <h1 className="font-display text-display">Explore</h1>
         <ProfileButton />
       </header>
       <EmptyState
