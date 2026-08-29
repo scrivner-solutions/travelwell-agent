@@ -406,6 +406,29 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /trips/{tripId}/plan/accept-all:
+    post:
+      tags: [plan]
+      operationId: acceptAllPlanItems
+      summary: Accept every item still open for a decision
+      description: >-
+        Takes no `updated_at`: the operation is "accept whatever is open right
+        now", which is well defined at any moment, so there is no single row a
+        caller could hold a stale token for. Items already decided are left
+        alone, which also makes a retry safe. Returns the whole plan so one
+        response settles the screen.
+      parameters:
+        - $ref: "#/components/parameters/TripId"
+      responses:
+        "200":
+          description: The plan after acceptance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plan"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /plan-items/{itemId}/accept:
     post:
       tags: [plan]
@@ -440,7 +463,12 @@ paths:
     post:
       tags: [plan]
       operationId: selectPlanItemOption
-      summary: Swap the selected option for an item (no data loss, flips option_state)
+      summary: Choose which option an item uses (no data loss, flips option_state)
+      description: >-
+        The named option becomes `selected` and the previous one falls back to
+        `alternative`; nothing is deleted. Rejected options are not selectable
+        (422): promoting one would have to clear the `rejection_reason` a CHECK
+        constraint ties to the state, erasing the text "Also considered" shows.
       parameters:
         - $ref: "#/components/parameters/ItemId"
       requestBody:
@@ -466,6 +494,8 @@ paths:
                 $ref: "#/components/schemas/PlanItem"
         "409":
           $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Problem"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -1230,6 +1260,11 @@ components:
           $ref: "#/components/schemas/PlanStatus"
         headline:
           type: string
+        provenance_summary:
+          type: string
+          description: >-
+            How the plan was built, in one line ("Prepared Aug 11, seven days
+            out, read 11 calendar events, found 3 open windows").
         items:
           type: array
           items:
@@ -1240,7 +1275,10 @@ components:
 
     PlanItem:
       type: object
-      required: [id, kind, status, title, updated_at]
+      # starts_at and needs_reservation are non-null columns, so the server
+      # always sends them; leaving them optional only pushed dead undefined
+      # branches into every caller.
+      required: [id, kind, status, title, starts_at, needs_reservation, updated_at]
       properties:
         id:
           type: string
@@ -1264,6 +1302,18 @@ components:
             Wellness window this item fills, if any. The Today screen nests
             the item inside its window card (design: the opening, then what
             fits it).
+        window:
+          $ref: "#/components/schemas/WellnessWindow"
+          description: >-
+            The opening itself, embedded. The review flow leads with it (label,
+            headline, gap) before naming the place, so a card that had to fetch
+            provenance per item could not render in one pass.
+        needs_reservation:
+          type: boolean
+          description: >-
+            Somebody has to say yes to a booking. Drives the "Needs a
+            reservation" chip and the review summary's list of what the plan
+            still wants from the user.
         why:
           type: array
           description: Matched preferences served from plan_item_options.matched_preferences.
@@ -1271,6 +1321,14 @@ components:
             type: string
         selected_option:
           $ref: "#/components/schemas/PlanItemOption"
+        options:
+          type: array
+          description: >-
+            The selected option and its live alternatives, by rank. Rejected
+            candidates are excluded and appear only in Provenance, so a card
+            can offer every option here without clearing a rejection_reason.
+          items:
+            $ref: "#/components/schemas/PlanItemOption"
         reservation:
           $ref: "#/components/schemas/Reservation"
         updated_at:
@@ -1312,13 +1370,16 @@ components:
 
     Provenance:
       type: object
-      required: [item_id, window, considered]
+      required: [item_id, considered]
       properties:
         item_id:
           type: string
           format: uuid
         window:
           $ref: "#/components/schemas/WellnessWindow"
+          description: >-
+            Absent for items that fill no opening; a dinner is placed against
+            the day, not against a gap the agent had to find.
         considered:
           type: array
           description: All options including rejected ones with their stored rejection_reason.

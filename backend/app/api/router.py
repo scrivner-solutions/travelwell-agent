@@ -7,9 +7,10 @@ slice by slice.
 
 from fastapi import APIRouter
 
-from app.api import auth, profile, trips
+from app.api import auth, plan, profile, trips
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth.router)
 api_router.include_router(profile.router)
 api_router.include_router(trips.router)
+api_router.include_router(plan.router)

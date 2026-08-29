@@ -19,8 +19,13 @@ from app.db.models import (
     ItemKind,
     ItemStatus,
     OptionState,
+    Plan,
     PlanItem,
     PlanItemOption,
+    PlanStatus,
+    Reservation,
+    ReservationProvider,
+    ReservationStatus,
     SourceKind,
     SourceStatus,
     Trip,
@@ -190,6 +195,23 @@ class PlanItemOptionOut(BaseModel):
     rejection_reason: str | None = None
 
 
+class ReservationOut(BaseModel):
+    """A booking the agent attempted for an item.
+
+    `failure_reason` is stored but deliberately not carried: the contract does
+    not have it, so a client can say a booking was refused and not why. Adding
+    it is D17's call, with the retry it implies.
+    """
+
+    id: uuid.UUID
+    status: ReservationStatus
+    provider: ReservationProvider
+    # Present iff status = confirmed; the database enforces it (reservations_check).
+    confirmation_code: str | None = None
+    reserved_for: datetime | None = None
+    external_url: str | None = None
+
+
 class PlanItemOut(BaseModel):
     id: uuid.UUID
     kind: ItemKind
@@ -198,9 +220,38 @@ class PlanItemOut(BaseModel):
     starts_at: datetime
     ends_at: datetime | None = None
     window_id: uuid.UUID | None = None
+    # The opening, embedded: the review card leads with it, and a per-item
+    # provenance fetch would make that card cost one request each.
+    window: WellnessWindowOut | None = None
+    needs_reservation: bool = False
     why: list[str] = []
     selected_option: PlanItemOptionOut | None = None
+    # Selected + alternatives, by rank. Rejected ones are reachable only through
+    # provenance, so a card cannot offer a choice that would erase its reason.
+    options: list[PlanItemOptionOut] = []
+    # The newest attempt only. Retries are a list in the database; a card asks
+    # "where does this booking stand", which is a question about the last one.
+    reservation: ReservationOut | None = None
     updated_at: datetime
+
+
+class PlanOut(BaseModel):
+    id: uuid.UUID
+    trip_id: uuid.UUID
+    version: int
+    status: PlanStatus
+    headline: str
+    provenance_summary: str | None = None
+    items: list[PlanItemOut] = []
+    updated_at: datetime
+
+
+class ProvenanceOut(BaseModel):
+    """"How I got here": the opening, and every candidate considered for it."""
+
+    item_id: uuid.UUID
+    window: WellnessWindowOut | None = None
+    considered: list[PlanItemOptionOut] = []
 
 
 class TodayViewOut(BaseModel):
@@ -340,6 +391,17 @@ def option_to_out(option: PlanItemOption) -> PlanItemOptionOut:
     )
 
 
+def reservation_to_out(reservation: Reservation) -> ReservationOut:
+    return ReservationOut(
+        id=reservation.reservation_id,
+        status=reservation.status,
+        provider=reservation.provider,
+        confirmation_code=reservation.confirmation_code,
+        reserved_for=reservation.slot_at,
+        external_url=reservation.external_url,
+    )
+
+
 def plan_item_to_out(item: PlanItem) -> PlanItemOut:
     # The rendered title is the selected option's name; a freshly skipped or
     # still-deciding item falls back to its best-ranked candidate so the
@@ -356,9 +418,40 @@ def plan_item_to_out(item: PlanItem) -> PlanItemOut:
         starts_at=item.scheduled_start,
         ends_at=item.scheduled_end,
         window_id=item.window_id,
+        # Every caller reaches items through a loader that eager-loads this;
+        # under asyncio a lazy load here would raise, not silently query.
+        window=window_to_out(item.window) if item.window else None,
+        needs_reservation=item.needs_reservation,
         why=list(face.matched_preferences) if face else [],
         selected_option=option_to_out(selected) if selected else None,
+        options=[
+            option_to_out(o) for o in item.options if o.state != OptionState.rejected
+        ],
+        # Eager-loaded like window and ordered newest-first by the relationship.
+        reservation=(
+            reservation_to_out(item.reservations[0]) if item.reservations else None
+        ),
         updated_at=item.updated_at,
+    )
+
+
+def plan_to_out(plan: Plan) -> PlanOut:
+    # Skipped and removed items stay in the payload: the review flow has to be
+    # able to show what was declined, and the row count is the plan's own.
+    #
+    # plans has no updated_at column, so the contract's field is the newest
+    # thing under the plan. Concurrency tokens are per item, never this one.
+    return PlanOut(
+        id=plan.plan_id,
+        trip_id=plan.trip_id,
+        version=plan.version,
+        status=plan.status,
+        headline=plan.headline or "",
+        provenance_summary=plan.provenance_summary,
+        items=[plan_item_to_out(i) for i in plan.items],
+        updated_at=max(
+            [i.updated_at for i in plan.items] + [plan.created_at], default=plan.created_at
+        ),
     )
 
 

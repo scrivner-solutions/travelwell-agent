@@ -96,6 +96,20 @@ class OptionState(enum.StrEnum):
     rejected = "rejected"
 
 
+class ReservationProvider(enum.StrEnum):
+    travelwell = "travelwell"
+    opentable = "opentable"
+    external_link = "external_link"
+
+
+class ReservationStatus(enum.StrEnum):
+    pending = "pending"
+    holding = "holding"
+    confirmed = "confirmed"
+    failed = "failed"
+    canceled = "canceled"
+
+
 def _pg_enum(py_enum: type[enum.StrEnum], name: str) -> pg.ENUM:
     return pg.ENUM(
         py_enum,
@@ -355,6 +369,14 @@ class PlanItem(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    # A list because the schema permits retries: no unique constraint on
+    # reservations.item_id, so a failed hold can be followed by a second attempt.
+    # Newest first, and the API surfaces only that one.
+    reservations: Mapped[list["Reservation"]] = relationship(
+        back_populates="item",
+        order_by="Reservation.created_at.desc()",
+        passive_deletes=True,
+    )
 
 
 class PlanItemOption(Base):
@@ -394,6 +416,49 @@ class PlanItemOption(Base):
     )
 
     item: Mapped[PlanItem] = relationship(back_populates="options")
+
+
+class Reservation(Base):
+    __tablename__ = "reservations"
+    __table_args__ = (
+        sa.Index("reservations_trip_idx", "trip_id", "status"),
+        sa.CheckConstraint(
+            "status <> 'confirmed'::reservation_status or confirmation_code is not null",
+            name="reservations_check",
+        ),
+    )
+
+    reservation_id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, server_default=sa.text("gen_random_uuid()")
+    )
+    trip_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("trips.trip_id", ondelete="CASCADE")
+    )
+    # Nullable and SET NULL: a reservation outlives the item it was made for, so
+    # a cancellation still has something to report against.
+    item_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.ForeignKey("plan_items.item_id", ondelete="SET NULL")
+    )
+    # FK to places lives in the database; places is not modeled yet (env.py).
+    place_id: Mapped[uuid.UUID | None]
+    provider: Mapped[ReservationProvider] = mapped_column(
+        _pg_enum(ReservationProvider, "reservation_provider")
+    )
+    status: Mapped[ReservationStatus] = mapped_column(
+        _pg_enum(ReservationStatus, "reservation_status"),
+        server_default=sa.text("'pending'::reservation_status"),
+    )
+    slot_at: Mapped[datetime]
+    party_size: Mapped[int] = mapped_column(
+        sa.SmallInteger, server_default=sa.text("1")
+    )
+    confirmation_code: Mapped[str | None]
+    failure_reason: Mapped[str | None]
+    external_url: Mapped[str | None]
+    created_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+
+    item: Mapped[PlanItem | None] = relationship(back_populates="reservations")
 
 
 class TripEvidence(Base):

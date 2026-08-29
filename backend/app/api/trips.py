@@ -189,7 +189,7 @@ CALENDAR_EVENTS_SQL = text(
 )
 
 
-async def _owned_trip(
+async def owned_trip(
     session, user, trip_id: uuid.UUID, *, with_evidence: bool = False
 ) -> Trip:
     stmt = select(Trip).where(Trip.trip_id == trip_id, Trip.user_id == user.user_id)
@@ -202,7 +202,7 @@ async def _owned_trip(
     return trip
 
 
-async def _current_plan(session, trip_id: uuid.UUID) -> Plan | None:
+async def current_plan(session, trip_id: uuid.UUID) -> Plan | None:
     stmt = (
         select(Plan)
         .where(
@@ -212,7 +212,13 @@ async def _current_plan(session, trip_id: uuid.UUID) -> Plan | None:
         )
         .order_by(Plan.version.desc())
         .limit(1)
-        .options(selectinload(Plan.items).selectinload(PlanItem.options))
+        .options(
+            selectinload(Plan.items).selectinload(PlanItem.options),
+            # plan_item_to_out embeds the window, and a lazy load under asyncio
+            # raises rather than querying, so it has to be loaded here.
+            selectinload(Plan.items).selectinload(PlanItem.window),
+            selectinload(Plan.items).selectinload(PlanItem.reservations),
+        )
     )
     return (await session.execute(stmt)).scalar_one_or_none()
 
@@ -236,7 +242,7 @@ def _day_label(trip: Trip, today: date) -> str:
 async def get_trip(
     trip_id: uuid.UUID, user: CurrentUser, session: SessionDep
 ) -> TripOut:
-    trip = await _owned_trip(session, user, trip_id, with_evidence=True)
+    trip = await owned_trip(session, user, trip_id, with_evidence=True)
     progress = await _trip_progress(session, user.user_id)
     return trip_to_out(trip, progress.get(trip.trip_id, EMPTY_PROGRESS))
 
@@ -245,7 +251,7 @@ async def get_trip(
 async def get_trip_today(
     trip_id: uuid.UUID, user: CurrentUser, session: SessionDep
 ) -> TodayViewOut:
-    trip = await _owned_trip(session, user, trip_id)
+    trip = await owned_trip(session, user, trip_id)
     today = _local_today(trip.timezone)
     word, detail = _STATE_WORDS[trip.state]
     if detail is None and trip.activation_at is not None and trip.state in (
@@ -268,7 +274,7 @@ async def get_trip_today(
     )
     window = (await session.execute(window_stmt)).scalar_one_or_none()
 
-    plan = await _current_plan(session, trip_id)
+    plan = await current_plan(session, trip_id)
     tz = ZoneInfo(trip.timezone)
     next_up = [
         plan_item_to_out(item)
@@ -295,7 +301,7 @@ async def get_trip_timeline(
     session: SessionDep,
     day: date | None = None,
 ) -> TimelineOut:
-    trip = await _owned_trip(session, user, trip_id)
+    trip = await owned_trip(session, user, trip_id)
     tz = ZoneInfo(trip.timezone)
 
     rows = await session.execute(
@@ -314,7 +320,7 @@ async def get_trip_timeline(
         for row in rows
     ]
 
-    plan = await _current_plan(session, trip_id)
+    plan = await current_plan(session, trip_id)
     entries.extend(
         TimelineEntryOut(
             entry_type="plan_item",
@@ -342,7 +348,7 @@ async def confirm_trip(
     user: CurrentUser,
     session: SessionDep,
 ) -> TripOut:
-    trip = await _owned_trip(session, user, trip_id, with_evidence=True)
+    trip = await owned_trip(session, user, trip_id, with_evidence=True)
 
     if trip.state == TripState.confirmed:
         # Postcondition first: a retry whose earlier response was lost holds a
@@ -389,7 +395,7 @@ async def dismiss_trip(
     session: SessionDep,
 ) -> TripOut:
     """"Not a trip". Detection is noisy, so the gate has to open both ways."""
-    trip = await _owned_trip(session, user, trip_id, with_evidence=True)
+    trip = await owned_trip(session, user, trip_id, with_evidence=True)
 
     if trip.state == TripState.dismissed:
         # Postcondition first, as in confirm: a retry holding a stale token
