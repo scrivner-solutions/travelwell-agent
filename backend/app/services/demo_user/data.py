@@ -1541,9 +1541,12 @@ LONDON = TripSpec(
                                    matched_preferences=["Swim", "Mornings"]),
                     ],
                 ),
+                # Stays on the plan: OpenTable declined, the user did not remove
+                # it. `removed` is a tombstone and hides the row that carries the
+                # failed booking.
                 ItemSpec(
                     key="ldn_dinner_v2", kind=ItemKind.meal,
-                    status=ItemStatus.removed, needs_reservation=True,
+                    status=ItemStatus.planned, needs_reservation=True,
                     starts=T(4, 19), ends=T(4, 20, 30),
                     options=[
                         OptionSpec(sel, "mildreds", "Mildreds Soho",
