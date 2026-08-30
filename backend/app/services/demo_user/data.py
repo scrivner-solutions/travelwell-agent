@@ -686,8 +686,8 @@ CHICAGO = TripSpec(
     ],
     reservations=[
         ReservationSpec(
-            provider="opentable", status="confirmed", item="chi_dinner",
-            place="beatrix", slot=T(1, 19, 30), party_size=1,
+            provider="travelwell", status="confirmed", item="chi_dinner",
+            place="beatrix", slot=T(1, 19, 30), party_size=2,
             confirmation_code="#4F21B",
             external_url="https://www.opentable.com/r/beatrix-chicago",
         ),
@@ -916,7 +916,7 @@ DENVER = TripSpec(
     ],
     reservations=[
         ReservationSpec(
-            provider="opentable", status="holding", item="den_dinner",
+            provider="travelwell", status="holding", item="den_dinner",
             place="root_down", slot=T(2, 19), party_size=1,
             external_url="https://www.opentable.com/r/root-down-denver",
         ),
@@ -1418,7 +1418,7 @@ VANCOUVER = TripSpec(
     ],
     reservations=[
         ReservationSpec(
-            provider="opentable", status="confirmed", item="van_dinner",
+            provider="travelwell", status="confirmed", item="van_dinner",
             place="acorn", slot=T(3, 19), party_size=1, confirmation_code="#9K7C2",
             external_url="https://www.opentable.com/r/the-acorn-vancouver",
         ),
@@ -1582,7 +1582,7 @@ LONDON = TripSpec(
     ],
     reservations=[
         ReservationSpec(
-            provider="opentable", status="failed", item="ldn_dinner_v2",
+            provider="travelwell", status="failed", item="ldn_dinner_v2",
             place="mildreds", slot=T(4, 19), party_size=1,
             failure_reason="Mildreds declined the 7:00 hold",
             external_url="https://www.opentable.co.uk/r/mildreds-soho",
