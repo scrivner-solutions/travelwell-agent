@@ -76,7 +76,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         task_store=InMemoryTaskStore(),
         rpc_path=f"/a2a/{adk_app.name}",
     )
-    yield
+    # Approved actions have to reach their conclusion whether or not anyone is
+    # still watching the screen, so the executor runs here rather than off the
+    # back of a request. Safe on more than one instance: it claims rows with
+    # FOR UPDATE SKIP LOCKED.
+    from app.db.engine import SessionFactory
+    from app.services.actions import runner as actions_runner
+
+    async with actions_runner.running(SessionFactory):
+        yield
     from app.db.engine import engine as db_engine
     await db_engine.dispose()
 
@@ -94,6 +102,15 @@ app: FastAPI = get_fast_api_app(
 )
 app.title = "backend"
 app.description = "API for interacting with the Agent backend"
+
+# Everything ADK mounts is public until something closes it, and web=False
+# leaves the routes that spend money and mutate state: /run, /run_sse,
+# /run_live, /list-apps and the session, artifact and memory endpoints. Added
+# before CORSMiddleware so it sits inside it and a 401 still carries the CORS
+# headers, rather than reaching a cross-origin caller as a CORS failure.
+from app.api.gate import AuthGateMiddleware
+
+app.add_middleware(AuthGateMiddleware)
 
 from fastapi.middleware.cors import CORSMiddleware
 
