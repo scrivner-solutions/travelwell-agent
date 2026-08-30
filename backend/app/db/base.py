@@ -1,8 +1,8 @@
 """Declarative base for all SQLAlchemy models.
 
-No custom naming convention: docs/schema.sql (and therefore the live database)
-uses Postgres default constraint names, and matching them keeps `alembic check`
-quiet. The type_annotation_map pins plain annotations to the exact Postgres
+No custom naming convention: the live database carries Postgres default
+constraint names, so the models spell those names out where they matter and
+`alembic check` stays quiet. The type_annotation_map pins plain annotations to the exact Postgres
 types the DDL uses (text, timestamptz, uuid) so type comparison stays clean.
 """
 

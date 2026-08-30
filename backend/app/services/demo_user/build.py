@@ -4,9 +4,10 @@ Two entry points, and they are a pair: `wipe_demo_user` clears exactly the
 tables `build_demo_user` writes, so the seed script's idempotency cannot drift
 from the scene's reach. The caller owns the transaction; nothing here commits.
 
-Six of these tables have no ORM model (places, agent_events, agent_runs,
-pending_actions, reservations, notifications), so they are written with textual
-SQL -- the same allowance ADR-001 point 3 gives shaped reads.
+Seven tables (places, calendar_events, agent_events, agent_runs,
+pending_actions, reservations, notifications) are seeded with textual SQL. All
+of them have ORM models now; the SQL is a bulk-insert convenience here, not a
+missing model.
 """
 
 import json

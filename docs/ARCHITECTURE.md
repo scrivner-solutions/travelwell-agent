@@ -56,8 +56,9 @@ replaces them.
 4. CI regenerates the client and fails on drift.
 
 The same discipline applies to the schema: `backend/migrations/` is
-operational truth, `docs/schema.sql` the readable reference, and CI applies
-both to scratch databases and diffs the results.
+operational truth, the SQLAlchemy models are the authored description, and
+`docs/schema.sql` is generated from them. CI regenerates it, applies it and
+the migration chain to scratch databases, and diffs the results.
 
 ## API conventions
 

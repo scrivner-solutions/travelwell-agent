@@ -40,10 +40,12 @@ log.
 
 ## Database
 
-Operational schema truth is `migrations/`;
-[docs/schema.sql](../docs/schema.sql) is the readable reference, kept honest
-by `scripts/check_schema_drift.sh` in CI. Change process: write a migration
-first, then update `schema.sql` to match.
+Operational schema truth is `migrations/`; the models in `app/db/models.py`
+are the authored description of the schema, and
+[docs/schema.sql](../docs/schema.sql) is generated from them by
+`scripts/dump_schema.py`. Change process: edit the models, write a migration,
+then regenerate `schema.sql`. `scripts/check_schema_drift.sh` holds the three
+together in CI.
 
 Drift checks run locally with
 `PGUSER=travelwell PGPASSWORD=travelwell ./scripts/check_schema_drift.sh`.

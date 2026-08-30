@@ -1,15 +1,12 @@
-"""SQLAlchemy 2.0 typed models for the walking-skeleton tables.
+"""SQLAlchemy 2.0 typed models for the TravelWell schema.
 
 Storage layer only; API shapes live in app/api/schemas.py (ADR-001 point 6).
-All DDL, including the Postgres enum types, is created by migrations, never by
-metadata.create_all: every pg enum here is declared with create_type=False.
+Every table in docs/schema.sql is modeled here, and that file is generated
+from this metadata by scripts/dump_schema.py.
 
-Covered so far: users, user_preferences, login_codes, connected_sources,
-trips, trip_evidence, wellness_windows, plans, plan_items, plan_item_options,
-pending_actions, reservations. The remaining tables exist in the database via
-the initial migration and are reached with textual SQL until their vertical
-slice lands; migrations/env.py limits drift comparison to the tables modeled
-here, so partial coverage does not trip `alembic check`.
+All DDL is applied by migrations, never by metadata.create_all: the pg enums
+keep create_type=False so op.create_table cannot re-create a type the database
+already has. The dump script emits the types explicitly instead.
 """
 
 import enum
@@ -57,6 +54,14 @@ class TripOrigin(enum.StrEnum):
     calendar_detection = "calendar_detection"
     manual = "manual"
     import_ = "import"
+
+
+class PlaceKind(enum.StrEnum):
+    workout = "workout"
+    food = "food"
+    outdoor = "outdoor"
+    recovery = "recovery"
+    lodging = "lodging"
 
 
 class WindowStatus(enum.StrEnum):
@@ -128,6 +133,48 @@ class ActionStatus(enum.StrEnum):
     canceled = "canceled"
 
 
+class EventKind(enum.StrEnum):
+    scheduled_activation = "scheduled_activation"
+    scheduled_daily = "scheduled_daily"
+    user_text = "user_text"
+    user_voice = "user_voice"
+    ui_action = "ui_action"
+    calendar_changed = "calendar_changed"
+    trip_changed = "trip_changed"
+    reservation_changed = "reservation_changed"
+    external_context = "external_context"
+
+
+class EventDisposition(enum.StrEnum):
+    pending = "pending"
+    dropped_no_trip = "dropped_no_trip"
+    dropped_immaterial = "dropped_immaterial"
+    accepted = "accepted"
+
+
+class RunKind(enum.StrEnum):
+    pretrip_plan = "pretrip_plan"
+    replan_conflict = "replan_conflict"
+    user_request = "user_request"
+    reservation_flow = "reservation_flow"
+    daily_checkin = "daily_checkin"
+    trip_detection = "trip_detection"
+
+
+class RunStatus(enum.StrEnum):
+    running = "running"
+    completed = "completed"
+    failed = "failed"
+    canceled = "canceled"
+
+
+class NotificationStatus(enum.StrEnum):
+    pending = "pending"
+    sent = "sent"
+    opened = "opened"
+    dismissed = "dismissed"
+
+
 def _pg_enum(py_enum: type[enum.StrEnum], name: str) -> pg.ENUM:
     return pg.ENUM(
         py_enum,
@@ -148,7 +195,9 @@ class User(Base):
     auth_provider: Mapped[AuthProvider] = mapped_column(
         _pg_enum(AuthProvider, "auth_provider")
     )
-    home_timezone: Mapped[str] = mapped_column(server_default=sa.text("'UTC'::text"))
+    home_timezone: Mapped[str] = mapped_column(
+        server_default=sa.text("'UTC'::text"), doc="IANA name"
+    )
     created_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
 
     trips: Mapped[list["Trip"]] = relationship(
@@ -157,26 +206,42 @@ class User(Base):
 
 
 class UserPreferences(Base):
+    """One row per user. Drives Explore filters, plan ranking, and the "Matched
+    from your profile" provenance chips.
+    """
+
     __tablename__ = "user_preferences"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         sa.ForeignKey("users.user_id", ondelete="CASCADE"), primary_key=True
     )
     dietary: Mapped[list[str]] = mapped_column(
-        pg.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]")
+        pg.ARRAY(sa.Text()),
+        server_default=sa.text("'{}'::text[]"),
+        doc="{'vegetarian'}",
     )
     activities: Mapped[list[str]] = mapped_column(
-        pg.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]")
+        pg.ARRAY(sa.Text()),
+        server_default=sa.text("'{}'::text[]"),
+        doc="{'swim','running'}",
     )
     amenities: Mapped[list[str]] = mapped_column(
-        pg.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]")
+        pg.ARRAY(sa.Text()),
+        server_default=sa.text("'{}'::text[]"),
+        doc="{'pool','treadmill'}",
     )
     memberships: Mapped[list[str]] = mapped_column(
-        pg.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]")
+        pg.ARRAY(sa.Text()),
+        server_default=sa.text("'{}'::text[]"),
+        doc="{'ymca_reciprocity','hotel_gym'}",
     )
-    price_level_max: Mapped[int | None] = mapped_column(sa.SmallInteger)
-    day_pass_budget_cents: Mapped[int | None]
-    session_min_minutes: Mapped[int | None] = mapped_column(sa.SmallInteger)
+    price_level_max: Mapped[int | None] = mapped_column(
+        sa.SmallInteger, doc='2 = "$$ or less"'
+    )
+    day_pass_budget_cents: Mapped[int | None] = mapped_column(doc="$20 cap in the demo")
+    session_min_minutes: Mapped[int | None] = mapped_column(
+        sa.SmallInteger, doc="45-90 min preference"
+    )
     session_max_minutes: Mapped[int | None] = mapped_column(sa.SmallInteger)
     allow_calendar_write: Mapped[bool] = mapped_column(server_default=sa.text("false"))
     allow_auto_book: Mapped[bool] = mapped_column(server_default=sa.text("false"))
@@ -184,7 +249,9 @@ class UserPreferences(Base):
     updated_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
     # Last to match migration 0003's ADD COLUMN.
     preferred_times: Mapped[list[str]] = mapped_column(
-        pg.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]")
+        pg.ARRAY(sa.Text()),
+        server_default=sa.text("'{}'::text[]"),
+        doc="{'mornings'}",
     )
 
 
@@ -204,6 +271,8 @@ class LoginCode(Base):
 
 
 class ConnectedSource(Base):
+    """OAuth grants. Tokens live in Secret Manager; only the reference is here."""
+
     __tablename__ = "connected_sources"
     __table_args__ = (
         sa.UniqueConstraint(
@@ -225,12 +294,18 @@ class ConnectedSource(Base):
     scopes: Mapped[list[str]] = mapped_column(
         pg.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]")
     )
-    secret_ref: Mapped[str | None]
+    secret_ref: Mapped[str | None] = mapped_column(doc="Secret Manager resource name")
     last_synced_at: Mapped[datetime | None]
     created_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
 
 
 class Trip(Base):
+    """Identity: one contiguous period of displacement from home. The
+    destination_*/timezone/hotel_* columns are the single stay, denormalized;
+    the one-stay cap is a temporary restriction, not the definition. Lifting
+    it adds a trip_stays child table, not a redefinition.
+    """
+
     __tablename__ = "trips"
     __table_args__ = (
         sa.Index(
@@ -255,24 +330,29 @@ class Trip(Base):
     destination_region: Mapped[str | None]
     destination_lat: Mapped[float | None] = mapped_column(sa.Double)
     destination_lng: Mapped[float | None] = mapped_column(sa.Double)
-    timezone: Mapped[str]
+    timezone: Mapped[str] = mapped_column(doc="IANA, e.g. America/Chicago")
     start_date: Mapped[date]
     end_date: Mapped[date]
-    label: Mapped[str | None]
-    hotel_name: Mapped[str | None]
+    label: Mapped[str | None] = mapped_column(doc="'Conference trip'")
+    hotel_name: Mapped[str | None] = mapped_column(doc="'The Gwen'")
     hotel_address: Mapped[str | None]
     hotel_lat: Mapped[float | None] = mapped_column(sa.Double)
     hotel_lng: Mapped[float | None] = mapped_column(sa.Double)
-    # FK to places lives in the database; places is not modeled yet, so the
-    # constraint is filtered out of drift comparison in migrations/env.py.
-    hotel_place_id: Mapped[uuid.UUID | None]
+    # Named because schema.sql adds it by a separate ALTER, not inline.
+    hotel_place_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.ForeignKey("places.place_id", name="trips_hotel_place_fk")
+    )
     state: Mapped[TripState] = mapped_column(
         _pg_enum(TripState, "trip_state"),
         server_default=sa.text("'detected'::trip_state"),
     )
     origin: Mapped[TripOrigin] = mapped_column(_pg_enum(TripOrigin, "trip_origin"))
-    detection_confidence: Mapped[float | None] = mapped_column(sa.REAL)
-    activation_at: Mapped[datetime | None]
+    detection_confidence: Mapped[float | None] = mapped_column(
+        sa.REAL, doc="calendar-detected trips"
+    )
+    activation_at: Mapped[datetime | None] = mapped_column(
+        doc="T-7d wake-up; scheduler scans this"
+    )
     created_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
 
@@ -286,6 +366,8 @@ class Trip(Base):
 
 
 class WellnessWindow(Base):
+    """A free interval the agent found ("5:30 PM · 90 minutes free")."""
+
     __tablename__ = "wellness_windows"
     __table_args__ = (
         sa.Index("wellness_windows_trip_idx", "trip_id", "local_date"),
@@ -298,11 +380,13 @@ class WellnessWindow(Base):
     trip_id: Mapped[uuid.UUID] = mapped_column(
         sa.ForeignKey("trips.trip_id", ondelete="CASCADE")
     )
-    local_date: Mapped[date]
+    local_date: Mapped[date] = mapped_column(doc="trip-timezone day")
     starts_at: Mapped[datetime]
     ends_at: Mapped[datetime]
-    label: Mapped[str]
-    gap_explanation: Mapped[str | None]
+    label: Mapped[str] = mapped_column(doc="'90 minutes free'")
+    gap_explanation: Mapped[str | None] = mapped_column(
+        doc="'Between your workshop and dinner…'"
+    )
     # Display-shaped provenance rows; soft references by design (schema.sql):
     # bounds must survive the bounding event being deleted.
     bounds: Mapped[list[dict]] = mapped_column(
@@ -316,6 +400,10 @@ class WellnessWindow(Base):
 
 
 class Plan(Base):
+    """A generated plan version. Re-planning creates a new version and marks the
+    old one superseded - history is kept for the audit trail.
+    """
+
     __tablename__ = "plans"
     __table_args__ = (
         sa.Index("plans_trip_idx", "trip_id", "status"),
@@ -333,11 +421,16 @@ class Plan(Base):
         _pg_enum(PlanStatus, "plan_status"),
         server_default=sa.text("'proposed'::plan_status"),
     )
-    headline: Mapped[str | None]
-    provenance_summary: Mapped[str | None]
-    # FK to agent_runs lives in the database; agent_runs is not modeled yet,
-    # so the constraint is filtered out of drift comparison (env.py).
-    generated_by_run_id: Mapped[uuid.UUID | None]
+    headline: Mapped[str | None] = mapped_column(
+        doc="'Room for 3 workouts and a dinner'"
+    )
+    provenance_summary: Mapped[str | None] = mapped_column(
+        doc="'From your calendar and hotel email'"
+    )
+    # Named because schema.sql adds it by a separate ALTER, not inline.
+    generated_by_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.ForeignKey("agent_runs.run_id", name="plans_run_fk")
+    )
     created_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
 
     items: Mapped[list["PlanItem"]] = relationship(
@@ -349,6 +442,10 @@ class Plan(Base):
 
 
 class PlanItem(Base):
+    """One recommendation slot: "YMCA at 5:30", "Beatrix at 7:30". The timeline
+    screen = calendar_events UNION plan_items ordered by time.
+    """
+
     __tablename__ = "plan_items"
     __table_args__ = (
         sa.Index("plan_items_trip_status_idx", "trip_id", "status"),
@@ -398,6 +495,11 @@ class PlanItem(Base):
 
 
 class PlanItemOption(Base):
+    """Every candidate the agent considered for a slot - selected, alternatives
+    ("Other options" sheet), and rejected ones with the reason shown in "Also
+    considered". Swapping = flipping option_state, no data loss.
+    """
+
     __tablename__ = "plan_item_options"
     __table_args__ = (
         sa.Index("plan_item_options_item_idx", "item_id", "state", "rank"),
@@ -419,18 +521,23 @@ class PlanItemOption(Base):
     item_id: Mapped[uuid.UUID] = mapped_column(
         sa.ForeignKey("plan_items.item_id", ondelete="CASCADE")
     )
-    # FK to places lives in the database; places is not modeled yet (env.py).
-    place_id: Mapped[uuid.UUID | None]
+    place_id: Mapped[uuid.UUID | None] = mapped_column(sa.ForeignKey("places.place_id"))
     state: Mapped[OptionState] = mapped_column(_pg_enum(OptionState, "option_state"))
     rank: Mapped[int] = mapped_column(sa.SmallInteger, server_default=sa.text("0"))
-    display_name: Mapped[str]
-    display_summary: Mapped[str | None]
-    reason: Mapped[str | None]
-    rejection_reason: Mapped[str | None]
+    display_name: Mapped[str] = mapped_column(doc="denormalized for stable display")
+    display_summary: Mapped[str | None] = mapped_column(
+        doc="'Pool + treadmill · 75 min'"
+    )
+    reason: Mapped[str | None] = mapped_column(doc="'Fits your 90-minute opening'")
+    rejection_reason: Mapped[str | None] = mapped_column(
+        doc="'$$$, above the budget you set'"
+    )
     distance_minutes: Mapped[int | None] = mapped_column(sa.SmallInteger)
     duration_minutes: Mapped[int | None] = mapped_column(sa.SmallInteger)
     matched_preferences: Mapped[list[str]] = mapped_column(
-        pg.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]")
+        pg.ARRAY(sa.Text()),
+        server_default=sa.text("'{}'::text[]"),
+        doc="{'swim','45-90 min'}",
     )
 
     item: Mapped[PlanItem] = relationship(back_populates="options")
@@ -482,16 +589,22 @@ class PendingAction(Base):
     subject_item_id: Mapped[uuid.UUID | None] = mapped_column(
         sa.ForeignKey("plan_items.item_id")
     )
-    proposed_payload: Mapped[dict] = mapped_column(pg.JSONB)
+    proposed_payload: Mapped[dict] = mapped_column(
+        pg.JSONB, doc="what will be done, exactly"
+    )
     # What the provider returned when the effect was submitted, and what we
     # re-read afterwards to confirm it. Two fields because "we sent it" and
     # "we checked it landed" are different claims, and only the second is
     # evidence.
-    execution_result: Mapped[dict | None] = mapped_column(pg.JSONB)
-    verification: Mapped[dict | None] = mapped_column(pg.JSONB)
+    execution_result: Mapped[dict | None] = mapped_column(
+        pg.JSONB, doc="what the tool reported"
+    )
+    verification: Mapped[dict | None] = mapped_column(
+        pg.JSONB, doc="what we re-read to confirm"
+    )
     # Unique across the whole table, so callers namespace it per user the way
     # the demo seed does; two users must not be able to collide or read across.
-    idempotency_key: Mapped[str | None] = mapped_column(unique=True)
+    idempotency_key: Mapped[str | None] = mapped_column(unique=True, doc="retry safety")
     proposed_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
     approved_at: Mapped[datetime | None]
     executed_at: Mapped[datetime | None]
@@ -500,6 +613,12 @@ class PendingAction(Base):
 
 
 class Reservation(Base):
+    """Reservation record - created by a completed make_reservation action, or in
+    'failed' with failure_reason when the provider declines the hold (the
+    "Beatrix declined the 7:30 hold" flow). Never 'confirmed' until the
+    provider's confirmation is verified.
+    """
+
     __tablename__ = "reservations"
     __table_args__ = (
         sa.Index("reservations_trip_idx", "trip_id", "status"),
@@ -520,8 +639,7 @@ class Reservation(Base):
     item_id: Mapped[uuid.UUID | None] = mapped_column(
         sa.ForeignKey("plan_items.item_id", ondelete="SET NULL")
     )
-    # FK to places lives in the database; places is not modeled yet (env.py).
-    place_id: Mapped[uuid.UUID | None]
+    place_id: Mapped[uuid.UUID | None] = mapped_column(sa.ForeignKey("places.place_id"))
     provider: Mapped[ReservationProvider] = mapped_column(
         _pg_enum(ReservationProvider, "reservation_provider")
     )
@@ -533,9 +651,9 @@ class Reservation(Base):
     party_size: Mapped[int] = mapped_column(
         sa.SmallInteger, server_default=sa.text("1")
     )
-    confirmation_code: Mapped[str | None]
+    confirmation_code: Mapped[str | None] = mapped_column(doc="'#4F21B'")
     failure_reason: Mapped[str | None]
-    external_url: Mapped[str | None]
+    external_url: Mapped[str | None] = mapped_column(doc="OpenTable fallback link")
     created_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
     updated_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
 
@@ -543,6 +661,10 @@ class Reservation(Base):
 
 
 class TripEvidence(Base):
+    """ "Based on" list in trip detection: flight event, hotel email, conference
+    events. Stores summaries + source refs, never raw email bodies.
+    """
+
     __tablename__ = "trip_evidence"
     __table_args__ = (sa.Index("trip_evidence_trip_idx", "trip_id"),)
 
@@ -552,12 +674,185 @@ class TripEvidence(Base):
     trip_id: Mapped[uuid.UUID] = mapped_column(
         sa.ForeignKey("trips.trip_id", ondelete="CASCADE")
     )
-    kind: Mapped[str]
-    source_label: Mapped[str]
-    summary: Mapped[str]
-    source_ref: Mapped[str | None]
+    kind: Mapped[str] = mapped_column(doc="'flight_event','hotel_email',...")
+    source_label: Mapped[str] = mapped_column(doc="'Calendar', 'Email'")
+    summary: Mapped[str] = mapped_column(doc="'UA 1142 · SFO to ORD'")
+    source_ref: Mapped[str | None] = mapped_column(doc="external event/message id")
     detected_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
     # Caption under the summary; last to match migration 0002's ADD COLUMN.
     detail: Mapped[str | None]
 
     trip: Mapped[Trip] = relationship(back_populates="evidence")
+
+
+class CalendarEvent(Base):
+    """Trip-relevant calendar cache: derived display fields, no raw payloads."""
+
+    __tablename__ = "calendar_events"
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "source_id",
+            "external_id",
+            name="calendar_events_source_id_external_id_key",
+        ),
+        sa.Index("calendar_events_trip_time_idx", "trip_id", "starts_at"),
+    )
+
+    cal_event_id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, server_default=sa.text("gen_random_uuid()")
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("users.user_id", ondelete="CASCADE")
+    )
+    source_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("connected_sources.source_id", ondelete="CASCADE")
+    )
+    trip_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.ForeignKey("trips.trip_id", ondelete="CASCADE")
+    )
+    external_id: Mapped[str] = mapped_column(doc="provider event id")
+    title: Mapped[str]
+    location: Mapped[str | None]
+    starts_at: Mapped[datetime]
+    ends_at: Mapped[datetime]
+    status: Mapped[str] = mapped_column(
+        server_default=sa.text("'confirmed'::text"), doc="provider status"
+    )
+    # Change detection on sync.
+    content_hash: Mapped[str] = mapped_column(doc="change detection on sync")
+    last_seen_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+
+
+class Place(Base):
+    """Venue cache; the provider stays authoritative and rows age out by TTL."""
+
+    __tablename__ = "places"
+
+    place_id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, server_default=sa.text("gen_random_uuid()")
+    )
+    provider_ref: Mapped[str | None] = mapped_column(unique=True, doc="Google place_id")
+    kind: Mapped[PlaceKind] = mapped_column(_pg_enum(PlaceKind, "place_kind"))
+    name: Mapped[str]
+    summary: Mapped[str | None] = mapped_column(doc="'Pool + treadmill'")
+    address: Mapped[str | None]
+    lat: Mapped[float | None] = mapped_column(sa.Double)
+    lng: Mapped[float | None] = mapped_column(sa.Double)
+    price_level: Mapped[int | None] = mapped_column(
+        sa.SmallInteger, doc="$..$$$$ for food"
+    )
+    # 0 = free or membership-included.
+    day_pass_cents: Mapped[int | None] = mapped_column(doc="0 = free / membership")
+    amenities: Mapped[list[str]] = mapped_column(
+        pg.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]")
+    )
+    hours: Mapped[dict | None] = mapped_column(
+        pg.JSONB, doc="per-weekday open/close minutes"
+    )
+    photo_url: Mapped[str | None]
+    reservable_via: Mapped[ReservationProvider | None] = mapped_column(
+        _pg_enum(ReservationProvider, "reservation_provider")
+    )
+    fetched_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+
+
+class AgentEvent(Base):
+    """Trace root: every inbound trigger lands here before anything runs."""
+
+    __tablename__ = "agent_events"
+    __table_args__ = (
+        sa.Index("agent_events_trip_time_idx", "trip_id", sa.text("occurred_at DESC")),
+        sa.Index(
+            "agent_events_disposition_idx",
+            "disposition",
+            postgresql_where=sa.text("disposition = 'pending'::event_disposition"),
+        ),
+    )
+
+    event_id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, server_default=sa.text("gen_random_uuid()")
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("users.user_id", ondelete="CASCADE")
+    )
+    trip_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.ForeignKey("trips.trip_id", ondelete="CASCADE")
+    )
+    kind: Mapped[EventKind] = mapped_column(_pg_enum(EventKind, "event_kind"))
+    payload: Mapped[dict] = mapped_column(
+        pg.JSONB,
+        server_default=sa.text("'{}'::jsonb"),
+        doc="transcript, changed-event delta, …",
+    )
+    disposition: Mapped[EventDisposition] = mapped_column(
+        _pg_enum(EventDisposition, "event_disposition"),
+        server_default=sa.text("'pending'::event_disposition"),
+    )
+    occurred_at: Mapped[datetime]
+    received_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+
+
+class AgentRun(Base):
+    """One agent workflow execution; context_snapshot is the exact model input."""
+
+    __tablename__ = "agent_runs"
+    __table_args__ = (
+        sa.Index("agent_runs_trip_idx", "trip_id", sa.text("started_at DESC")),
+    )
+
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, server_default=sa.text("gen_random_uuid()")
+    )
+    trip_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.ForeignKey("trips.trip_id", ondelete="CASCADE")
+    )
+    trigger_event_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.ForeignKey("agent_events.event_id")
+    )
+    kind: Mapped[RunKind] = mapped_column(_pg_enum(RunKind, "run_kind"))
+    status: Mapped[RunStatus] = mapped_column(
+        _pg_enum(RunStatus, "run_status"),
+        server_default=sa.text("'running'::run_status"),
+    )
+    context_snapshot: Mapped[dict | None] = mapped_column(pg.JSONB)
+    result: Mapped[dict | None] = mapped_column(pg.JSONB)
+    model: Mapped[str | None] = mapped_column(doc="model id used")
+    error: Mapped[str | None]
+    started_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+    finished_at: Mapped[datetime | None]
+
+
+class Notification(Base):
+    """Outbound notifications ("Your schedule changed", "Plan ready")."""
+
+    __tablename__ = "notifications"
+    __table_args__ = (
+        sa.Index(
+            "notifications_user_idx",
+            "user_id",
+            "status",
+            sa.text("created_at DESC"),
+        ),
+    )
+
+    notification_id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, server_default=sa.text("gen_random_uuid()")
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("users.user_id", ondelete="CASCADE")
+    )
+    trip_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.ForeignKey("trips.trip_id", ondelete="CASCADE")
+    )
+    run_id: Mapped[uuid.UUID | None] = mapped_column(sa.ForeignKey("agent_runs.run_id"))
+    kind: Mapped[str] = mapped_column(doc="'plan_ready','schedule_conflict',…")
+    title: Mapped[str]
+    body: Mapped[str | None]
+    cta: Mapped[dict | None] = mapped_column(pg.JSONB, doc="{label, deep_link}")
+    status: Mapped[NotificationStatus] = mapped_column(
+        _pg_enum(NotificationStatus, "notification_status"),
+        server_default=sa.text("'pending'::notification_status"),
+    )
+    created_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+    sent_at: Mapped[datetime | None]
+    opened_at: Mapped[datetime | None]

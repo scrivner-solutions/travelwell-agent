@@ -2,17 +2,22 @@
 -- TravelWell - system-of-record schema
 -- Target: PostgreSQL 15+ (Cloud SQL / AlloyDB)
 --
+-- GENERATED FILE - do not edit by hand.
+-- Source of truth: backend/app/db/models.py (ADR-005).
+-- Regenerate: cd backend && uv run python scripts/dump_schema.py
+--
 -- Operational truth lives in backend/migrations/ (Alembic); this file is the
--- readable reference. CI (backend/scripts/check_schema_drift.sh) applies both
--- to scratch databases and fails on any difference. Change process: write a
--- migration first, then update this file to match.
+-- readable reference. CI (backend/scripts/check_schema_drift.sh) regenerates
+-- it, applies it to a scratch database and diffs that against the migration
+-- chain, so all three stay in step. Change process: edit the models, write a
+-- migration, then regenerate this file.
 --
 -- Design rules this schema encodes:
 --   1. Agent state belongs to a Trip, not to a chat session.
 --      Every planning/action/event row carries trip_id.
 --   2. Reasoning is separated from execution: recommendations live in
 --      plan_items/options; anything with a real-world side effect goes
---      through pending_actions (THINK → PROPOSE → CONFIRM → EXECUTE →
+--      through pending_actions (THINK -> PROPOSE -> CONFIRM -> EXECUTE ->
 --      VERIFY).
 --   3. Provenance is data, not prose: the "How I got here" screen is served
 --      from wellness_windows.bounds + plan_item_options (matched prefs,
@@ -32,415 +37,411 @@ create extension if not exists citext;
 -- Enums
 -- ---------------------------------------------------------------------------
 
-create type auth_provider     as enum ('google', 'apple', 'email');
-create type source_kind       as enum ('google_calendar', 'gmail', 'apple_calendar', 'manual_import');
-create type source_status     as enum ('connected', 'error', 'revoked');
+CREATE TYPE place_kind AS ENUM ('workout', 'food', 'outdoor', 'recovery', 'lodging');
 
--- Trip lifecycle. Secondary conditions (needs_user_input,
--- needs_approval, action_in_progress) are derived from open plan_items /
--- pending_actions, not stored - one source of truth.
-create type trip_state        as enum ('detected', 'confirmed', 'upcoming', 'preparing',
-                                       'active', 'completed', 'archived', 'dismissed');
-create type trip_origin       as enum ('calendar_detection', 'manual', 'import');
+CREATE TYPE reservation_provider AS ENUM ('travelwell', 'opentable', 'external_link');
 
-create type place_kind        as enum ('workout', 'food', 'outdoor', 'recovery', 'lodging');
+CREATE TYPE auth_provider AS ENUM ('google', 'apple', 'email');
 
-create type window_status     as enum ('open', 'filled', 'expired', 'superseded');
+CREATE TYPE source_kind AS ENUM ('google_calendar', 'gmail', 'apple_calendar', 'manual_import');
 
-create type plan_status       as enum ('draft', 'proposed', 'partially_accepted',
-                                       'accepted', 'superseded');
+CREATE TYPE source_status AS ENUM ('connected', 'error', 'revoked');
 
--- Matches the demo's card badges: Suggested / Needs you / In plan /
--- Confirmed / Working / Changed (+ skipped/removed terminal states).
-create type item_status       as enum ('suggested', 'awaiting_user', 'planned',
-                                       'confirmed', 'working', 'changed',
-                                       'skipped', 'removed');
-create type item_kind         as enum ('activity', 'meal');
+CREATE TYPE trip_state AS ENUM ('detected', 'confirmed', 'upcoming', 'preparing', 'active', 'completed', 'archived', 'dismissed');
 
-create type option_state      as enum ('selected', 'alternative', 'rejected');
+CREATE TYPE trip_origin AS ENUM ('calendar_detection', 'manual', 'import');
 
-create type reservation_provider as enum ('travelwell', 'opentable', 'external_link');
-create type reservation_status   as enum ('pending', 'holding', 'confirmed',
-                                          'failed', 'canceled');
+CREATE TYPE event_kind AS ENUM ('scheduled_activation', 'scheduled_daily', 'user_text', 'user_voice', 'ui_action', 'calendar_changed', 'trip_changed', 'reservation_changed', 'external_context');
 
-create type action_type       as enum ('make_reservation', 'cancel_reservation',
-                                       'create_calendar_event', 'update_calendar_event',
-                                       'delete_calendar_event', 'send_invite');
-create type action_status     as enum ('proposed', 'approved', 'executing',
-                                       'completed', 'failed', 'canceled');
+CREATE TYPE event_disposition AS ENUM ('pending', 'dropped_no_trip', 'dropped_immaterial', 'accepted');
 
--- Normalized inbound events: every integration writes here;
--- nothing invokes the agent directly.
-create type event_kind        as enum ('scheduled_activation', 'scheduled_daily',
-                                       'user_text', 'user_voice', 'ui_action',
-                                       'calendar_changed', 'trip_changed',
-                                       'reservation_changed', 'external_context');
-create type event_disposition as enum ('pending', 'dropped_no_trip',
-                                       'dropped_immaterial', 'accepted');
+CREATE TYPE window_status AS ENUM ('open', 'filled', 'expired', 'superseded');
 
-create type run_kind          as enum ('pretrip_plan', 'replan_conflict',
-                                       'user_request', 'reservation_flow',
-                                       'daily_checkin', 'trip_detection');
-create type run_status        as enum ('running', 'completed', 'failed', 'canceled');
+CREATE TYPE run_kind AS ENUM ('pretrip_plan', 'replan_conflict', 'user_request', 'reservation_flow', 'daily_checkin', 'trip_detection');
 
-create type notification_status as enum ('pending', 'sent', 'opened', 'dismissed');
+CREATE TYPE run_status AS ENUM ('running', 'completed', 'failed', 'canceled');
+
+CREATE TYPE notification_status AS ENUM ('pending', 'sent', 'opened', 'dismissed');
+
+CREATE TYPE plan_status AS ENUM ('draft', 'proposed', 'partially_accepted', 'accepted', 'superseded');
+
+CREATE TYPE item_kind AS ENUM ('activity', 'meal');
+
+CREATE TYPE item_status AS ENUM ('suggested', 'awaiting_user', 'planned', 'confirmed', 'working', 'changed', 'skipped', 'removed');
+
+CREATE TYPE action_type AS ENUM ('make_reservation', 'cancel_reservation', 'create_calendar_event', 'update_calendar_event', 'delete_calendar_event', 'send_invite');
+
+CREATE TYPE action_status AS ENUM ('proposed', 'approved', 'executing', 'completed', 'failed', 'canceled');
+
+CREATE TYPE option_state AS ENUM ('selected', 'alternative', 'rejected');
+
+CREATE TYPE reservation_status AS ENUM ('pending', 'holding', 'confirmed', 'failed', 'canceled');
 
 -- ---------------------------------------------------------------------------
--- Identity & profile
+-- Tables, indexes and constraints
 -- ---------------------------------------------------------------------------
 
-create table users (
-  user_id        uuid primary key default gen_random_uuid(),
-  email          citext not null unique,
-  display_name   text,
-  auth_provider  auth_provider not null,
-  home_timezone  text not null default 'UTC',          -- IANA name
-  created_at     timestamptz not null default now()
+CREATE TABLE users (
+    user_id UUID DEFAULT gen_random_uuid() NOT NULL,
+    email CITEXT NOT NULL,
+    display_name TEXT,
+    auth_provider auth_provider NOT NULL,
+    home_timezone TEXT DEFAULT 'UTC'::text NOT NULL,  -- IANA name
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    PRIMARY KEY (user_id),
+    UNIQUE (email)
 );
 
--- One row per user. Drives Explore filters, plan ranking, and the
--- "Matched from your profile" provenance chips.
-create table user_preferences (
-  user_id             uuid primary key references users(user_id) on delete cascade,
-  dietary             text[] not null default '{}',    -- {'vegetarian'}
-  activities          text[] not null default '{}',    -- {'swim','running'}
-  amenities           text[] not null default '{}',    -- {'pool','treadmill'}
-  memberships         text[] not null default '{}',    -- {'ymca_reciprocity','hotel_gym'}
-  price_level_max     smallint,                        -- 2 = "$$ or less"
-  day_pass_budget_cents integer,                       -- $20 cap in the demo
-  session_min_minutes smallint,                        -- 45-90 min preference
-  session_max_minutes smallint,
-  -- Autonomy toggles ("What TravelWell may do on its own", profile screen).
-  -- The action executor checks these before skipping user confirmation.
-  allow_calendar_write boolean not null default false,
-  allow_auto_book      boolean not null default false,
-  watch_schedule       boolean not null default true,
-  updated_at           timestamptz not null default now(),
-  -- Last so the column order matches migration 0003 (pg_dump drift diff).
-  preferred_times      text[] not null default '{}'     -- {'mornings'}
+-- One live email sign-in code per address; only the code's HMAC is stored.
+-- No FK to users: a code is issued before the account may exist.
+CREATE TABLE login_codes (
+    email CITEXT NOT NULL,
+    code_hmac TEXT NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    attempts_left SMALLINT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    PRIMARY KEY (email)
 );
 
--- One live email sign-in code per address; verify consumes the row. Only an
--- HMAC of the code is stored (key = SESSION_SECRET), so a leaked table cannot
--- sign anyone in. No FK to users: codes precede account creation.
-create table login_codes (
-  email          citext primary key,
-  code_hmac      text not null,
-  expires_at     timestamptz not null,
-  attempts_left  smallint not null,
-  created_at     timestamptz not null default now()
+-- Venue cache; the provider stays authoritative and rows age out by TTL.
+CREATE TABLE places (
+    place_id UUID DEFAULT gen_random_uuid() NOT NULL,
+    provider_ref TEXT,  -- Google place_id
+    kind place_kind NOT NULL,
+    name TEXT NOT NULL,
+    summary TEXT,  -- 'Pool + treadmill'
+    address TEXT,
+    lat DOUBLE PRECISION,
+    lng DOUBLE PRECISION,
+    price_level SMALLINT,  -- $..$$$$ for food
+    day_pass_cents INTEGER,  -- 0 = free / membership
+    amenities TEXT[] DEFAULT '{}'::text[] NOT NULL,
+    hours JSONB,  -- per-weekday open/close minutes
+    photo_url TEXT,
+    reservable_via reservation_provider,
+    fetched_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    PRIMARY KEY (place_id),
+    UNIQUE (provider_ref)
+);
+
+-- One row per user. Drives Explore filters, plan ranking, and the "Matched
+-- from your profile" provenance chips.
+CREATE TABLE user_preferences (
+    user_id UUID NOT NULL,
+    dietary TEXT[] DEFAULT '{}'::text[] NOT NULL,  -- {'vegetarian'}
+    activities TEXT[] DEFAULT '{}'::text[] NOT NULL,  -- {'swim','running'}
+    amenities TEXT[] DEFAULT '{}'::text[] NOT NULL,  -- {'pool','treadmill'}
+    memberships TEXT[] DEFAULT '{}'::text[] NOT NULL,  -- {'ymca_reciprocity','hotel_gym'}
+    price_level_max SMALLINT,  -- 2 = "$$ or less"
+    day_pass_budget_cents INTEGER,  -- $20 cap in the demo
+    session_min_minutes SMALLINT,  -- 45-90 min preference
+    session_max_minutes SMALLINT,
+    allow_calendar_write BOOLEAN DEFAULT false NOT NULL,
+    allow_auto_book BOOLEAN DEFAULT false NOT NULL,
+    watch_schedule BOOLEAN DEFAULT true NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    preferred_times TEXT[] DEFAULT '{}'::text[] NOT NULL,  -- {'mornings'}
+    PRIMARY KEY (user_id),
+    FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE
 );
 
 -- OAuth grants. Tokens live in Secret Manager; only the reference is here.
-create table connected_sources (
-  source_id      uuid primary key default gen_random_uuid(),
-  user_id        uuid not null references users(user_id) on delete cascade,
-  kind           source_kind not null,
-  status         source_status not null default 'connected',
-  scopes         text[] not null default '{}',
-  secret_ref     text,                                  -- Secret Manager resource name
-  last_synced_at timestamptz,
-  created_at     timestamptz not null default now(),
-  unique (user_id, kind)
+CREATE TABLE connected_sources (
+    source_id UUID DEFAULT gen_random_uuid() NOT NULL,
+    user_id UUID NOT NULL,
+    kind source_kind NOT NULL,
+    status source_status DEFAULT 'connected'::source_status NOT NULL,
+    scopes TEXT[] DEFAULT '{}'::text[] NOT NULL,
+    secret_ref TEXT,  -- Secret Manager resource name
+    last_synced_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    PRIMARY KEY (source_id),
+    CONSTRAINT connected_sources_user_id_kind_key UNIQUE (user_id, kind),
+    FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE
 );
 
--- ---------------------------------------------------------------------------
--- Trip - the central domain object
--- ---------------------------------------------------------------------------
-
--- Identity: one contiguous period of displacement from home.
--- The destination_*/timezone/hotel_* columns are the single stay,
--- denormalized; the one-stay cap is a temporary restriction, not the
--- definition. Lifting it adds a trip_stays child table, not a redefinition.
-create table trips (
-  trip_id          uuid primary key default gen_random_uuid(),
-  user_id          uuid not null references users(user_id) on delete cascade,
-  destination_city text not null,
-  destination_region text,
-  destination_lat  double precision,
-  destination_lng  double precision,
-  timezone         text not null,                       -- IANA, e.g. America/Chicago
-  start_date       date not null,
-  end_date         date not null,
-  label            text,                                -- 'Conference trip'
-  hotel_name       text,                                -- 'The Gwen'
-  hotel_address    text,
-  hotel_lat        double precision,
-  hotel_lng        double precision,
-  hotel_place_id   uuid,                                 -- fk added after places
-  state            trip_state not null default 'detected',
-  origin           trip_origin not null,
-  detection_confidence real,                             -- calendar-detected trips
-  activation_at    timestamptz,                          -- T-7d wake-up; scheduler scans this
-  created_at       timestamptz not null default now(),
-  updated_at       timestamptz not null default now(),
-  check (end_date >= start_date)
+-- Identity: one contiguous period of displacement from home. The
+-- destination_*/timezone/hotel_* columns are the single stay, denormalized;
+-- the one-stay cap is a temporary restriction, not the definition. Lifting
+-- it adds a trip_stays child table, not a redefinition.
+CREATE TABLE trips (
+    trip_id UUID DEFAULT gen_random_uuid() NOT NULL,
+    user_id UUID NOT NULL,
+    destination_city TEXT NOT NULL,
+    destination_region TEXT,
+    destination_lat DOUBLE PRECISION,
+    destination_lng DOUBLE PRECISION,
+    timezone TEXT NOT NULL,  -- IANA, e.g. America/Chicago
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    label TEXT,  -- 'Conference trip'
+    hotel_name TEXT,  -- 'The Gwen'
+    hotel_address TEXT,
+    hotel_lat DOUBLE PRECISION,
+    hotel_lng DOUBLE PRECISION,
+    hotel_place_id UUID,
+    state trip_state DEFAULT 'detected'::trip_state NOT NULL,
+    origin trip_origin NOT NULL,
+    detection_confidence REAL,  -- calendar-detected trips
+    activation_at TIMESTAMP WITH TIME ZONE,  -- T-7d wake-up; scheduler scans this
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    PRIMARY KEY (trip_id),
+    CONSTRAINT trips_check CHECK (end_date >= start_date),
+    FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE,
+    CONSTRAINT trips_hotel_place_fk FOREIGN KEY(hotel_place_id) REFERENCES places (place_id)
 );
 
--- Scheduler query: confirmed trips whose activation time has arrived.
-create index trips_activation_idx on trips (state, activation_at)
-  where state in ('confirmed', 'upcoming');
-create index trips_user_state_idx on trips (user_id, state);
+CREATE INDEX trips_user_state_idx ON trips (user_id, state);
+
+CREATE INDEX trips_activation_idx ON trips (state, activation_at) WHERE state in ('confirmed', 'upcoming');
+
+-- A free interval the agent found ("5:30 PM · 90 minutes free").
+CREATE TABLE wellness_windows (
+    window_id UUID DEFAULT gen_random_uuid() NOT NULL,
+    trip_id UUID NOT NULL,
+    local_date DATE NOT NULL,  -- trip-timezone day
+    starts_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    ends_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    label TEXT NOT NULL,  -- '90 minutes free'
+    gap_explanation TEXT,  -- 'Between your workshop and dinner…'
+    bounds JSONB DEFAULT '[]'::jsonb NOT NULL,
+    status window_status DEFAULT 'open'::window_status NOT NULL,
+    computed_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    PRIMARY KEY (window_id),
+    CONSTRAINT wellness_windows_check CHECK (ends_at > starts_at),
+    FOREIGN KEY(trip_id) REFERENCES trips (trip_id) ON DELETE CASCADE
+);
+
+CREATE INDEX wellness_windows_trip_idx ON wellness_windows (trip_id, local_date);
 
 -- "Based on" list in trip detection: flight event, hotel email, conference
 -- events. Stores summaries + source refs, never raw email bodies.
-create table trip_evidence (
-  evidence_id  uuid primary key default gen_random_uuid(),
-  trip_id      uuid not null references trips(trip_id) on delete cascade,
-  kind         text not null,                            -- 'flight_event','hotel_email',...
-  source_label text not null,                            -- 'Calendar', 'Email'
-  summary      text not null,                            -- 'UA 1142 · SFO to ORD'
-  source_ref   text,                                     -- external event/message id
-  detected_at  timestamptz not null default now(),
-  -- Caption under the summary ('521 N Rush St · 3 nights'). Last column on
-  -- purpose: added by migration 0002, and ADD COLUMN appends physically, so
-  -- the drift check's pg_dump diff needs it last here too.
-  detail       text
-);
-create index trip_evidence_trip_idx on trip_evidence (trip_id);
-
--- Minimal cache of trip-relevant calendar events (schedule context +
--- change detection). Derived display fields only - no raw provider payloads,
--- honoring the "I read them, I do not store them" promise. Rows are pruned
--- when a trip archives.
-create table calendar_events (
-  cal_event_id  uuid primary key default gen_random_uuid(),
-  user_id       uuid not null references users(user_id) on delete cascade,
-  source_id     uuid not null references connected_sources(source_id) on delete cascade,
-  trip_id       uuid references trips(trip_id) on delete cascade,
-  external_id   text not null,                           -- provider event id
-  title         text not null,
-  location      text,
-  starts_at     timestamptz not null,
-  ends_at       timestamptz not null,
-  status        text not null default 'confirmed',       -- provider status
-  content_hash  text not null,                           -- change detection on sync
-  last_seen_at  timestamptz not null default now(),
-  unique (source_id, external_id)
-);
-create index calendar_events_trip_time_idx on calendar_events (trip_id, starts_at);
-
--- ---------------------------------------------------------------------------
--- Places - cache of venue data from Maps/Places providers
--- ---------------------------------------------------------------------------
-
--- Read-mostly cache; the provider stays the source of truth and rows are
--- refreshed by fetched_at TTL. Discovery/geo search happens against the
--- Places API, not this table - this holds only candidates we've surfaced.
-create table places (
-  place_id       uuid primary key default gen_random_uuid(),
-  provider_ref   text unique,                            -- Google place_id
-  kind           place_kind not null,
-  name           text not null,
-  summary        text,                                   -- 'Pool + treadmill'
-  address        text,
-  lat            double precision,
-  lng            double precision,
-  price_level    smallint,                               -- $..$$$$ for food
-  day_pass_cents integer,                                -- 0 = free / membership
-  amenities      text[] not null default '{}',
-  hours          jsonb,                                  -- per-weekday open/close minutes
-  photo_url      text,
-  reservable_via reservation_provider,
-  fetched_at     timestamptz not null default now()
+CREATE TABLE trip_evidence (
+    evidence_id UUID DEFAULT gen_random_uuid() NOT NULL,
+    trip_id UUID NOT NULL,
+    kind TEXT NOT NULL,  -- 'flight_event','hotel_email',...
+    source_label TEXT NOT NULL,  -- 'Calendar', 'Email'
+    summary TEXT NOT NULL,  -- 'UA 1142 · SFO to ORD'
+    source_ref TEXT,  -- external event/message id
+    detected_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    detail TEXT,
+    PRIMARY KEY (evidence_id),
+    FOREIGN KEY(trip_id) REFERENCES trips (trip_id) ON DELETE CASCADE
 );
 
-alter table trips
-  add constraint trips_hotel_place_fk
-  foreign key (hotel_place_id) references places(place_id);
+CREATE INDEX trip_evidence_trip_idx ON trip_evidence (trip_id);
 
--- ---------------------------------------------------------------------------
--- Planning: windows → plan versions → items → options
--- ---------------------------------------------------------------------------
-
--- A free interval the agent found ("5:30 PM · 90 minutes free").
-create table wellness_windows (
-  window_id       uuid primary key default gen_random_uuid(),
-  trip_id         uuid not null references trips(trip_id) on delete cascade,
-  local_date      date not null,                         -- trip-timezone day
-  starts_at       timestamptz not null,
-  ends_at         timestamptz not null,
-  label           text not null,                         -- '90 minutes free'
-  gap_explanation text,                                  -- 'Between your workshop and dinner…'
-  -- Provenance: what bounds this opening. Array of
-  --   {kind: 'calendar_event'|'plan_item'|'itinerary', ref_id, tag, title,
-  --    detail, source_label}
-  -- Display-shaped and soft-referenced on purpose: bounds must survive the
-  -- bounding event being deleted, so the explanation screen always renders.
-  bounds          jsonb not null default '[]',
-  status          window_status not null default 'open',
-  computed_at     timestamptz not null default now(),
-  check (ends_at > starts_at)
+-- Trip-relevant calendar cache: derived display fields, no raw payloads.
+CREATE TABLE calendar_events (
+    cal_event_id UUID DEFAULT gen_random_uuid() NOT NULL,
+    user_id UUID NOT NULL,
+    source_id UUID NOT NULL,
+    trip_id UUID,
+    external_id TEXT NOT NULL,  -- provider event id
+    title TEXT NOT NULL,
+    location TEXT,
+    starts_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    ends_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    status TEXT DEFAULT 'confirmed'::text NOT NULL,  -- provider status
+    content_hash TEXT NOT NULL,  -- change detection on sync
+    last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    PRIMARY KEY (cal_event_id),
+    CONSTRAINT calendar_events_source_id_external_id_key UNIQUE (source_id, external_id),
+    FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE,
+    FOREIGN KEY(source_id) REFERENCES connected_sources (source_id) ON DELETE CASCADE,
+    FOREIGN KEY(trip_id) REFERENCES trips (trip_id) ON DELETE CASCADE
 );
-create index wellness_windows_trip_idx on wellness_windows (trip_id, local_date);
+
+CREATE INDEX calendar_events_trip_time_idx ON calendar_events (trip_id, starts_at);
+
+-- Trace root: every inbound trigger lands here before anything runs.
+CREATE TABLE agent_events (
+    event_id UUID DEFAULT gen_random_uuid() NOT NULL,
+    user_id UUID NOT NULL,
+    trip_id UUID,
+    kind event_kind NOT NULL,
+    payload JSONB DEFAULT '{}'::jsonb NOT NULL,  -- transcript, changed-event delta, …
+    disposition event_disposition DEFAULT 'pending'::event_disposition NOT NULL,
+    occurred_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    received_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    PRIMARY KEY (event_id),
+    FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE,
+    FOREIGN KEY(trip_id) REFERENCES trips (trip_id) ON DELETE CASCADE
+);
+
+CREATE INDEX agent_events_trip_time_idx ON agent_events (trip_id, occurred_at DESC);
+
+CREATE INDEX agent_events_disposition_idx ON agent_events (disposition) WHERE disposition = 'pending'::event_disposition;
+
+-- One agent workflow execution; context_snapshot is the exact model input.
+CREATE TABLE agent_runs (
+    run_id UUID DEFAULT gen_random_uuid() NOT NULL,
+    trip_id UUID,
+    trigger_event_id UUID,
+    kind run_kind NOT NULL,
+    status run_status DEFAULT 'running'::run_status NOT NULL,
+    context_snapshot JSONB,
+    result JSONB,
+    model TEXT,  -- model id used
+    error TEXT,
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    finished_at TIMESTAMP WITH TIME ZONE,
+    PRIMARY KEY (run_id),
+    FOREIGN KEY(trip_id) REFERENCES trips (trip_id) ON DELETE CASCADE,
+    FOREIGN KEY(trigger_event_id) REFERENCES agent_events (event_id)
+);
+
+CREATE INDEX agent_runs_trip_idx ON agent_runs (trip_id, started_at DESC);
 
 -- A generated plan version. Re-planning creates a new version and marks the
 -- old one superseded - history is kept for the audit trail.
-create table plans (
-  plan_id             uuid primary key default gen_random_uuid(),
-  trip_id             uuid not null references trips(trip_id) on delete cascade,
-  version             integer not null,
-  status              plan_status not null default 'proposed',
-  headline            text,                              -- 'Room for 3 workouts and a dinner'
-  provenance_summary  text,                              -- 'From your calendar and hotel email'
-  generated_by_run_id uuid,                              -- fk added after agent_runs
-  created_at          timestamptz not null default now(),
-  unique (trip_id, version)
+CREATE TABLE plans (
+    plan_id UUID DEFAULT gen_random_uuid() NOT NULL,
+    trip_id UUID NOT NULL,
+    version INTEGER NOT NULL,
+    status plan_status DEFAULT 'proposed'::plan_status NOT NULL,
+    headline TEXT,  -- 'Room for 3 workouts and a dinner'
+    provenance_summary TEXT,  -- 'From your calendar and hotel email'
+    generated_by_run_id UUID,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    PRIMARY KEY (plan_id),
+    CONSTRAINT plans_trip_id_version_key UNIQUE (trip_id, version),
+    FOREIGN KEY(trip_id) REFERENCES trips (trip_id) ON DELETE CASCADE,
+    CONSTRAINT plans_run_fk FOREIGN KEY(generated_by_run_id) REFERENCES agent_runs (run_id)
 );
-create index plans_trip_idx on plans (trip_id, status);
 
--- One recommendation slot: "YMCA at 5:30", "Beatrix at 7:30".
--- The timeline screen = calendar_events UNION plan_items ordered by time.
-create table plan_items (
-  item_id            uuid primary key default gen_random_uuid(),
-  plan_id            uuid not null references plans(plan_id) on delete cascade,
-  trip_id            uuid not null references trips(trip_id) on delete cascade,
-  window_id          uuid references wellness_windows(window_id),
-  kind               item_kind not null,
-  status             item_status not null default 'suggested',
-  scheduled_start    timestamptz not null,
-  scheduled_end      timestamptz,
-  needs_reservation  boolean not null default false,
-  -- Set when the user exported this item to their calendar (via a completed
-  -- pending_action); lets a later cancel/update target the right event.
-  calendar_event_ref text,
-  created_at         timestamptz not null default now(),
-  updated_at         timestamptz not null default now()
+CREATE INDEX plans_trip_idx ON plans (trip_id, status);
+
+-- Outbound notifications ("Your schedule changed", "Plan ready").
+CREATE TABLE notifications (
+    notification_id UUID DEFAULT gen_random_uuid() NOT NULL,
+    user_id UUID NOT NULL,
+    trip_id UUID,
+    run_id UUID,
+    kind TEXT NOT NULL,  -- 'plan_ready','schedule_conflict',…
+    title TEXT NOT NULL,
+    body TEXT,
+    cta JSONB,  -- {label, deep_link}
+    status notification_status DEFAULT 'pending'::notification_status NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    sent_at TIMESTAMP WITH TIME ZONE,
+    opened_at TIMESTAMP WITH TIME ZONE,
+    PRIMARY KEY (notification_id),
+    FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE,
+    FOREIGN KEY(trip_id) REFERENCES trips (trip_id) ON DELETE CASCADE,
+    FOREIGN KEY(run_id) REFERENCES agent_runs (run_id)
 );
-create index plan_items_trip_status_idx on plan_items (trip_id, status);
-create index plan_items_window_idx on plan_items (window_id);
+
+CREATE INDEX notifications_user_idx ON notifications (user_id, status, created_at DESC);
+
+-- One recommendation slot: "YMCA at 5:30", "Beatrix at 7:30". The timeline
+-- screen = calendar_events UNION plan_items ordered by time.
+CREATE TABLE plan_items (
+    item_id UUID DEFAULT gen_random_uuid() NOT NULL,
+    plan_id UUID NOT NULL,
+    trip_id UUID NOT NULL,
+    window_id UUID,
+    kind item_kind NOT NULL,
+    status item_status DEFAULT 'suggested'::item_status NOT NULL,
+    scheduled_start TIMESTAMP WITH TIME ZONE NOT NULL,
+    scheduled_end TIMESTAMP WITH TIME ZONE,
+    needs_reservation BOOLEAN DEFAULT false NOT NULL,
+    calendar_event_ref TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    PRIMARY KEY (item_id),
+    FOREIGN KEY(plan_id) REFERENCES plans (plan_id) ON DELETE CASCADE,
+    FOREIGN KEY(trip_id) REFERENCES trips (trip_id) ON DELETE CASCADE,
+    FOREIGN KEY(window_id) REFERENCES wellness_windows (window_id)
+);
+
+CREATE INDEX plan_items_window_idx ON plan_items (window_id);
+
+CREATE INDEX plan_items_trip_status_idx ON plan_items (trip_id, status);
 
 -- Every candidate the agent considered for a slot - selected, alternatives
--- ("Other options" sheet), and rejected ones with the reason shown in
--- "Also considered". Swapping = flipping option_state, no data loss.
-create table plan_item_options (
-  option_id           uuid primary key default gen_random_uuid(),
-  item_id             uuid not null references plan_items(item_id) on delete cascade,
-  place_id            uuid references places(place_id),
-  state               option_state not null,
-  rank                smallint not null default 0,
-  display_name        text not null,                     -- denormalized for stable display
-  display_summary     text,                              -- 'Pool + treadmill · 75 min'
-  reason              text,                              -- 'Fits your 90-minute opening'
-  rejection_reason    text,                              -- '$$$, above the budget you set'
-  distance_minutes    smallint,
-  duration_minutes    smallint,
-  matched_preferences text[] not null default '{}',      -- {'swim','45-90 min'}
-  check ((state = 'rejected') = (rejection_reason is not null))
+-- ("Other options" sheet), and rejected ones with the reason shown in "Also
+-- considered". Swapping = flipping option_state, no data loss.
+CREATE TABLE plan_item_options (
+    option_id UUID DEFAULT gen_random_uuid() NOT NULL,
+    item_id UUID NOT NULL,
+    place_id UUID,
+    state option_state NOT NULL,
+    rank SMALLINT DEFAULT 0 NOT NULL,
+    display_name TEXT NOT NULL,  -- denormalized for stable display
+    display_summary TEXT,  -- 'Pool + treadmill · 75 min'
+    reason TEXT,  -- 'Fits your 90-minute opening'
+    rejection_reason TEXT,  -- '$$$, above the budget you set'
+    distance_minutes SMALLINT,
+    duration_minutes SMALLINT,
+    matched_preferences TEXT[] DEFAULT '{}'::text[] NOT NULL,  -- {'swim','45-90 min'}
+    PRIMARY KEY (option_id),
+    CONSTRAINT plan_item_options_check CHECK ((state = 'rejected'::option_state) = (rejection_reason is not null)),
+    FOREIGN KEY(item_id) REFERENCES plan_items (item_id) ON DELETE CASCADE,
+    FOREIGN KEY(place_id) REFERENCES places (place_id)
 );
-create index plan_item_options_item_idx on plan_item_options (item_id, state, rank);
--- At most one selected option per item.
-create unique index plan_item_options_selected_uq on plan_item_options (item_id)
-  where state = 'selected';
 
--- ---------------------------------------------------------------------------
--- Actions & reservations (execution side)
--- ---------------------------------------------------------------------------
+CREATE INDEX plan_item_options_item_idx ON plan_item_options (item_id, state, rank);
 
--- Durable PendingAction. Every external side effect flows
--- through here: proposed → approved → executing → completed/failed.
--- The executor claims a row (status='approved' FOR UPDATE SKIP LOCKED),
--- executes, verifies, then writes execution_result - all auditable.
-create table pending_actions (
-  action_id         uuid primary key default gen_random_uuid(),
-  trip_id           uuid not null references trips(trip_id) on delete cascade,
-  user_id           uuid not null references users(user_id) on delete cascade,
-  type              action_type not null,
-  status            action_status not null default 'proposed',
-  approval_required boolean not null default true,
-  subject_item_id   uuid references plan_items(item_id),
-  proposed_payload  jsonb not null,                      -- what will be done, exactly
-  execution_result  jsonb,                               -- what the tool reported
-  verification      jsonb,                               -- what we re-read to confirm
-  idempotency_key   text unique,                         -- retry safety
-  proposed_at       timestamptz not null default now(),
-  approved_at       timestamptz,
-  executed_at       timestamptz,
-  check (status not in ('completed')
-         or (execution_result is not null))
+CREATE UNIQUE INDEX plan_item_options_selected_uq ON plan_item_options (item_id) WHERE state = 'selected'::option_state;
+
+-- Every external side effect the app performs, durable and auditable.
+-- Nothing books, cancels or writes a calendar directly: a caller proposes, a
+-- user approves, and the executor claims the row and carries it out. That is
+-- why `proposed_payload` is what *will* be done rather than what was -- the
+-- row is written before the effect exists, so a crash mid-execution leaves a
+-- claim to resume rather than an effect nobody recorded.
+CREATE TABLE pending_actions (
+    action_id UUID DEFAULT gen_random_uuid() NOT NULL,
+    trip_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    type action_type NOT NULL,
+    status action_status DEFAULT 'proposed'::action_status NOT NULL,
+    approval_required BOOLEAN DEFAULT true NOT NULL,
+    subject_item_id UUID,
+    proposed_payload JSONB NOT NULL,  -- what will be done, exactly
+    execution_result JSONB,  -- what the tool reported
+    verification JSONB,  -- what we re-read to confirm
+    idempotency_key TEXT,  -- retry safety
+    proposed_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    approved_at TIMESTAMP WITH TIME ZONE,
+    executed_at TIMESTAMP WITH TIME ZONE,
+    PRIMARY KEY (action_id),
+    CONSTRAINT pending_actions_check CHECK (status not in ('completed') or (execution_result is not null)),
+    FOREIGN KEY(trip_id) REFERENCES trips (trip_id) ON DELETE CASCADE,
+    FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE,
+    FOREIGN KEY(subject_item_id) REFERENCES plan_items (item_id),
+    UNIQUE (idempotency_key)
 );
-create index pending_actions_status_idx on pending_actions (status)
-  where status in ('proposed', 'approved', 'executing');
-create index pending_actions_trip_idx on pending_actions (trip_id);
+
+CREATE INDEX pending_actions_trip_idx ON pending_actions (trip_id);
+
+CREATE INDEX pending_actions_status_idx ON pending_actions (status) WHERE status in ('proposed', 'approved', 'executing');
 
 -- Reservation record - created by a completed make_reservation action, or in
 -- 'failed' with failure_reason when the provider declines the hold (the
 -- "Beatrix declined the 7:30 hold" flow). Never 'confirmed' until the
 -- provider's confirmation is verified.
-create table reservations (
-  reservation_id    uuid primary key default gen_random_uuid(),
-  trip_id           uuid not null references trips(trip_id) on delete cascade,
-  item_id           uuid references plan_items(item_id) on delete set null,
-  place_id          uuid references places(place_id),
-  provider          reservation_provider not null,
-  status            reservation_status not null default 'pending',
-  slot_at           timestamptz not null,
-  party_size        smallint not null default 1,
-  confirmation_code text,                                -- '#4F21B'
-  failure_reason    text,
-  external_url      text,                                -- OpenTable fallback link
-  created_at        timestamptz not null default now(),
-  updated_at        timestamptz not null default now(),
-  check (status <> 'confirmed' or confirmation_code is not null)
+CREATE TABLE reservations (
+    reservation_id UUID DEFAULT gen_random_uuid() NOT NULL,
+    trip_id UUID NOT NULL,
+    item_id UUID,
+    place_id UUID,
+    provider reservation_provider NOT NULL,
+    status reservation_status DEFAULT 'pending'::reservation_status NOT NULL,
+    slot_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    party_size SMALLINT DEFAULT 1 NOT NULL,
+    confirmation_code TEXT,  -- '#4F21B'
+    failure_reason TEXT,
+    external_url TEXT,  -- OpenTable fallback link
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    PRIMARY KEY (reservation_id),
+    CONSTRAINT reservations_check CHECK (status <> 'confirmed'::reservation_status or confirmation_code is not null),
+    FOREIGN KEY(trip_id) REFERENCES trips (trip_id) ON DELETE CASCADE,
+    FOREIGN KEY(item_id) REFERENCES plan_items (item_id) ON DELETE SET NULL,
+    FOREIGN KEY(place_id) REFERENCES places (place_id)
 );
-create index reservations_trip_idx on reservations (trip_id, status);
 
--- ---------------------------------------------------------------------------
--- Event spine: normalized triggers → agent runs → notifications
--- ---------------------------------------------------------------------------
-
--- Every inbound trigger lands here first (Pub/Sub consumer writes the row,
--- then the classifier sets disposition). This is the trace root:
--- event → run → plan/action → notification, all joinable by trip_id.
-create table agent_events (
-  event_id    uuid primary key default gen_random_uuid(),
-  user_id     uuid not null references users(user_id) on delete cascade,
-  trip_id     uuid references trips(trip_id) on delete cascade,
-  kind        event_kind not null,
-  payload     jsonb not null default '{}',               -- transcript, changed-event delta, …
-  disposition event_disposition not null default 'pending',
-  occurred_at timestamptz not null,
-  received_at timestamptz not null default now()
-);
-create index agent_events_trip_time_idx on agent_events (trip_id, occurred_at desc);
-create index agent_events_disposition_idx on agent_events (disposition)
-  where disposition = 'pending';
-
--- One agent workflow execution (the demo's "Building your Chicago plan").
--- context_snapshot is the exact TripContext handed to the model;
--- result is the structured output - both JSONB by design.
-create table agent_runs (
-  run_id           uuid primary key default gen_random_uuid(),
-  trip_id          uuid references trips(trip_id) on delete cascade,
-  trigger_event_id uuid references agent_events(event_id),
-  kind             run_kind not null,
-  status           run_status not null default 'running',
-  context_snapshot jsonb,
-  result           jsonb,
-  model            text,                                 -- model id used
-  error            text,
-  started_at       timestamptz not null default now(),
-  finished_at      timestamptz
-);
-create index agent_runs_trip_idx on agent_runs (trip_id, started_at desc);
-
-alter table plans
-  add constraint plans_run_fk
-  foreign key (generated_by_run_id) references agent_runs(run_id);
-
--- Outbound notifications ("Your schedule changed", "Plan ready").
-create table notifications (
-  notification_id uuid primary key default gen_random_uuid(),
-  user_id         uuid not null references users(user_id) on delete cascade,
-  trip_id         uuid references trips(trip_id) on delete cascade,
-  run_id          uuid references agent_runs(run_id),
-  kind            text not null,                         -- 'plan_ready','schedule_conflict',…
-  title           text not null,
-  body            text,
-  cta             jsonb,                                 -- {label, deep_link}
-  status          notification_status not null default 'pending',
-  created_at      timestamptz not null default now(),
-  sent_at         timestamptz,
-  opened_at       timestamptz
-);
-create index notifications_user_idx on notifications (user_id, status, created_at desc);
+CREATE INDEX reservations_trip_idx ON reservations (trip_id, status);

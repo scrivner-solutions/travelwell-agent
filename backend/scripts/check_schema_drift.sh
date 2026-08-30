@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Schema drift checks (ADR-001 point 5). Two gates, both load-bearing:
-#   1. docs/schema.sql and the Alembic migration chain must produce identical
+# Schema drift checks (ADR-005). Three gates, each load-bearing:
+#   1. docs/schema.sql is generated, so the committed copy must match what the
+#      models render right now.
+#   2. That file and the Alembic migration chain must produce identical
 #      schemas: both are applied to scratch databases and their pg_dump
-#      --schema-only outputs are diffed (pg_dump normalizes both sides).
-#   2. SQLAlchemy models must match the migrated database: `alembic check`
-#      asserts an empty autogenerate diff (limited to modeled tables by
-#      migrations/env.py).
+#      --schema-only outputs are diffed (pg_dump normalizes both sides). This
+#      is the gate that sees what autogenerate cannot.
+#   3. SQLAlchemy models must match the migrated database: `alembic check`
+#      asserts an empty autogenerate diff, unfiltered, over every table.
 #
 # Requires: psql/createdb/dropdb/pg_dump matching the server major version,
 # uv, and a reachable Postgres superuser via the standard PG* env vars.
@@ -22,6 +24,16 @@ BACKEND_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCHEMA_SQL="$BACKEND_DIR/../docs/schema.sql"
 REF_DB=twl_schema_ref
 MIG_DB=twl_schema_mig
+
+echo "Checking docs/schema.sql is current with the models"
+GENERATED="$(mktemp)"
+trap 'rm -f "$GENERATED"' EXIT
+(cd "$BACKEND_DIR" && uv run python scripts/dump_schema.py --stdout) > "$GENERATED"
+if ! diff -u "$SCHEMA_SQL" "$GENERATED"; then
+  echo "STALE: docs/schema.sql is not what the models render." >&2
+  echo "Run: cd backend && uv run python scripts/dump_schema.py" >&2
+  exit 1
+fi
 
 dropdb --if-exists "$REF_DB"
 dropdb --if-exists "$MIG_DB"
