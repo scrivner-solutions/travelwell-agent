@@ -68,7 +68,7 @@ _USER_MAINTAINED = frozenset({
 _PAST_TRIP_STATES = frozenset({TripState.completed, TripState.archived})
 
 
-def _reject_if_past(trip: Trip) -> None:
+def reject_if_past(trip: Trip) -> None:
     if trip.state in _PAST_TRIP_STATES:
         raise Problem(
             409,
@@ -185,7 +185,7 @@ async def accept_all_plan_items(
     booking is its own gate later, and the review summary is what tells the
     user a reservation is still coming. Accepting is not agreeing to book.
     """
-    _reject_if_past(await owned_trip(session, user, trip_id))
+    reject_if_past(await owned_trip(session, user, trip_id))
     plan = await current_plan(session, trip_id)
     if plan is None:
         raise Problem(
@@ -214,7 +214,7 @@ async def accept_plan_item(
 ) -> PlanItemOut:
     """Take a suggestion into the plan."""
     item, trip = await _owned_item(session, user, item_id)
-    _reject_if_past(trip)
+    reject_if_past(trip)
 
     if item.status == ItemStatus.planned:
         # Postcondition first: a lost response leaves the client holding a
@@ -246,7 +246,7 @@ async def select_plan_item_option(
     is not the same act as accepting the suggestion, and the review card lets
     someone swap and only then keep."""
     item, trip = await _owned_item(session, user, item_id)
-    _reject_if_past(trip)
+    reject_if_past(trip)
     option = next((o for o in item.options if o.option_id == body.option_id), None)
     if option is None:
         raise Problem(
@@ -299,7 +299,7 @@ async def skip_plan_item(
     """Decline an item. `remove` is the stronger form: skipped means not this
     time, removed is a tombstone the agent should not re-offer."""
     item, trip = await _owned_item(session, user, item_id)
-    _reject_if_past(trip)
+    reject_if_past(trip)
     target = ItemStatus.removed if body.remove else ItemStatus.skipped
 
     if item.status == target:

@@ -1503,7 +1503,7 @@ components:
 
     Reservation:
       type: object
-      required: [id, status, provider]
+      required: [id, status, provider, party_size]
       properties:
         id:
           type: string
@@ -1518,9 +1518,21 @@ components:
         reserved_for:
           type: string
           format: date-time
+        party_size:
+          type: integer
+          description: Not null in the database; the confirmation line reads "Party of 2 - Confirmation #4F21B".
+        failure_reason:
+          type: string
+          description: >-
+            Why the provider refused. Withheld while nothing could be done about
+            a refusal; retrying is now a second action against the same item, so
+            this is what the user acts on.
         external_url:
           type: string
           format: uri
+          description: >-
+            Where to book it directly. The whole answer for an external_link
+            reservation, and the honest fallback when a provider declines.
 
     EventCreate:
       type: object

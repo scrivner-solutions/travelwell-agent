@@ -80,6 +80,11 @@ export function timelineQueryOptions(tripId: string, day?: string) {
         }),
       ).entries
     },
+    // The day rows live here, so this is the query a booking is usually watched
+    // through. See pollWhileBooking.
+    refetchInterval: pollWhileBooking<TimelineEntry[]>((entries) =>
+      entries.map((entry) => entry.plan_item),
+    ),
   })
 }
 
@@ -87,6 +92,37 @@ export type Plan = components['schemas']['PlanOut']
 export type PlanItemOption = components['schemas']['PlanItemOptionOut']
 export type Provenance = components['schemas']['ProvenanceOut']
 export type ReservationStatus = components['schemas']['ReservationStatus']
+
+/**
+ * `working` means a booking is in flight, so anything showing that item follows
+ * it until it lands.
+ *
+ * The alternative was to let whichever component started the booking do the
+ * polling, and a sheet closed mid-booking is what exposed that: the executor
+ * finished, the row went on saying "Booking…", and the screen only caught up on
+ * the next navigation. The server already knows — the item sits at `working`
+ * from the moment the user approves until the provider answers — so the query
+ * asks while that is true and stops when it is not. Costs nothing when nothing
+ * is being booked, and it is right no matter which surface is open or which one
+ * started it.
+ *
+ * Both queries need it, and for the same reason: the trip screen's day rows
+ * come from the timeline, the review surfaces from the plan, and a booking can
+ * be watched from either.
+ */
+const BOOKING_POLL_MS = 1000
+
+function anyBookingInFlight(items: (PlanItem | null | undefined)[]): boolean {
+  return items.some((item) => item?.status === 'working')
+}
+
+function pollWhileBooking<T>(select: (data: T) => (PlanItem | null | undefined)[]) {
+  return (query: { state: { data?: unknown } }) => {
+    const data = query.state.data as T | undefined
+    if (data === undefined) return false as const
+    return anyBookingInFlight(select(data)) ? BOOKING_POLL_MS : (false as const)
+  }
+}
 
 export function planQueryOptions(tripId: string) {
   return queryOptions({
@@ -97,6 +133,7 @@ export function planQueryOptions(tripId: string) {
         await client.GET('/trips/{trip_id}/plan', { params: { path: { trip_id: tripId } } }),
       )
     },
+    refetchInterval: pollWhileBooking<Plan>((plan) => plan.items),
     // A trip the agent has not planned yet answers 404, which is an answer,
     // not a transient failure worth retrying.
     retry: false,
@@ -165,6 +202,72 @@ export async function skipPlanItem(
     await client.POST('/plan-items/{item_id}/skip', {
       params: { path: { item_id: itemId } },
       body: { updated_at: updatedAt, remove },
+    }),
+  )
+}
+
+// --- Actions (booking, cancelling) ---------------------------------------
+
+export type PendingAction = components['schemas']['PendingActionOut']
+export type ActionType = components['schemas']['ActionType']
+export type ActionStatus = components['schemas']['ActionStatus']
+export type Reservation = components['schemas']['ReservationOut']
+
+/** Nothing more will happen to an action in one of these. */
+const TERMINAL_ACTIONS = new Set<ActionStatus>(['completed', 'failed', 'canceled'])
+
+export function isActionSettled(action: PendingAction | undefined): boolean {
+  return action !== undefined && TERMINAL_ACTIONS.has(action.status)
+}
+
+/**
+ * One action, polled while it is still moving.
+ *
+ * The contract also serves `GET /actions/{id}/events` as SSE, and this is the
+ * polling fallback it names. Polling is what the screen uses today because it
+ * survives the nginx proxy and a reconnect without any code of its own; the
+ * stream is the upgrade when the cost of asking every second is real.
+ */
+export function actionQueryOptions(actionId: string | undefined) {
+  return queryOptions({
+    queryKey: ['actions', actionId],
+    queryFn: async () => {
+      const client = await api()
+      return throwOnError<PendingAction>(
+        await client.GET('/actions/{action_id}', {
+          params: { path: { action_id: actionId as string } },
+        }),
+      )
+    },
+    enabled: actionId !== undefined,
+    // Stop asking once it has settled: the answer cannot change again.
+    refetchInterval: (query) =>
+      isActionSettled(query.state.data as PendingAction | undefined) ? false : 1000,
+  })
+}
+
+export async function createAction(
+  body: components['schemas']['ActionCreateIn'],
+  idempotencyKey: string,
+): Promise<PendingAction> {
+  const client = await api()
+  return throwOnError<PendingAction>(
+    await client.POST('/actions', {
+      body,
+      params: { header: { 'Idempotency-Key': idempotencyKey } },
+    }),
+  )
+}
+
+export async function approveAction(
+  actionId: string,
+  updatedAt: string,
+): Promise<PendingAction> {
+  const client = await api()
+  return throwOnError<PendingAction>(
+    await client.POST('/actions/{action_id}/approve', {
+      params: { path: { action_id: actionId } },
+      body: { updated_at: updatedAt },
     }),
   )
 }

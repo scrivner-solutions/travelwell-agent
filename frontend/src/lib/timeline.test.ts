@@ -28,6 +28,42 @@ function item(over: Partial<PlanItem> = {}): PlanItem {
   }
 }
 
+describe('reservationNote for a booking nobody is making', () => {
+  // `pending` means "waiting to book" for every other provider. Saying that
+  // here would claim work is under way, when the truth is that this place has
+  // no booking surface we can reach and the user has to finish it themselves.
+  it('names the hand-off rather than implying progress', () => {
+    const note = reservationNote(
+      item({
+        needs_reservation: true,
+        reservation: {
+          id: 'r1',
+          status: 'pending',
+          provider: 'external_link',
+          party_size: 2,
+          external_url: 'https://example.test/book',
+        },
+      }),
+    )
+    expect(note?.label).toBe('Book it yourself')
+  })
+
+  it('still says waiting to book when we are the ones booking', () => {
+    const note = reservationNote(
+      item({
+        needs_reservation: true,
+        reservation: {
+          id: 'r1',
+          status: 'pending',
+          provider: 'travelwell',
+          party_size: 2,
+        },
+      }),
+    )
+    expect(note?.label).toBe('Waiting to book')
+  })
+})
+
 describe('itemBadge', () => {
   it('says nothing at any gate the user can still answer', () => {
     for (const status of ['suggested', 'awaiting_user', 'planned'] as const) {
@@ -89,7 +125,12 @@ describe('itemBadge', () => {
       itemBadge(
         item({
           status: 'planned',
-          reservation: { id: 'r', status: 'failed', provider: 'opentable' },
+          reservation: {
+            id: 'r',
+            status: 'failed',
+            provider: 'opentable',
+            party_size: 2,
+          },
         }),
       )?.label,
     ).toBe("Couldn't book")

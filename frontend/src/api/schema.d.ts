@@ -4,6 +4,94 @@
  */
 
 export interface paths {
+    "/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Action
+         * @description Propose an action. Nothing happens until it is approved.
+         */
+        post: operations["create_action_api_v1_actions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/actions/{action_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Action
+         * @description Polling fallback for the stream, and what the sheet reads on open.
+         */
+        get: operations["get_action_api_v1_actions__action_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/actions/{action_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Action
+         * @description Say yes. The executor picks it up from here; this returns immediately.
+         *
+         *     It does not wait for the booking, because the booking takes as long as the
+         *     provider takes. The stream is how the screen follows it.
+         */
+        post: operations["approve_action_api_v1_actions__action_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/actions/{action_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream Action Events
+         * @description Server-sent events for one action, until it settles.
+         *
+         *     Polls the row rather than listening, per AGENT_DESIGN.md section 14: the
+         *     upgrade to LISTEN/NOTIFY is worth making when the polling cost is real
+         *     rather than imagined. Ownership is checked once, here, before the stream
+         *     opens - a generator that raised would already have sent 200.
+         */
+        get: operations["stream_action_events_api_v1_actions__action_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/demo": {
         parameters: {
             query?: never;
@@ -411,6 +499,63 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * ActionCreateIn
+         * @description Propose an action. What it will do is assembled server-side.
+         *
+         *     The client names the act and the item, not the place: letting a request
+         *     carry its own place and time would make the endpoint a way to book
+         *     anything at all, rather than a way to book the plan the user is looking at.
+         *     `payload` is the small set of choices that are genuinely the user's.
+         */
+        ActionCreateIn: {
+            action_type: components["schemas"]["ActionType"];
+            /** Payload */
+            payload?: {
+                [key: string]: unknown;
+            };
+            /** Plan Item Id */
+            plan_item_id?: string | null;
+            /**
+             * Trip Id
+             * Format: uuid
+             */
+            trip_id: string;
+        };
+        /**
+         * ActionFailureOut
+         * @description Why an action did not complete, in terms the user can act on.
+         *
+         *     `alternatives` is in the contract and not here: suggesting other places
+         *     needs the places cache, which is Slice 6. Serving an empty list would say
+         *     "we looked and found nothing", which is not what happened.
+         */
+        ActionFailureOut: {
+            /** Code */
+            code: string;
+            /** External Url */
+            external_url?: string | null;
+            /** Message */
+            message: string;
+        };
+        /**
+         * ActionStatus
+         * @enum {string}
+         */
+        ActionStatus: "proposed" | "approved" | "executing" | "completed" | "failed" | "canceled";
+        /**
+         * ActionType
+         * @enum {string}
+         */
+        ActionType: "make_reservation" | "cancel_reservation" | "create_calendar_event" | "update_calendar_event" | "delete_calendar_event" | "send_invite";
+        /** ApproveIn */
+        ApproveIn: {
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
          * AuthProvider
          * @enum {string}
          */
@@ -496,6 +641,34 @@ export interface components {
          * @enum {string}
          */
         OptionState: "selected" | "alternative" | "rejected";
+        /** PendingActionOut */
+        PendingActionOut: {
+            action_type: components["schemas"]["ActionType"];
+            failure?: components["schemas"]["ActionFailureOut"] | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Plan Item Id */
+            plan_item_id?: string | null;
+            reservation?: components["schemas"]["ReservationOut"] | null;
+            status: components["schemas"]["ActionStatus"];
+            /** Summary */
+            summary?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Trip Id
+             * Format: uuid
+             */
+            trip_id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /** PlanItemOptionOut */
         PlanItemOptionOut: {
             /** Display Name */
@@ -705,22 +878,27 @@ export interface components {
         };
         /**
          * ReservationOut
-         * @description A booking the agent attempted for an item.
+         * @description A booking attempted for an item.
          *
-         *     `failure_reason` is stored but deliberately not carried: the contract does
-         *     not have it, so a client can say a booking was refused and not why. Adding
-         *     it is D17's call, with the retry it implies.
+         *     `failure_reason` was withheld while nothing could be done about a refusal.
+         *     Retrying is now a second action against the same item, so the reason is
+         *     what the user acts on, and a booking that says only "refused" makes the
+         *     retry a guess.
          */
         ReservationOut: {
             /** Confirmation Code */
             confirmation_code?: string | null;
             /** External Url */
             external_url?: string | null;
+            /** Failure Reason */
+            failure_reason?: string | null;
             /**
              * Id
              * Format: uuid
              */
             id: string;
+            /** Party Size */
+            party_size: number;
             provider: components["schemas"]["ReservationProvider"];
             /** Reserved For */
             reserved_for?: string | null;
@@ -985,6 +1163,138 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    create_action_api_v1_actions_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActionCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingActionOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    get_action_api_v1_actions__action_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingActionOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    approve_action_api_v1_actions__action_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApproveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingActionOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    stream_action_events_api_v1_actions__action_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
     demo_login_api_v1_auth_demo_post: {
         parameters: {
             query?: never;

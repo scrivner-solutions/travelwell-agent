@@ -14,11 +14,14 @@ from zoneinfo import available_timezones
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 from app.db.models import (
+    ActionStatus,
+    ActionType,
     AuthProvider,
     ConnectedSource,
     ItemKind,
     ItemStatus,
     OptionState,
+    PendingAction,
     Plan,
     PlanItem,
     PlanItemOption,
@@ -198,11 +201,12 @@ class PlanItemOptionOut(BaseModel):
 
 
 class ReservationOut(BaseModel):
-    """A booking the agent attempted for an item.
+    """A booking attempted for an item.
 
-    `failure_reason` is stored but deliberately not carried: the contract does
-    not have it, so a client can say a booking was refused and not why. Adding
-    it is D17's call, with the retry it implies.
+    `failure_reason` was withheld while nothing could be done about a refusal.
+    Retrying is now a second action against the same item, so the reason is
+    what the user acts on, and a booking that says only "refused" makes the
+    retry a guess.
     """
 
     id: uuid.UUID
@@ -211,6 +215,12 @@ class ReservationOut(BaseModel):
     # Present iff status = confirmed; the database enforces it (reservations_check).
     confirmation_code: str | None = None
     reserved_for: datetime | None = None
+    # Not null in the database, so no default: the confirmation line reads
+    # "Party of 2 - Confirmation #4F21B" and only ever had half its facts.
+    party_size: int
+    failure_reason: str | None = None
+    # Where to book it yourself: the whole answer for a place we cannot book,
+    # and the honest fallback when a provider declines.
     external_url: str | None = None
 
 
@@ -400,23 +410,39 @@ def reservation_to_out(reservation: Reservation) -> ReservationOut:
         provider=reservation.provider,
         confirmation_code=reservation.confirmation_code,
         reserved_for=reservation.slot_at,
+        party_size=reservation.party_size,
+        failure_reason=reservation.failure_reason,
         external_url=reservation.external_url,
     )
 
 
-def plan_item_to_out(item: PlanItem) -> PlanItemOut:
-    # The rendered title is the selected option's name; a freshly skipped or
-    # still-deciding item falls back to its best-ranked candidate so the
-    # timeline never shows a blank card. options is ordered by rank.
+def item_face(item: PlanItem) -> PlanItemOption | None:
+    """The option an item is shown as: the selected one, else its best-ranked
+    candidate so a still-deciding item never renders blank. options is ordered
+    by rank."""
     selected = next(
         (o for o in item.options if o.state == OptionState.selected), None
     )
-    face = selected or next(iter(item.options), None)
+    return selected or next(iter(item.options), None)
+
+
+def item_title(item: PlanItem) -> str:
+    """What this item is called. Derived, because plan_items has no title
+    column: the name belongs to the option, and the option can be swapped."""
+    face = item_face(item)
+    return face.display_name if face else item.kind.value.capitalize()
+
+
+def plan_item_to_out(item: PlanItem) -> PlanItemOut:
+    selected = next(
+        (o for o in item.options if o.state == OptionState.selected), None
+    )
+    face = item_face(item)
     return PlanItemOut(
         id=item.item_id,
         kind=item.kind,
         status=item.status,
-        title=face.display_name if face else item.kind.value.capitalize(),
+        title=item_title(item),
         starts_at=item.scheduled_start,
         ends_at=item.scheduled_end,
         window_id=item.window_id,
@@ -512,4 +538,83 @@ def trip_to_out(trip: Trip, progress: TripProgress) -> TripOut:
         needs_you_count=progress.needs_you_count,
         needs_you_kind=progress.needs_you_kind,
         updated_at=trip.updated_at,
+    )
+
+
+# --- Actions (pending_actions) -------------------------------------------
+
+
+class ActionCreateIn(BaseModel):
+    """Propose an action. What it will do is assembled server-side.
+
+    The client names the act and the item, not the place: letting a request
+    carry its own place and time would make the endpoint a way to book
+    anything at all, rather than a way to book the plan the user is looking at.
+    `payload` is the small set of choices that are genuinely the user's.
+    """
+
+    action_type: ActionType
+    trip_id: uuid.UUID
+    plan_item_id: uuid.UUID | None = None
+    payload: dict = Field(default_factory=dict)
+
+
+class ActionFailureOut(BaseModel):
+    """Why an action did not complete, in terms the user can act on.
+
+    `alternatives` is in the contract and not here: suggesting other places
+    needs the places cache, which is Slice 6. Serving an empty list would say
+    "we looked and found nothing", which is not what happened.
+    """
+
+    code: str
+    message: str
+    # "Book directly" - the honest offer when we could not book it for them.
+    external_url: str | None = None
+
+
+class PendingActionOut(BaseModel):
+    id: uuid.UUID
+    action_type: ActionType
+    status: ActionStatus
+    trip_id: uuid.UUID
+    plan_item_id: uuid.UUID | None = None
+    # What / when / where for the confirm sheet, assembled here so the sheet
+    # shows what will actually be sent rather than re-deriving it and drifting.
+    summary: dict | None = None
+    failure: ActionFailureOut | None = None
+    # The booking this action produced, once there is one to show.
+    reservation: ReservationOut | None = None
+    updated_at: datetime
+
+
+def action_updated_at(action: PendingAction) -> datetime:
+    """The row has no updated_at column; its three timestamps are the history.
+
+    The newest of them is the value the approve token is checked against, so
+    it has to move whenever the row does - which it does, because every state
+    change here writes one of the three.
+    """
+    return max(
+        t
+        for t in (action.proposed_at, action.approved_at, action.executed_at)
+        if t is not None
+    )
+
+
+def pending_action_to_out(
+    action: PendingAction, reservation: Reservation | None = None
+) -> PendingActionOut:
+    result = action.execution_result or {}
+    failure = result.get("failure")
+    return PendingActionOut(
+        id=action.action_id,
+        action_type=action.action_type,
+        status=action.status,
+        trip_id=action.trip_id,
+        plan_item_id=action.subject_item_id,
+        summary=(action.proposed_payload or {}).get("summary"),
+        failure=ActionFailureOut(**failure) if failure else None,
+        reservation=reservation_to_out(reservation) if reservation else None,
+        updated_at=action_updated_at(action),
     )

@@ -185,6 +185,7 @@ describe('retrospectiveStats', () => {
             status: 'confirmed',
             provider: 'travelwell',
             confirmation_code: 'ABC',
+            party_size: 2,
           },
         }),
       ]),
@@ -203,7 +204,12 @@ describe('retrospectiveStats', () => {
           id: 'b',
           status: 'planned',
           needs_reservation: true,
-          reservation: { id: 'r1', status: 'failed', provider: 'opentable' },
+          reservation: {
+            id: 'r1',
+            status: 'failed',
+            provider: 'opentable',
+            party_size: 2,
+          },
         }),
       ]),
     )

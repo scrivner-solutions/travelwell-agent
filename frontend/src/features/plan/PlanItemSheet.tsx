@@ -3,8 +3,10 @@ import type { PlanItem } from '@/api/queries'
 import { Sheet } from '@/components/ui/Sheet'
 import { formatTripDay, formatTripTime, formatTripTimeRange } from '@/lib/time'
 import { reservationNote } from '@/lib/timeline'
+import { BookingFlow } from './BookingFlow'
 import { GateError } from './GateError'
 import { OptionRow } from './OptionRow'
+import { canBook, useBooking } from './useBooking'
 import { isEditable, usePlanItem } from './usePlanItem'
 
 /**
@@ -35,6 +37,7 @@ function SheetBody({
   onClose: () => void
 }) {
   const gate = usePlanItem(tripId, item, onClose)
+  const booking = useBooking(tripId, item)
   const options = item.options ?? []
   const open = isEditable(item, tripIsPast)
   const selected = options.find((o) => o.state === 'selected')
@@ -60,7 +63,11 @@ function SheetBody({
           {selected?.reason ?? 'Why this'}
           <Info className="size-3.5 flex-none text-agent-bright" aria-hidden />
         </button>
-        {note !== null && (
+        {/* Hidden while a booking is in flight and the item has not caught up.
+            The chip is read from the plan, so until that refetches it would
+            still say "Needs a reservation" beside a confirmation code. The
+            flow below is telling the same story, and more precisely. */}
+        {note !== null && !(booking.action != null && item.reservation == null) && (
           <span
             className={`rounded-tile px-2.5 py-1.5 text-label font-medium ${note.className}`}
           >
@@ -69,13 +76,21 @@ function SheetBody({
         )}
       </div>
 
-      {/* All the app can say about a refused booking: the contract carries the
-          status but not the provider's reason, and retrying is the reservation
-          flow's job, which is not built. Saying less would hide it entirely. */}
-      {item.reservation?.status === 'failed' && (
-        <p className="mt-3.5 text-body-sm font-semibold text-state-attention">
-          This booking was refused and was not made.
+      {/* A refusal the flow is not already reporting. Once a retry is in
+          progress the flow owns this line, and saying it twice would read as
+          two different bookings having failed. */}
+      {item.reservation?.status === 'failed' && booking.action == null && (
+        <p className="mt-3.5 text-body-sm font-semibold text-state-attention text-pretty">
+          {item.reservation.failure_reason ??
+            'This booking was refused and was not made.'}
         </p>
+      )}
+
+      {/* The one act on this sheet that reaches outside the app. It sits above
+          the option list on purpose: booking the place you chose is the next
+          thing to do, and changing your mind about the place is not. */}
+      {canBook(item, tripIsPast) && (
+        <BookingFlow booking={booking} item={item} timezone={timezone} />
       )}
 
       {open && options.length > 1 && (

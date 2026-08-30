@@ -1,6 +1,110 @@
 {
   "components": {
     "schemas": {
+      "ActionCreateIn": {
+        "description": "Propose an action. What it will do is assembled server-side.\n\nThe client names the act and the item, not the place: letting a request\ncarry its own place and time would make the endpoint a way to book\nanything at all, rather than a way to book the plan the user is looking at.\n`payload` is the small set of choices that are genuinely the user's.",
+        "properties": {
+          "action_type": {
+            "$ref": "#/components/schemas/ActionType"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "plan_item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Item Id"
+          },
+          "trip_id": {
+            "format": "uuid",
+            "title": "Trip Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_type",
+          "trip_id"
+        ],
+        "title": "ActionCreateIn",
+        "type": "object"
+      },
+      "ActionFailureOut": {
+        "description": "Why an action did not complete, in terms the user can act on.\n\n`alternatives` is in the contract and not here: suggesting other places\nneeds the places cache, which is Slice 6. Serving an empty list would say\n\"we looked and found nothing\", which is not what happened.",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "external_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Url"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ActionFailureOut",
+        "type": "object"
+      },
+      "ActionStatus": {
+        "enum": [
+          "proposed",
+          "approved",
+          "executing",
+          "completed",
+          "failed",
+          "canceled"
+        ],
+        "title": "ActionStatus",
+        "type": "string"
+      },
+      "ActionType": {
+        "enum": [
+          "make_reservation",
+          "cancel_reservation",
+          "create_calendar_event",
+          "update_calendar_event",
+          "delete_calendar_event",
+          "send_invite"
+        ],
+        "title": "ActionType",
+        "type": "string"
+      },
+      "ApproveIn": {
+        "properties": {
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "updated_at"
+        ],
+        "title": "ApproveIn",
+        "type": "object"
+      },
       "AuthProvider": {
         "enum": [
           "google",
@@ -185,6 +289,84 @@
         ],
         "title": "OptionState",
         "type": "string"
+      },
+      "PendingActionOut": {
+        "properties": {
+          "action_type": {
+            "$ref": "#/components/schemas/ActionType"
+          },
+          "failure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActionFailureOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "plan_item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Item Id"
+          },
+          "reservation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReservationOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/ActionStatus"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "trip_id": {
+            "format": "uuid",
+            "title": "Trip Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "action_type",
+          "status",
+          "trip_id",
+          "updated_at"
+        ],
+        "title": "PendingActionOut",
+        "type": "object"
       },
       "PlanItemOptionOut": {
         "properties": {
@@ -763,7 +945,7 @@
         "type": "object"
       },
       "ReservationOut": {
-        "description": "A booking the agent attempted for an item.\n\n`failure_reason` is stored but deliberately not carried: the contract does\nnot have it, so a client can say a booking was refused and not why. Adding\nit is D17's call, with the retry it implies.",
+        "description": "A booking attempted for an item.\n\n`failure_reason` was withheld while nothing could be done about a refusal.\nRetrying is now a second action against the same item, so the reason is\nwhat the user acts on, and a booking that says only \"refused\" makes the\nretry a guess.",
         "properties": {
           "confirmation_code": {
             "anyOf": [
@@ -787,10 +969,25 @@
             ],
             "title": "External Url"
           },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "party_size": {
+            "title": "Party Size",
+            "type": "integer"
           },
           "provider": {
             "$ref": "#/components/schemas/ReservationProvider"
@@ -814,7 +1011,8 @@
         "required": [
           "id",
           "status",
-          "provider"
+          "provider",
+          "party_size"
         ],
         "title": "ReservationOut",
         "type": "object"
@@ -1462,6 +1660,200 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/actions": {
+      "post": {
+        "description": "Propose an action. Nothing happens until it is approved.",
+        "operationId": "create_action_api_v1_actions_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActionCreateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingActionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Problem details (RFC 9457)"
+          }
+        },
+        "summary": "Create Action",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
+    "/actions/{action_id}": {
+      "get": {
+        "description": "Polling fallback for the stream, and what the sheet reads on open.",
+        "operationId": "get_action_api_v1_actions__action_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingActionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Problem details (RFC 9457)"
+          }
+        },
+        "summary": "Get Action",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
+    "/actions/{action_id}/approve": {
+      "post": {
+        "description": "Say yes. The executor picks it up from here; this returns immediately.\n\nIt does not wait for the booking, because the booking takes as long as the\nprovider takes. The stream is how the screen follows it.",
+        "operationId": "approve_action_api_v1_actions__action_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingActionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Problem details (RFC 9457)"
+          }
+        },
+        "summary": "Approve Action",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
+    "/actions/{action_id}/events": {
+      "get": {
+        "description": "Server-sent events for one action, until it settles.\n\nPolls the row rather than listening, per AGENT_DESIGN.md section 14: the\nupgrade to LISTEN/NOTIFY is worth making when the polling cost is real\nrather than imagined. Ownership is checked once, here, before the stream\nopens - a generator that raised would already have sent 200.",
+        "operationId": "stream_action_events_api_v1_actions__action_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Problem details (RFC 9457)"
+          }
+        },
+        "summary": "Stream Action Events",
+        "tags": [
+          "actions"
+        ]
+      }
+    },
     "/auth/demo": {
       "post": {
         "description": "Mint a fresh demo account pre-populated with the demo trips.\n\nPer-tap accounts keep testers isolated (mutations are real and would\ncollide on a shared account) and build the dates fresh, so the demo never\ngoes stale. The optional name is just a label, not a credential: the\naccount lives only in this browser's session cookie.\n\nThe email is the one thing this route owns; everything else about the\naccount is content, and lives in app/services/demo_user/data.py.",

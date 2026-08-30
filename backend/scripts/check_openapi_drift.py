@@ -74,10 +74,6 @@ HTTP_METHODS = ("get", "put", "post", "delete", "patch", "options", "head", "tra
 # Declared in the spec, no route yet. Each entry names why, so landing the slice
 # forces this list to shrink rather than letting the gap go quiet.
 UNIMPLEMENTED: dict[tuple[str, str], str] = {
-    ("/actions", "post"): "Slice 4: the pending_actions executor",
-    ("/actions/{}", "get"): "Slice 4: the pending_actions executor",
-    ("/actions/{}/approve", "post"): "Slice 4: the pending_actions executor",
-    ("/actions/{}/events", "get"): "Slice 4: the pending_actions executor",
     ("/runs/{}", "get"): "Slice 2: agent runs",
     ("/runs/{}/events", "get"): "Slice 2: agent runs",
     ("/events", "post"): "Slice 5: calendar/event ingestion",
@@ -96,6 +92,10 @@ UNIMPLEMENTED: dict[tuple[str, str], str] = {
 
 # Divergence inside a shared operation that is a decision, not a defect.
 ACCEPTED: dict[tuple[str, str], str] = {
+    ("MISSING", "ActionFailure.alternatives"): (
+        "other places to try needs the places cache, which is Slice 6. Serving "
+        "an empty list would claim we looked and found nothing"
+    ),
     ("MISSING", "PlanItemOption.place"): (
         "forward declaration, and the spec says so: 'Populated once the places "
         "cache slice lands; display_* fields are authoritative until then.' "

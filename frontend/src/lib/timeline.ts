@@ -154,6 +154,12 @@ export function reservationNote(item: PlanItem): ReservationNote | null {
       ? { label: 'Needs a reservation', className: NEUTRAL_CHIP }
       : null
   }
+  // A booking nobody is making. `pending` means "waiting to book" everywhere
+  // else, and saying that here would claim work is under way when the honest
+  // answer is that the place has no booking surface we can reach.
+  if (res.provider === 'external_link' && res.status === 'pending') {
+    return { label: 'Book it yourself', className: NEUTRAL_CHIP }
+  }
   const note = noteByStatus[res.status]
   if (note === null) return null
   // The code is the whole point of a confirmation, and the database guarantees
