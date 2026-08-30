@@ -57,6 +57,14 @@ export default defineConfig(({ mode }) => ({
         target: loadEnv(mode, '.', '').API_PROXY_TARGET ?? 'http://localhost:8000',
         // Cloud Run's front end routes by Host header; localhost:5173 404s.
         changeOrigin: true,
+        // A private Cloud Run target needs an identity token the browser cannot
+        // send. Tokens expire hourly, so pass one per run rather than storing it:
+        //   API_PROXY_AUTH_TOKEN=$(gcloud auth print-identity-token) npm run dev
+        headers: loadEnv(mode, '.', '').API_PROXY_AUTH_TOKEN
+          ? {
+              Authorization: `Bearer ${loadEnv(mode, '.', '').API_PROXY_AUTH_TOKEN}`,
+            }
+          : undefined,
       },
     },
   },
