@@ -2,6 +2,7 @@ import { Info } from 'lucide-react'
 import type { PlanItem } from '@/api/queries'
 import { Sheet } from '@/components/ui/Sheet'
 import { formatTripDay, formatTripTime, formatTripTimeRange } from '@/lib/time'
+import { reservationNote } from '@/lib/timeline'
 import { GateError } from './GateError'
 import { OptionRow } from './OptionRow'
 import { isEditable, usePlanItem } from './usePlanItem'
@@ -37,6 +38,7 @@ function SheetBody({
   const options = item.options ?? []
   const open = isEditable(item, tripIsPast)
   const selected = options.find((o) => o.state === 'selected')
+  const note = reservationNote(item)
 
   return (
     <>
@@ -58,9 +60,11 @@ function SheetBody({
           {selected?.reason ?? 'Why this'}
           <Info className="size-3.5 flex-none text-agent-bright" aria-hidden />
         </button>
-        {item.needs_reservation && (
-          <span className="rounded-tile bg-state-neutral-soft px-2.5 py-1.5 text-label font-medium text-muted">
-            Needs a reservation
+        {note !== null && (
+          <span
+            className={`rounded-tile px-2.5 py-1.5 text-label font-medium ${note.className}`}
+          >
+            {note.label}
           </span>
         )}
       </div>

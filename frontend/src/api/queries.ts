@@ -83,6 +83,7 @@ export function timelineQueryOptions(tripId: string, day?: string) {
 export type Plan = components['schemas']['Plan']
 export type PlanItemOption = components['schemas']['PlanItemOption']
 export type Provenance = components['schemas']['Provenance']
+export type ReservationStatus = components['schemas']['ReservationStatus']
 
 export function planQueryOptions(tripId: string) {
   return queryOptions({

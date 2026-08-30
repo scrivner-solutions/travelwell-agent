@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ItemStatus, PlanItem } from '@/api/queries'
-import { commitmentChrome, itemBadge, rowChromeFor } from './timeline'
+import { commitmentChrome, itemBadge, reservationNote, rowChromeFor } from './timeline'
 
 const ALL_STATUSES: ItemStatus[] = [
   'suggested',
@@ -93,6 +93,53 @@ describe('itemBadge', () => {
     ).toBe("Couldn't book")
   })
 
+})
+
+describe('reservationNote', () => {
+  const res = (over: Partial<NonNullable<PlanItem['reservation']>>) =>
+    ({ id: 'r1', provider: 'opentable', status: 'pending', ...over }) as PlanItem['reservation']
+
+  it('asks for a table only while there is no reservation', () => {
+    expect(reservationNote(item({ needs_reservation: true }))?.label).toBe(
+      'Needs a reservation',
+    )
+    expect(reservationNote(item({ needs_reservation: false }))).toBeNull()
+  })
+
+  it('stops asking for a table the item already holds', () => {
+    // F10: the sheet read "Needs a reservation" over a row badged Booked.
+    const note = reservationNote(
+      item({
+        status: 'confirmed',
+        needs_reservation: true,
+        reservation: res({ status: 'confirmed', confirmation_code: '#9K7C2' }),
+      }),
+    )
+    expect(note?.label).toBe('Booked · confirmation #9K7C2')
+  })
+
+  it('still says Booked when the confirmation code is missing', () => {
+    expect(
+      reservationNote(
+        item({ needs_reservation: true, reservation: res({ status: 'confirmed' }) }),
+      )?.label,
+    ).toBe('Booked')
+  })
+
+  it('leaves a refusal to the sentence the sheet writes for it', () => {
+    expect(
+      reservationNote(
+        item({ needs_reservation: true, reservation: res({ status: 'failed' }) }),
+      ),
+    ).toBeNull()
+  })
+
+  it('names every other reservation state rather than falling silent', () => {
+    const labels = (['pending', 'holding', 'canceled'] as const).map(
+      (status) => reservationNote(item({ reservation: res({ status }) }))?.label,
+    )
+    expect(labels).toEqual(['Waiting to book', 'Holding a table', 'Reservation canceled'])
+  })
 })
 
 describe('rowChromeFor', () => {

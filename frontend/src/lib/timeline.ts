@@ -1,4 +1,4 @@
-import type { ItemStatus, PlanItem } from '@/api/queries'
+import type { ItemStatus, PlanItem, ReservationStatus } from '@/api/queries'
 
 /**
  * One grammar for everything that sits on a day.
@@ -111,6 +111,53 @@ const badgeByStatus: Record<ItemStatus, ItemBadge | null> = {
   // retrospective, where "what happened" is the question and it is an answer.
   skipped: { label: 'Skipped', className: 'text-state-neutral' },
   removed: { label: 'Removed', className: 'text-state-neutral' },
+}
+
+/** Chip classes: a state colour and its paired soft ground. */
+export type ReservationNote = { label: string; className: string }
+
+const NEUTRAL_CHIP = 'bg-state-neutral-soft text-muted'
+
+/**
+ * What the sheet says about this item's booking.
+ *
+ * Lives here beside `itemBadge` on purpose: both answer "what has happened to
+ * this reservation", and while they were apart a row could badge `Booked` over
+ * a sheet still asking for a table.
+ */
+const noteByStatus: Record<ReservationStatus, ReservationNote | null> = {
+  pending: { label: 'Waiting to book', className: NEUTRAL_CHIP },
+  holding: {
+    label: 'Holding a table',
+    className: 'bg-state-working-soft text-state-working',
+  },
+  confirmed: {
+    label: 'Booked',
+    className: 'bg-state-confirmed-soft text-state-confirmed',
+  },
+  // The one state the user may have to act on, so the sheet gives it a full
+  // sentence rather than a chip. Chipping it too would say it twice.
+  failed: null,
+  canceled: { label: 'Reservation canceled', className: NEUTRAL_CHIP },
+}
+
+export function reservationNote(item: PlanItem): ReservationNote | null {
+  const res = item.reservation
+  // `needs_reservation` is the intent, the reservation is the fact. Once one
+  // exists it answers for the item - otherwise the sheet keeps asking for a
+  // table it already holds, which is what it did for every booked window.
+  if (res === undefined) {
+    return item.needs_reservation
+      ? { label: 'Needs a reservation', className: NEUTRAL_CHIP }
+      : null
+  }
+  const note = noteByStatus[res.status]
+  if (note === null) return null
+  // The code is the whole point of a confirmation, and the database guarantees
+  // it is there iff confirmed - but the contract types it optional, so ask.
+  return res.status === 'confirmed' && res.confirmation_code !== undefined
+    ? { ...note, label: `Booked · confirmation ${res.confirmation_code}` }
+    : note
 }
 
 export function itemBadge(item: PlanItem): ItemBadge | null {
