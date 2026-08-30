@@ -22,6 +22,7 @@ from app.db.models import (
     ItemStatus,
     OptionState,
     PendingAction,
+    PlaceKind,
     Plan,
     PlanItem,
     PlanItemOption,
@@ -39,6 +40,7 @@ from app.db.models import (
     WellnessWindow,
     WindowStatus,
 )
+from app.services.places.matching import RankedPlace
 
 
 class EmailCodeRequest(BaseModel):
@@ -618,3 +620,95 @@ def pending_action_to_out(
         reservation=reservation_to_out(reservation) if reservation else None,
         updated_at=action_updated_at(action),
     )
+
+
+class ExplorePlaceOut(BaseModel):
+    """One card and one pin: the list and the map read the same row.
+
+    The first four derived fields are computed per request against this user's
+    preferences and this trip's anchor, so two users looking at the same cached
+    place see different reasons for it.
+    """
+
+    id: uuid.UUID
+    kind: PlaceKind
+    name: str
+    summary: str | None = None
+    address: str | None = None
+    # Null together. A cached place without a point still earns a card; it just
+    # cannot be pinned, and the map must not invent a location for it.
+    lat: float | None = None
+    lng: float | None = None
+    price_level: int | None = None
+    day_pass_cents: int | None = None
+    amenities: list[str]
+    photo_url: str | None = None
+    reservable_via: ReservationProvider | None = None
+    matched_preferences: list[str]
+    # Why this sits outside what the user said, rather than dropping it. A
+    # candidate that vanishes silently cannot be argued with.
+    over_budget_reason: str | None = None
+    # Measured; the minutes are a walking-pace estimate over a straight line.
+    distance_meters: int | None = None
+    walk_minutes: int | None = None
+
+
+class ExploreAnchorOut(BaseModel):
+    """Where the map opens and what distances are measured from."""
+
+    name: str
+    # The hotel when the trip has one, else the destination centre.
+    is_hotel: bool
+    lat: float | None = None
+    lng: float | None = None
+
+
+class ExploreKindOut(BaseModel):
+    """A category chip. The count is over the whole radius, not the filter, so
+    switching chips never changes the other chips' numbers."""
+
+    kind: PlaceKind
+    count: int
+
+
+class ExploreOut(BaseModel):
+    trip_id: uuid.UUID
+    # Absent when the trip has neither hotel nor destination coordinates: the
+    # cards still rank, and every distance is null.
+    anchor: ExploreAnchorOut | None = None
+    radius_m: int
+    kinds: list[ExploreKindOut]
+    places: list[ExplorePlaceOut]
+
+
+def explore_place_to_out(ranked: RankedPlace) -> ExplorePlaceOut:
+    place = ranked.place
+    return ExplorePlaceOut(
+        id=place.place_id,
+        kind=place.kind,
+        name=place.name,
+        summary=place.summary,
+        address=place.address,
+        lat=place.lat,
+        lng=place.lng,
+        price_level=place.price_level,
+        day_pass_cents=place.day_pass_cents,
+        amenities=list(place.amenities or ()),
+        photo_url=place.photo_url,
+        reservable_via=place.reservable_via,
+        matched_preferences=ranked.matched_preferences,
+        over_budget_reason=ranked.over_budget_reason,
+        distance_meters=ranked.distance_meters,
+        walk_minutes=ranked.walk_minutes,
+    )
+
+
+class ResolvedLocationOut(BaseModel):
+    """Free text resolved to a point. `query` is echoed so a client that fired
+    several lookups can tell the answers apart."""
+
+    query: str
+    name: str
+    lat: float
+    lng: float
+    timezone: str | None = None

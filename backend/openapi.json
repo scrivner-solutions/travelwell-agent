@@ -235,6 +235,270 @@
         "title": "EmailCodeVerify",
         "type": "object"
       },
+      "ExploreAnchorOut": {
+        "description": "Where the map opens and what distances are measured from.",
+        "properties": {
+          "is_hotel": {
+            "title": "Is Hotel",
+            "type": "boolean"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lng"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "is_hotel"
+        ],
+        "title": "ExploreAnchorOut",
+        "type": "object"
+      },
+      "ExploreKindOut": {
+        "description": "A category chip. The count is over the whole radius, not the filter, so\nswitching chips never changes the other chips' numbers.",
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PlaceKind"
+          }
+        },
+        "required": [
+          "kind",
+          "count"
+        ],
+        "title": "ExploreKindOut",
+        "type": "object"
+      },
+      "ExploreOut": {
+        "properties": {
+          "anchor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExploreAnchorOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kinds": {
+            "items": {
+              "$ref": "#/components/schemas/ExploreKindOut"
+            },
+            "title": "Kinds",
+            "type": "array"
+          },
+          "places": {
+            "items": {
+              "$ref": "#/components/schemas/ExplorePlaceOut"
+            },
+            "title": "Places",
+            "type": "array"
+          },
+          "radius_m": {
+            "title": "Radius M",
+            "type": "integer"
+          },
+          "trip_id": {
+            "format": "uuid",
+            "title": "Trip Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "trip_id",
+          "radius_m",
+          "kinds",
+          "places"
+        ],
+        "title": "ExploreOut",
+        "type": "object"
+      },
+      "ExplorePlaceOut": {
+        "description": "One card and one pin: the list and the map read the same row.\n\nThe first four derived fields are computed per request against this user's\npreferences and this trip's anchor, so two users looking at the same cached\nplace see different reasons for it.",
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "amenities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Amenities",
+            "type": "array"
+          },
+          "day_pass_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day Pass Cents"
+          },
+          "distance_meters": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Meters"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PlaceKind"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lng"
+          },
+          "matched_preferences": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Matched Preferences",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "over_budget_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Over Budget Reason"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
+          },
+          "price_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Level"
+          },
+          "reservable_via": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReservationProvider"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "walk_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Walk Minutes"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "amenities",
+          "matched_preferences"
+        ],
+        "title": "ExplorePlaceOut",
+        "type": "object"
+      },
       "ItemKind": {
         "enum": [
           "activity",
@@ -367,6 +631,17 @@
         ],
         "title": "PendingActionOut",
         "type": "object"
+      },
+      "PlaceKind": {
+        "enum": [
+          "workout",
+          "food",
+          "outdoor",
+          "recovery",
+          "lodging"
+        ],
+        "title": "PlaceKind",
+        "type": "string"
       },
       "PlanItemOptionOut": {
         "properties": {
@@ -1036,6 +1311,46 @@
         ],
         "title": "ReservationStatus",
         "type": "string"
+      },
+      "ResolvedLocationOut": {
+        "description": "Free text resolved to a point. `query` is echoed so a client that fired\nseveral lookups can tell the answers apart.",
+        "properties": {
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lng": {
+            "title": "Lng",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone"
+          }
+        },
+        "required": [
+          "query",
+          "name",
+          "lat",
+          "lng"
+        ],
+        "title": "ResolvedLocationOut",
+        "type": "object"
       },
       "SelectOptionIn": {
         "properties": {
@@ -2084,6 +2399,139 @@
         "summary": "Start Oauth",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/explore": {
+      "get": {
+        "operationId": "explore_api_v1_explore_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "trip_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Trip Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PlaceKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Query"
+            }
+          },
+          {
+            "in": "query",
+            "name": "radius_m",
+            "required": false,
+            "schema": {
+              "default": 8000,
+              "maximum": 50000,
+              "minimum": 250,
+              "title": "Radius M",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExploreOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Problem details (RFC 9457)"
+          }
+        },
+        "summary": "Explore",
+        "tags": [
+          "explore"
+        ]
+      }
+    },
+    "/geocode": {
+      "get": {
+        "description": "Resolve free text to a point.\n\nWritten fresh rather than ported: the prototype's /resolve_location is\nsynchronous and answers with hardcoded Skokie coordinates when no key is\nconfigured, which is worse than an error because the caller cannot tell.\nHere the three outcomes stay distinct -- no such place is 404, no key is\n503, and a provider failure is 502 -- so nobody plans a trip around a\nfallback.",
+        "operationId": "geocode_api_v1_geocode_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "query",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Query",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedLocationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Problem details (RFC 9457)"
+          }
+        },
+        "summary": "Geocode",
+        "tags": [
+          "explore"
         ]
       }
     },
