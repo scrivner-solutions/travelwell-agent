@@ -226,8 +226,8 @@ def test_agent_card(server_fixture: subprocess.Popen[str]) -> None:
         assert field in served_agent_card, f"Missing field in agent card: {field}"
 
 
-def test_collect_feedback(server_fixture: subprocess.Popen[str]) -> None:
-    """Test the feedback collection endpoint (/feedback)."""
+def test_collect_feedback_requires_auth(server_fixture: subprocess.Popen[str]) -> None:
+    """/feedback is signed-in only: an anonymous post is refused, not logged."""
     feedback_data = {
         "score": 4,
         "user_id": "test-user-456",
@@ -237,4 +237,4 @@ def test_collect_feedback(server_fixture: subprocess.Popen[str]) -> None:
     response = requests.post(
         FEEDBACK_URL, json=feedback_data, headers=HEADERS, timeout=10
     )
-    assert response.status_code == 200
+    assert response.status_code == 401

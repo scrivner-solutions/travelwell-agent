@@ -1,86 +1,61 @@
-# React + TypeScript + Vite
+# TravelWell Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Production PWA for TravelWell.
+React 19 + TypeScript (strict) + Vite, TanStack Router (file-based, typed) and
+TanStack Query, Tailwind v4 over design tokens, `vite-plugin-pwa`.
 
-## Local and Deployed Backend Integration
+## Layout
 
-TravelWell AI connects to a Python FastAPI backend powered by Google Agent Development Kit (ADK).
-
-### 1. Running locally with local backend
-1. Set up the backend `.env` variables (e.g. `GOOGLE_GENAI_USE_VERTEXAI=true` or `GEMINI_API_KEY`).
-2. Run backend server:
-   ```bash
-   cd backend
-   python -m uvicorn app.fast_api_app:app --host 0.0.0.0 --port 8000
-   ```
-3. Set up the frontend configuration:
-   Create `frontend/.env` file:
-   ```env
-   VITE_API_BASE_URL=http://localhost:8000
-   VITE_GOOGLE_MAPS_API_KEY=your-google-maps-key # Optional: loads live Google Map when set
-   ```
-4. Run frontend:
-   ```bash
-   cd frontend
-   npm run dev
-   ```
-
-### 2. Running locally with deployed backend
-1. Find your deployed Cloud Run URL (e.g., `https://travelwell-backend-xxxxxx.a.run.app`).
-2. Update the frontend `.env` file:
-   ```env
-   VITE_API_BASE_URL=https://travelwell-backend-xxxxxx.a.run.app
-   VITE_GOOGLE_MAPS_API_KEY=your-google-maps-key
-   ```
-3. Run the frontend:
-   ```bash
-   npm run dev
-   ```
-
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
-
-- Configure the top-level `parserOptions` property like this:
-
-```js
-export default tseslint.config({
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+```
+src/
+  app/            providers, shell, service-worker registration
+  routes/         thin URL layer: params + ?sheet= search params, guards,
+                  loaders, code-split points; each composes a feature screen
+  styles/         tokens.css (design tokens + globals), tokens.ts mirror
+  components/ui/  primitives: Button, Card, Sheet, StatusBadge, ProgressState
+  api/            generated OpenAPI client (schema.d.ts) + typed query options
+  features/       vertical slices: onboarding/ today/ trip/ explore/ agent/ ...
+  lib/            runtime config, trip-timezone helpers
+  test/           test setup (test-scoped; never bundled)
 ```
 
-- Replace `tseslint.configs.recommended` to `tseslint.configs.recommendedTypeChecked` or `tseslint.configs.strictTypeChecked`
-- Optionally add `...tseslint.configs.stylisticTypeChecked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and update the config:
+Import boundaries are enforced by ESLint (`import/no-restricted-paths`):
+features never import each other; `components/ui` never imports application
+layers; hex colors exist only in `src/styles/`.
 
-```js
-// eslint.config.js
-import react from 'eslint-plugin-react'
+## Scripts
 
-export default tseslint.config({
-  // Set the react version
-  settings: { react: { version: '18.3' } },
-  plugins: {
-    // Add the react plugin
-    react,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended rules
-    ...react.configs.recommended.rules,
-    ...react.configs['jsx-runtime'].rules,
-  },
-})
-```
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Dev server; proxies `/api` to `http://localhost:8000` |
+| `npm run build` | Typecheck + production build |
+| `npm run lint` | ESLint incl. boundary rules |
+| `npm test` | Vitest unit tests |
+| `npm run typecheck` | `tsc -b` only |
+| `npm run generate:api` | Regenerate `src/api/schema.d.ts` from `docs/openapi.yaml` |
+
+## Configuration
+
+Configuration is runtime, not build time: the container's `entrypoint.sh`
+writes `/config.json` at start, and the app reads it before mounting. In dev,
+Vite serves `public/config.json` (empty base URL = same origin, which the dev
+proxy forwards to the local backend). There is no `.env` for the frontend.
+
+## Contract-first API
+
+`docs/openapi.yaml` is the only interface the frontend knows. After editing
+the spec, run `npm run generate:api` and commit the regenerated
+`src/api/schema.d.ts`. Status enums (`item_status`, `trip_state`, ...) come
+from the generated types and are never re-declared by hand.
+
+## Design source
+
+`TravelWellPlan.dc.html` is the UX, flow and palette source of truth: a Claude
+Design canvas that renders standalone in a browser. Comments across `src/` cite
+it **by name only**, and this is the one place that says where it is —
+currently `travel_schema/design/`, imported from the Claude Design project.
+
+Both filesystem copies are snapshots of that project, so neither is canonical
+and both go stale. The copy that used to live in this repo was deleted for
+exactly that reason; do not restore it. Re-import instead, and if the file
+moves, change this paragraph rather than hunting the comments.

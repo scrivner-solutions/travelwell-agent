@@ -13,49 +13,38 @@
 # limitations under the License.
 
 import contextlib
+import logging
 import os
 from collections.abc import AsyncIterator
 
-import google.auth
 from a2a.server.tasks import InMemoryTaskStore
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from google.adk.cli.fast_api import get_fast_api_app
 from google.adk.runners import Runner
-from google.cloud import logging as google_cloud_logging
 
 from app.app_utils import services
 from app.app_utils.a2a import attach_a2a_routes
-from app.app_utils.telemetry import setup_telemetry
 from app.app_utils.typing import Feedback
+from app.logging_config import configure_logging
 
 load_dotenv()
-setup_telemetry()
-logger = None
-project_id = None
-if os.getenv("DISABLE_TELEMETRY") != "true":
-    try:
-        _, project_id = google.auth.default()
-        logging_client = google_cloud_logging.Client()
-        logger = logging_client.logger(__name__)
-    except Exception as e:
-        import logging as py_logging
-        py_logging.warning(f"Could not initialize Google Cloud Logging client (using standard python logging): {e}")
+configure_logging()
+logger = logging.getLogger(__name__)
 
-if logger is None:
-    import logging as py_logging
-    logger = py_logging.getLogger(__name__)
-    def log_struct_mock(info, severity="INFO"):
-        py_logging.info(f"[{severity}] {info}")
-    logger.log_struct = log_struct_mock
+# Imported here, not with the header block: app.api.sessions resolves
+# SESSION_SECRET at import time, so it must come after load_dotenv().
+from app.api.sessions import dev_mode
+# ADK's own guard (google/adk/cli/api_server.py) 403s any non-GET whose Origin
+# is missing here, our /api/v1 routes included, so a deployed frontend MUST be
+# listed. Its run.app URL is not knowable at build time; deploy-staging.sh
+# passes the real one via CORS_ALLOWED_ORIGINS. Local defaults only.
 DEFAULT_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:4173",
     "http://localhost:8000",
-    "https://travelwell-frontend-163831374566.us-central1.run.app",
-    "https://travelwell-frontend-msbiisna6q-uc.a.run.app",
     "https://travelwellai.com",
-    "https://www.travelwellai.com"
+    "https://www.travelwellai.com",
 ]
 
 custom_origins_env = os.getenv("CORS_ALLOWED_ORIGINS") or os.getenv("ALLOW_ORIGINS")
@@ -87,12 +76,24 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         task_store=InMemoryTaskStore(),
         rpc_path=f"/a2a/{adk_app.name}",
     )
-    yield
+    # Approved actions have to reach their conclusion whether or not anyone is
+    # still watching the screen, so the executor runs here rather than off the
+    # back of a request. Safe on more than one instance: it claims rows with
+    # FOR UPDATE SKIP LOCKED.
+    from app.db.engine import SessionFactory
+    from app.services.actions import runner as actions_runner
+
+    async with actions_runner.running(SessionFactory):
+        yield
+    from app.db.engine import engine as db_engine
+    await db_engine.dispose()
 
 
 app: FastAPI = get_fast_api_app(
     agents_dir=AGENT_DIR,
-    web=True,
+    # ADK's dev UI, agent builder and eval runners: 33 routes that write agent
+    # definitions and run evaluations. Local tooling, never a deployed surface.
+    web=dev_mode(),
     artifact_service_uri=services.ARTIFACT_SERVICE_URI,
     allow_origins=allow_origins,
     session_service_uri=services.SESSION_SERVICE_URI,
@@ -101,6 +102,15 @@ app: FastAPI = get_fast_api_app(
 )
 app.title = "backend"
 app.description = "API for interacting with the Agent backend"
+
+# Everything ADK mounts is public until something closes it, and web=False
+# leaves the routes that spend money and mutate state: /run, /run_sse,
+# /run_live, /list-apps and the session, artifact and memory endpoints. Added
+# before CORSMiddleware so it sits inside it and a 401 still carries the CORS
+# headers, rather than reaching a cross-origin caller as a CORS failure.
+from app.api.gate import AuthGateMiddleware
+
+app.add_middleware(AuthGateMiddleware)
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -112,23 +122,56 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# OAuth handshake state only (authlib keeps state/nonce in request.session);
+# app sessions stay in the stateless twl_session cookie, never in here.
+from starlette.middleware.sessions import SessionMiddleware
+
+from app.api import sessions as api_sessions
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=api_sessions.secret(),
+    session_cookie="twl_oauth",
+    max_age=600,
+    same_site="lax",
+    https_only=api_sessions.cookie_secure(),
+)
+
+# Versioned API surface (docs/openapi.yaml). Legacy prototype endpoints below
+# stay at the root and retire slice by slice. They are gated rather than
+# deleted because the agent design that replaces them is not built yet, and
+# the service is public: /api/recommend spends Geocoding and Vertex per call.
+from app.api.deps import CurrentUser
+from app.api.problems import install_problem_handlers
+from app.api.router import api_router
+
+app.include_router(api_router)
+install_problem_handlers(app)
+
+
+# /healthz is intercepted at the run.app edge and never reaches the container.
+@app.get("/readyz")
+async def readyz() -> dict[str, str]:
+    """Deploy smoke check: process up and database reachable."""
+    from sqlalchemy import text
+
+    from app.db.engine import engine
+
+    async with engine.connect() as conn:
+        await conn.execute(text("select 1"))
+    return {"status": "ok"}
+
 
 @app.post("/feedback")
-def collect_feedback(feedback: Feedback) -> dict[str, str]:
-    """Collect and log feedback.
-
-    Args:
-        feedback: The feedback data to log
-
-    Returns:
-        Success message
-    """
-    logger.log_struct(feedback.model_dump(), severity="INFO")
+def collect_feedback(feedback: Feedback, _user: CurrentUser) -> dict[str, str]:
+    """Collect and log feedback."""
+    # Nested so a Feedback field can never collide with a LogRecord attribute.
+    logger.info("feedback", extra={"feedback": feedback.model_dump()})
     return {"status": "success"}
 
 
 @app.get("/api/config")
-def get_config():
+def get_config(_user: CurrentUser):
     """Returns dynamic runtime configuration including Google Maps API Key."""
     return {
         "mapsApiKey": os.getenv("GOOGLE_MAPS_API_KEY", "")
@@ -136,7 +179,7 @@ def get_config():
 
 
 @app.get("/resolve_location")
-def resolve_location(address: str) -> dict:
+def resolve_location(address: str, _user: CurrentUser) -> dict:
     """Resolves a landmark, neighborhood, venue or partial address using Geocoding."""
     from app.services.google_maps import geocode_address
     return geocode_address(address)
@@ -640,7 +683,7 @@ def parse_markdown_to_recommendations(markdown: str, budget_sel: str = "20", has
 
 
 @app.post("/api/recommend")
-async def recommend_workout(request: Request):
+async def recommend_workout(request: Request, _user: CurrentUser):
     import json
     import traceback
     from fastapi.responses import StreamingResponse, JSONResponse

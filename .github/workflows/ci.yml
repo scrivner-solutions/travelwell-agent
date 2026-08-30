@@ -1,0 +1,146 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      # Covered by deploy.yml, which calls this workflow as the gate on the
+      # merge commit; without the ignore every merge would run it twice.
+      - main
+  # Called by deploy.yml, so main is gated by this definition, not a copy.
+  workflow_call:
+
+jobs:
+  frontend:
+    name: Frontend gates
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Types come from the contract the server serves, not the one we designed
+      # (ADR 004), so this proves the client matches backend/openapi.json. The
+      # backend job proves that file matches the routers.
+      - name: Generated API client is in sync with backend/openapi.json
+        run: |
+          npm run generate:api
+          git diff --exit-code src/api/schema.d.ts
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint (incl. import boundaries)
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  backend-schema:
+    name: Backend schema drift checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: travelwell
+          POSTGRES_PASSWORD: travelwell
+          POSTGRES_DB: travelwell
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U travelwell"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Install Postgres client tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends postgresql-client-16
+
+      - name: Schema drift checks (generated schema.sql, migrations, models)
+        run: ./scripts/check_schema_drift.sh
+        env:
+          PGHOST: localhost
+          PGUSER: travelwell
+          PGPASSWORD: travelwell
+
+      # Two links in one chain, neither of which the frontend job can see.
+      # First: backend/openapi.json is what the routers actually serve, so the
+      # types the frontend generates from it cannot promise more than the API.
+      # Second: docs/openapi.yaml, the hand-written design artifact, still
+      # matches that API - without this it decays into decoration (ADR 004).
+      # Needs no database; both only import the app.
+      - name: Served contract is committed and current
+        run: |
+          uv run python scripts/dump_openapi.py
+          git diff --exit-code openapi.json
+      - name: Contract drift check (openapi.yaml vs the served API)
+        run: |
+          uv run pytest tests/unit/test_openapi_drift.py tests/unit/test_dump_openapi.py -q
+          uv run python scripts/check_openapi_drift.py
+
+  backend-tests:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: travelwell
+          POSTGRES_PASSWORD: travelwell
+          POSTGRES_DB: travelwell
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U travelwell"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # The suite creates and migrates its own travelwell_test database on
+      # the service instance; the name must end in _test (conftest enforces).
+      # tests/integration stays out: it needs Vertex credentials this runner
+      # has no way to hold, and a permanently red gate gates nothing.
+      - name: API and unit tests
+        run: uv run pytest tests/api tests/unit -q
+        env:
+          TEST_DATABASE_URL: postgresql+psycopg://travelwell:travelwell@localhost:5432/travelwell_test

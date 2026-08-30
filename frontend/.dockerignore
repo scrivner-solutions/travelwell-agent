@@ -1,0 +1,16 @@
+# node_modules must not enter the context: COPY . . would overwrite the clean
+# npm ci install with whatever is on the host.
+node_modules
+dist
+dev-dist
+
+# Build config comes from config.json at container start, never from .env.
+.env
+.env.*
+*.local
+
+.git
+coverage
+playwright-report
+test-results
+e2e

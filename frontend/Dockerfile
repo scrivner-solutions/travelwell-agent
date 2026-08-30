@@ -32,8 +32,8 @@ RUN npm run build
 # --- Production Serve Stage ---
 FROM nginx:alpine-slim
 
-# Copy nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# nginx config is a template; entrypoint.sh substitutes BACKEND_URL at start.
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 
 # Copy build artifacts to serving folder
 COPY --from=builder /app/dist /usr/share/nginx/html

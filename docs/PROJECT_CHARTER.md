@@ -1,4 +1,13 @@
 # TravelWell AI Project Charter
+
+> **Status (2026-08): historical.** This is the original hackathon charter,
+> kept as a record of where the project started. The product has since grown
+> from a one-shot gym-finder concierge into a proactive, trip-centric travel
+> wellness agent; the current system is described in
+> [ARCHITECTURE.md](./ARCHITECTURE.md), with the API contract in
+> [openapi.yaml](./openapi.yaml) and the data model in
+> [schema.sql](./schema.sql).
+
 TravelWell AI demonstrates how specialized AI agents can collaborate to solve a real-world travel wellness problem through structured discovery, research, reasoning, ranking, and visualization.
 
 TravelWell AI is an AI wellness concierge for travelers. It helps users maintain their fitness and wellness routines while traveling by finding the best nearby gyms, pools, recreation centers, walking routes, and wellness options based on location, time window, memberships, budget, preferences, and real-world facility details.

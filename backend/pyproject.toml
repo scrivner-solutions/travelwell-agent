@@ -10,9 +10,15 @@ dependencies = [
     "google-adk[gcp]>=2.0.0,<3.0.0",
     "a2a-sdk[http-server]~=0.3.22",
     "aiohttp>=3.13.4",
-    "opentelemetry-instrumentation-google-genai>=0.1.0,<1.0.0",
     "gcsfs>=2024.11.0",
-    "google-cloud-logging>=3.12.0,<4.0.0",
+    # Persistence spine (ADR-001): async SQLAlchemy + Alembic on Postgres.
+    "sqlalchemy[asyncio]>=2.0.36,<3.0.0",
+    "alembic>=1.14.0,<2.0.0",
+    # One driver for both: psycopg3 is async for the app, sync for Alembic.
+    "psycopg[binary]>=3.2.0,<4.0.0",
+    "itsdangerous>=2.2.0,<3.0.0",
+    "email-validator>=2.2.0,<3.0.0",
+    "authlib>=1.6,<2.0",
 ]
 requires-python = ">=3.11,<3.14"
 
@@ -22,6 +28,8 @@ dev = [
     "pytest>=9.0.2,<10.0.0",
     "pytest-asyncio>=1.0.0,<2.0.0",
     "nest-asyncio>=1.6.0,<2.0.0",
+    "httpx>=0.27",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]

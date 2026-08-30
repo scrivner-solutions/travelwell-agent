@@ -1,9 +1,51 @@
+import uuid
+
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 
-# Import the FastAPI app
+# fast_api_app must be imported first: it calls load_dotenv() before its own
+# deferred app.api.* imports, and app.api.sessions raises at import time if
+# SESSION_SECRET is still unset.
 from app.fast_api_app import app
+from app.api.deps import get_current_user
+from app.db.models import User
+
+
+@pytest.fixture(autouse=True)
+def signed_in():
+    """These endpoints require a session. Overriding the dependency skips the
+    cookie and the database it would otherwise load the user from, so the tests
+    below still exercise the handlers rather than the gate."""
+    app.dependency_overrides[get_current_user] = lambda: User(
+        user_id=uuid.uuid4(), email="unit@travelwell.dev"
+    )
+    yield
+    app.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.fixture
+def anonymous():
+    """Drops the override so a request arrives with no session at all."""
+    app.dependency_overrides.pop(get_current_user, None)
+    yield
+
+
+@pytest.mark.parametrize(
+    "method,path",
+    [
+        ("get", "/api/config"),
+        ("get", "/resolve_location?address=Chicago"),
+        ("post", "/api/recommend"),
+    ],
+)
+def test_prototype_endpoints_require_auth(anonymous, method, path):
+    # The service is public, and /api/recommend spends Geocoding and Vertex per
+    # call, so an anonymous request must not reach the handler.
+    client = TestClient(app)
+    response = getattr(client, method)(path)
+    assert response.status_code == 401
+    assert response.json()["code"] == "unauthenticated"
 
 def test_recommend_endpoint_initialization_error():
     # Test that the recommend endpoint returns 500 JSON response on invalid input/session exception

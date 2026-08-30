@@ -1,0 +1,1757 @@
+openapi: 3.1.0
+info:
+  title: TravelWell API
+  version: 1.0.0-draft
+  description: |
+    The designed contract for the TravelWell API. This file is written by hand and is
+    where an endpoint is agreed before it is built, so it may describe endpoints the
+    server does not serve yet.
+
+    It is not the frontend's type source. Per docs/adr/004, the frontend generates
+    src/api/schema.d.ts from backend/openapi.json, which is dumped from the running
+    routers, so the client can only name fields the server actually sends.
+    backend/scripts/check_openapi_drift.py asserts this file against that one on every
+    pull request, which is what keeps a design artifact from decaying into decoration.
+
+    Conventions:
+    - Every enum mirrors the Postgres enum of the same name in docs/schema.sql. Enums are
+      defined once here and imported everywhere; they are never re-declared by hand.
+    - Errors are RFC 9457 application/problem+json with a stable machine `code`.
+    - Action-creating POSTs require an Idempotency-Key header (client UUID), mirroring
+      pending_actions.idempotency_key.
+    - Mutating requests carry the entity's updated_at; a 409 means the agent changed state
+      under the user and the client must refetch.
+    - Live progress uses SSE (text/event-stream); polling is the fallback, not the default.
+
+    Status: v1 draft agreed in Phase 0. Endpoints are implemented by the backend in
+    vertical slices; docs/API_CONTRACTS.md summarizes the conventions.
+servers:
+  - url: /api/v1
+
+security:
+  - sessionCookie: []
+
+tags:
+  - name: auth
+  - name: config
+  - name: trips
+  - name: plan
+  - name: actions
+  - name: events
+  - name: explore
+  - name: profile
+  - name: notifications
+
+paths:
+  /config:
+    get:
+      tags: [config]
+      operationId: getRuntimeConfig
+      summary: Runtime configuration for the web client
+      security: []
+      responses:
+        "200":
+          description: Runtime config (also emitted as /config.json by entrypoint.sh)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuntimeConfig"
+
+  /auth/email-code:
+    post:
+      tags: [auth]
+      operationId: requestEmailCode
+      summary: Send a one-time sign-in code to an email address
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "202":
+          description: Code sent (or silently accepted for unknown addresses)
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /auth/email-code/verify:
+    post:
+      tags: [auth]
+      operationId: verifyEmailCode
+      summary: Exchange an email code for an httpOnly session cookie
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, code]
+              properties:
+                email:
+                  type: string
+                  format: email
+                code:
+                  type: string
+      responses:
+        "200":
+          description: Session established; Set-Cookie carries the httpOnly session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /auth/demo:
+    post:
+      tags: [auth]
+      operationId: demoLogin
+      summary: Mint a fresh pre-populated demo account (flag-gated; off outside dev)
+      security: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 80
+                  description: Display name for the demo account; just a label
+      responses:
+        "200":
+          description: Session established; Set-Cookie carries the httpOnly session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /auth/oauth/{provider}/start:
+    get:
+      tags: [auth]
+      operationId: startOauth
+      summary: Begin an OAuth sign-in (server-side redirect flow, BFF pattern)
+      security: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [google]
+      responses:
+        "302":
+          description: Redirect to the provider's consent screen
+
+  /auth/oauth/{provider}/callback:
+    get:
+      tags: [auth]
+      operationId: oauthCallback
+      summary: Provider redirect target; sets the session cookie on success
+      security: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [google]
+      responses:
+        "302":
+          description: >
+            Redirect back into the app: to / with the session cookie set, or
+            to /sign-in?error=oauth_failed|not_allowed without one.
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: Clear the session cookie
+      responses:
+        "204":
+          description: Session cleared
+
+  /me:
+    get:
+      tags: [auth]
+      operationId: getMe
+      summary: Current authenticated user
+      responses:
+        "200":
+          description: The signed-in user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          $ref: "#/components/responses/Problem"
+    patch:
+      tags: [auth]
+      operationId: updateMe
+      summary: Update fields stored on the user (partial)
+      description: |
+        Fields on the user record itself. Wellness preferences and autonomy
+        toggles are a separate row and a separate endpoint (PATCH
+        /me/preferences).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: The updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /trips:
+    get:
+      tags: [trips]
+      operationId: listTrips
+      summary: Trips for the current user, with derived "needs you" counts
+      parameters:
+        - name: state
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/TripState"
+      responses:
+        "200":
+          description: Trips ordered by start date
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [trips]
+                properties:
+                  trips:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Trip"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      tags: [trips]
+      operationId: createTrip
+      summary: Create a trip manually
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TripCreate"
+      responses:
+        "201":
+          description: Created trip (state = confirmed, origin = manual)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trip"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /trips/{tripId}:
+    get:
+      tags: [trips]
+      operationId: getTrip
+      summary: A single trip with its evidence
+      parameters:
+        - $ref: "#/components/parameters/TripId"
+      responses:
+        "200":
+          description: The trip
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trip"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /trips/{tripId}/confirm:
+    post:
+      tags: [trips]
+      operationId: confirmTrip
+      summary: Confirm a detected trip
+      parameters:
+        - $ref: "#/components/parameters/TripId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [updated_at]
+              properties:
+                updated_at:
+                  type: string
+                  format: date-time
+      responses:
+        "200":
+          description: Trip confirmed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trip"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /trips/{tripId}/dismiss:
+    post:
+      tags: [trips]
+      operationId: dismissTrip
+      summary: Reject a detected trip ("not a trip")
+      description: >-
+        The other half of the detection gate. Detection is noisy, so the list
+        must be clearable; a dismissed trip stops being re-offered rather than
+        being deleted, so re-detection cannot resurrect it.
+      parameters:
+        - $ref: "#/components/parameters/TripId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [updated_at]
+              properties:
+                updated_at:
+                  type: string
+                  format: date-time
+      responses:
+        "200":
+          description: Trip dismissed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trip"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /trips/{tripId}/today:
+    get:
+      tags: [trips]
+      operationId: getTripToday
+      summary: The Today view for a trip (window card, next-up items, state line)
+      parameters:
+        - $ref: "#/components/parameters/TripId"
+      responses:
+        "200":
+          description: Today view assembled server-side in the trip's timezone
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TodayView"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /trips/{tripId}/timeline:
+    get:
+      tags: [trips]
+      operationId: getTripTimeline
+      summary: Calendar events and plan items interleaved by time
+      parameters:
+        - $ref: "#/components/parameters/TripId"
+        - name: day
+          in: query
+          required: false
+          description: Trip-local date (YYYY-MM-DD); omitted = whole trip
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Timeline entries ordered by start time
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [entries]
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TimelineEntry"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /trips/{tripId}/plan:
+    get:
+      tags: [plan]
+      operationId: getTripPlan
+      summary: The current plan (versioned) with its items and selected options
+      parameters:
+        - $ref: "#/components/parameters/TripId"
+      responses:
+        "200":
+          description: Current plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plan"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /trips/{tripId}/plan/accept-all:
+    post:
+      tags: [plan]
+      operationId: acceptAllPlanItems
+      summary: Accept every item still open for a decision
+      description: >-
+        Takes no `updated_at`: the operation is "accept whatever is open right
+        now", which is well defined at any moment, so there is no single row a
+        caller could hold a stale token for. Items already decided are left
+        alone, which also makes a retry safe. Returns the whole plan so one
+        response settles the screen.
+      parameters:
+        - $ref: "#/components/parameters/TripId"
+      responses:
+        "200":
+          description: The plan after acceptance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plan"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /plan-items/{itemId}/accept:
+    post:
+      tags: [plan]
+      operationId: acceptPlanItem
+      summary: Accept a suggested item into the plan
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [updated_at]
+              properties:
+                updated_at:
+                  type: string
+                  format: date-time
+      responses:
+        "200":
+          description: Updated item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlanItem"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /plan-items/{itemId}/select-option:
+    post:
+      tags: [plan]
+      operationId: selectPlanItemOption
+      summary: Choose which option an item uses (no data loss, flips option_state)
+      description: >-
+        The named option becomes `selected` and the previous one falls back to
+        `alternative`; nothing is deleted. Rejected options are not selectable
+        (422): promoting one would have to clear the `rejection_reason` a CHECK
+        constraint ties to the state, erasing the text "Also considered" shows.
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [option_id, updated_at]
+              properties:
+                option_id:
+                  type: string
+                  format: uuid
+                updated_at:
+                  type: string
+                  format: date-time
+      responses:
+        "200":
+          description: Updated item with the newly selected option
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlanItem"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /plan-items/{itemId}/skip:
+    post:
+      tags: [plan]
+      operationId: skipPlanItem
+      summary: Skip or remove an item
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [updated_at]
+              properties:
+                updated_at:
+                  type: string
+                  format: date-time
+                remove:
+                  type: boolean
+                  default: false
+      responses:
+        "200":
+          description: Updated item (status = skipped or removed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlanItem"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /plan-items/{itemId}/provenance:
+    get:
+      tags: [plan]
+      operationId: getPlanItemProvenance
+      summary: '"How I got here": window bounds, matched preferences, rejected options'
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      responses:
+        "200":
+          description: Provenance served from stored data, never generated client-side
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Provenance"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /actions:
+    post:
+      tags: [actions]
+      operationId: createAction
+      summary: Propose an action (reservation, calendar write) for approval
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActionCreate"
+      responses:
+        "201":
+          description: Proposed action
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PendingAction"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /actions/{actionId}:
+    get:
+      tags: [actions]
+      operationId: getAction
+      summary: A pending action (polling fallback for the SSE stream)
+      parameters:
+        - $ref: "#/components/parameters/ActionId"
+      responses:
+        "200":
+          description: The action
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PendingAction"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /actions/{actionId}/approve:
+    post:
+      tags: [actions]
+      operationId: approveAction
+      summary: Approve a proposed action for execution
+      parameters:
+        - $ref: "#/components/parameters/ActionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [updated_at]
+              properties:
+                updated_at:
+                  type: string
+                  format: date-time
+      responses:
+        "200":
+          description: Action approved (status = approved, then executing)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PendingAction"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /actions/{actionId}/events:
+    get:
+      tags: [actions]
+      operationId: streamActionEvents
+      summary: SSE stream of an executing action's progress
+      description: |
+        text/event-stream. Event types: `trace` (purposeful progress copy),
+        `status` (action_status change), `result` (terminal payload), `error`.
+        Data payloads follow StreamEvent.
+      parameters:
+        - $ref: "#/components/parameters/ActionId"
+      responses:
+        "200":
+          description: Event stream
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/StreamEvent"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /events:
+    post:
+      tags: [events]
+      operationId: submitEvent
+      summary: Submit a user event (voice, text, or UI intent) to the agent event spine
+      description: Voice, text, and taps are the same pipeline; nothing invokes the agent directly.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventCreate"
+      responses:
+        "202":
+          description: Event accepted; if it starts a run, the reference is returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunRef"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /runs/{runId}:
+    get:
+      tags: [events]
+      operationId: getRun
+      summary: An agent run (polling fallback for the SSE stream)
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      responses:
+        "200":
+          description: The run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentRun"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /runs/{runId}/events:
+    get:
+      tags: [events]
+      operationId: streamRunEvents
+      summary: SSE stream of a live agent run
+      description: |
+        text/event-stream, the re-homed version of the prototype's proven
+        /api/events/{session_id} channel. Event types: `trace`, `status`,
+        `result` (structured run output, never markdown), `error`.
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      responses:
+        "200":
+          description: Event stream
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/StreamEvent"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /explore:
+    get:
+      tags: [explore]
+      operationId: explore
+      summary: Place candidates for the Explore map, filtered by category and preferences
+      parameters:
+        - name: trip_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: category
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/PlaceKind"
+        - name: query
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Surfaced candidates (cached server-side in places)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [places]
+                properties:
+                  places:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Place"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /resolve_location:
+    get:
+      tags: [explore]
+      operationId: resolveLocation
+      summary: Resolve a free-text location to coordinates (kept from the prototype)
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Best-effort geocoding result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResolvedLocation"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /me/preferences:
+    get:
+      tags: [profile]
+      operationId: getPreferences
+      summary: Wellness preferences and autonomy toggles
+      responses:
+        "200":
+          description: Preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preferences"
+        default:
+          $ref: "#/components/responses/Problem"
+    patch:
+      tags: [profile]
+      operationId: updatePreferences
+      summary: Update preferences (partial)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PreferencesUpdate"
+      responses:
+        "200":
+          description: Updated preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Preferences"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /me/sources:
+    get:
+      tags: [profile]
+      operationId: listConnectedSources
+      summary: Connected calendar/email sources with real connection status
+      responses:
+        "200":
+          description: Sources
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sources]
+                properties:
+                  sources:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ConnectedSource"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /notifications:
+    get:
+      tags: [notifications]
+      operationId: listNotifications
+      summary: Notification inbox
+      responses:
+        "200":
+          description: Notifications, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [notifications]
+                properties:
+                  notifications:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Notification"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /notifications/{notificationId}/opened:
+    post:
+      tags: [notifications]
+      operationId: markNotificationOpened
+      summary: Record that a notification was opened (deep-link tracking)
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Recorded
+        default:
+          $ref: "#/components/responses/Problem"
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: twl_session
+      description: httpOnly session cookie issued by the backend (BFF pattern); never readable by JS.
+
+  parameters:
+    TripId:
+      name: tripId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ItemId:
+      name: itemId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ActionId:
+      name: actionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    RunId:
+      name: runId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Client-generated UUID; mirrors pending_actions.idempotency_key so retries are safe.
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    Problem:
+      description: RFC 9457 problem details with a stable machine code
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Conflict:
+      description: The entity changed since the client last read it (agent replan, another device). Refetch and re-present.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+  schemas:
+    # -- Enums: mirror docs/schema.sql 1:1; never re-declare in application code --
+    AuthProvider:
+      type: string
+      enum: [google, apple, email]
+    SourceKind:
+      type: string
+      enum: [google_calendar, gmail, apple_calendar, manual_import]
+    SourceStatus:
+      type: string
+      enum: [connected, error, revoked]
+    TripState:
+      type: string
+      enum: [detected, confirmed, upcoming, preparing, active, completed, archived, dismissed]
+    TripOrigin:
+      type: string
+      enum: [calendar_detection, manual, import]
+    PlaceKind:
+      type: string
+      enum: [workout, food, outdoor, recovery, lodging]
+    WindowStatus:
+      type: string
+      enum: [open, filled, expired, superseded]
+    PlanStatus:
+      type: string
+      enum: [draft, proposed, partially_accepted, accepted, superseded]
+    ItemStatus:
+      type: string
+      enum: [suggested, awaiting_user, planned, confirmed, working, changed, skipped, removed]
+    ItemKind:
+      type: string
+      enum: [activity, meal]
+    OptionState:
+      type: string
+      enum: [selected, alternative, rejected]
+    ReservationProvider:
+      type: string
+      enum: [travelwell, opentable, external_link]
+    ReservationStatus:
+      type: string
+      enum: [pending, holding, confirmed, failed, canceled]
+    ActionType:
+      type: string
+      enum: [make_reservation, cancel_reservation, create_calendar_event, update_calendar_event, delete_calendar_event, send_invite]
+    ActionStatus:
+      type: string
+      enum: [proposed, approved, executing, completed, failed, canceled]
+    EventKind:
+      type: string
+      enum: [scheduled_activation, scheduled_daily, user_text, user_voice, ui_action, calendar_changed, trip_changed, reservation_changed, external_context]
+    RunKind:
+      type: string
+      enum: [pretrip_plan, replan_conflict, user_request, reservation_flow, daily_checkin, trip_detection]
+    RunStatus:
+      type: string
+      enum: [running, completed, failed, canceled]
+    NotificationStatus:
+      type: string
+      enum: [pending, sent, opened, dismissed]
+
+    # -- Core resources --
+    Problem:
+      type: object
+      required: [title, status, code]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        code:
+          type: string
+          description: Stable machine code the client maps to honest failure states (e.g. reservation_declined).
+
+    RuntimeConfig:
+      type: object
+      required: [api_base_url]
+      properties:
+        api_base_url:
+          type: string
+        maps_browser_key:
+          type: string
+        push_public_key:
+          type: string
+          description: VAPID/FCM public key for Web Push subscription.
+
+    User:
+      type: object
+      required: [id, email, auth_provider, created_at, home_timezone]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+        auth_provider:
+          $ref: "#/components/schemas/AuthProvider"
+        created_at:
+          type: string
+          format: date-time
+        home_timezone:
+          type: string
+          description: |
+            IANA name of the user's home base, used as the fallback zone for
+            manually added trips. "UTC" means it has never been set: the client
+            offers the browser zone rather than treating it as a real answer.
+          example: America/Los_Angeles
+
+    UserUpdate:
+      type: object
+      properties:
+        display_name:
+          type: string
+          maxLength: 80
+        home_timezone:
+          type: string
+          description: |
+            IANA name; unknown zones are rejected with 422. Null is a no-op,
+            not a clear, because the stored field is never empty.
+          example: Europe/Berlin
+
+    TripCreate:
+      type: object
+      required: [destination_name, starts_on, ends_on]
+      properties:
+        destination_name:
+          type: string
+        starts_on:
+          type: string
+          format: date
+        ends_on:
+          type: string
+          format: date
+        lodging_name:
+          type: string
+        label:
+          type: string
+          description: 'Short trip descriptor for the header eyebrow ("Conference trip").'
+
+    Trip:
+      type: object
+      required: [id, state, origin, destination_name, timezone, starts_on, ends_on, plan_progress, needs_you_count, state_line, evidence, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        state:
+          $ref: "#/components/schemas/TripState"
+        origin:
+          $ref: "#/components/schemas/TripOrigin"
+        destination_name:
+          type: string
+        label:
+          type: string
+          description: 'Short trip descriptor for the header eyebrow ("Conference trip").'
+        timezone:
+          type: string
+          description: IANA zone; all trip times render in this zone, never the device zone.
+        starts_on:
+          type: string
+          format: date
+        ends_on:
+          type: string
+          format: date
+        detection_confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        evidence:
+          type: array
+          description: '"Based on" rows for the detection card.'
+          items:
+            $ref: "#/components/schemas/TripEvidence"
+        state_line:
+          type: string
+          description: Real trust indicator ("Active - watching your schedule"), server-derived.
+        plan_progress:
+          $ref: "#/components/schemas/PlanProgress"
+        needs_you_count:
+          type: integer
+          description: Derived from open plan_items / pending_actions; never computed client-side.
+        needs_you_kind:
+          $ref: "#/components/schemas/NeedsYouKind"
+        updated_at:
+          type: string
+          format: date-time
+
+    PlanProgress:
+      type: string
+      description: >
+        How far along this trip's plan is, rolled up from plan_items over the
+        current (non-draft, non-superseded) plan. Drives the one badge a trip
+        row carries; `none` renders as no badge at all. Server-derived: the
+        client has no plan items in the trips payload.
+      enum: [none, preparing, planned, booking]
+
+    NeedsYouKind:
+      type: string
+      description: >
+        Which gate the open work belongs to, so the row can name the ask rather
+        than only count it. `plan` = decisions on plan items, `approval` =
+        pending actions awaiting approval, `mixed` = both. Absent when
+        needs_you_count is 0.
+      enum: [plan, approval, mixed]
+
+    TripEvidence:
+      type: object
+      required: [source, summary, kind]
+      properties:
+        source:
+          $ref: "#/components/schemas/SourceKind"
+        summary:
+          type: string
+          description: Bold headline of the evidence row ("The Gwen").
+        detail:
+          type: string
+          description: >-
+            Caption rendered under the summary ("521 N Rush St · 3 nights").
+            Absent when detection has no second line to show.
+        kind:
+          type: string
+          description: >-
+            Evidence category (flight_event, hotel_email, conference_event,
+            calendar_block, ...); drives the tag box on evidence rows.
+            Open-ended - render unknown kinds with a generic tag.
+
+    TodayView:
+      type: object
+      required: [trip_id, day_label, state_word, next_up, timezone]
+      properties:
+        trip_id:
+          type: string
+          format: uuid
+        day_label:
+          type: string
+          description: Server-derived ("Day 2 of 4 - Chicago").
+        state_word:
+          type: string
+        state_detail:
+          type: string
+          description: Second half of the state line ("Watching for schedule changes").
+        timezone:
+          type: string
+        window:
+          $ref: "#/components/schemas/WellnessWindow"
+        next_up:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlanItem"
+
+    WellnessWindow:
+      type: object
+      required: [id, status, starts_at, ends_at, label, bounds]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/WindowStatus"
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+        label:
+          type: string
+          description: Headline for the window card ("90 minutes free").
+        gap_explanation:
+          type: string
+          description: One sentence on the gap ("Between your workshop and dinner, 5:30 to 7:00.").
+        bounds:
+          type: array
+          description: Display-shaped provenance rows for "What makes the opening".
+          items:
+            $ref: "#/components/schemas/WindowBound"
+
+    WindowBound:
+      type: object
+      required: [tag, title]
+      properties:
+        tag:
+          type: string
+          description: Short mono badge (CAL, PLAN, HTL).
+        title:
+          type: string
+        detail:
+          type: string
+        source_label:
+          type: string
+          description: Where this bound came from ("Calendar", "This plan", "Email").
+
+    TimelineEntry:
+      type: object
+      required: [entry_type, starts_at]
+      properties:
+        entry_type:
+          type: string
+          enum: [calendar_event, plan_item]
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+        calendar_event:
+          $ref: "#/components/schemas/CalendarEventSummary"
+        plan_item:
+          $ref: "#/components/schemas/PlanItem"
+
+    CalendarEventSummary:
+      type: object
+      required: [id, title]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        location_name:
+          type: string
+
+    Plan:
+      type: object
+      required: [id, trip_id, version, status, headline, items, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        trip_id:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        status:
+          $ref: "#/components/schemas/PlanStatus"
+        headline:
+          type: string
+        provenance_summary:
+          type: string
+          description: >-
+            How the plan was built, in one line ("Prepared Aug 11, seven days
+            out, read 11 calendar events, found 3 open windows").
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlanItem"
+        updated_at:
+          type: string
+          format: date-time
+
+    PlanItem:
+      type: object
+      # starts_at and needs_reservation are non-null columns, so the server
+      # always sends them; leaving them optional only pushed dead undefined
+      # branches into every caller. why and options are always sent too, empty
+      # when there is nothing to say, which is a list the caller can just map.
+      required: [id, kind, status, title, starts_at, needs_reservation, why, options, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          $ref: "#/components/schemas/ItemKind"
+        status:
+          $ref: "#/components/schemas/ItemStatus"
+        title:
+          type: string
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+        window_id:
+          type: string
+          format: uuid
+          description: >-
+            Wellness window this item fills, if any. The Today screen nests
+            the item inside its window card (design: the opening, then what
+            fits it).
+        window:
+          $ref: "#/components/schemas/WellnessWindow"
+          description: >-
+            The opening itself, embedded. The review flow leads with it (label,
+            headline, gap) before naming the place, so a card that had to fetch
+            provenance per item could not render in one pass.
+        needs_reservation:
+          type: boolean
+          description: >-
+            Somebody has to say yes to a booking. Drives the "Needs a
+            reservation" chip and the review summary's list of what the plan
+            still wants from the user.
+        why:
+          type: array
+          description: Matched preferences served from plan_item_options.matched_preferences.
+          items:
+            type: string
+        selected_option:
+          $ref: "#/components/schemas/PlanItemOption"
+        options:
+          type: array
+          description: >-
+            The selected option and its live alternatives, by rank. Rejected
+            candidates are excluded and appear only in Provenance, so a card
+            can offer every option here without clearing a rejection_reason.
+          items:
+            $ref: "#/components/schemas/PlanItemOption"
+        reservation:
+          $ref: "#/components/schemas/Reservation"
+        updated_at:
+          type: string
+          format: date-time
+
+    PlanItemOption:
+      type: object
+      required: [id, state, display_name, matched_preferences]
+      properties:
+        id:
+          type: string
+          format: uuid
+        state:
+          $ref: "#/components/schemas/OptionState"
+        display_name:
+          type: string
+          description: Denormalized for stable display; survives place cache churn.
+        display_summary:
+          type: string
+          description: '"Pool + treadmill · 75 min"'
+        reason:
+          type: string
+          description: The why-chip ("Fits your 90-minute opening").
+        distance_minutes:
+          type: integer
+        duration_minutes:
+          type: integer
+        matched_preferences:
+          type: array
+          items:
+            type: string
+        rejection_reason:
+          type: string
+          description: Required by schema CHECK when state = rejected.
+        place:
+          $ref: "#/components/schemas/Place"
+          description: Populated once the places cache slice lands; display_* fields are authoritative until then.
+
+    Provenance:
+      type: object
+      required: [item_id, considered]
+      properties:
+        item_id:
+          type: string
+          format: uuid
+        window:
+          $ref: "#/components/schemas/WellnessWindow"
+          description: >-
+            Absent for items that fill no opening; a dinner is placed against
+            the day, not against a gap the agent had to find.
+        considered:
+          type: array
+          description: All options including rejected ones with their stored rejection_reason.
+          items:
+            $ref: "#/components/schemas/PlanItemOption"
+
+    Place:
+      type: object
+      required: [id, kind, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          $ref: "#/components/schemas/PlaceKind"
+        name:
+          type: string
+        rating:
+          type: number
+        distance_meters:
+          type: integer
+        walk_minutes:
+          type: integer
+        price_level:
+          type: integer
+        lat:
+          type: number
+        lng:
+          type: number
+        photo_url:
+          type: string
+          format: uri
+        external_url:
+          type: string
+          format: uri
+
+    ResolvedLocation:
+      type: object
+      required: [query, name, lat, lng]
+      properties:
+        query:
+          type: string
+        name:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+        timezone:
+          type: string
+
+    ActionCreate:
+      type: object
+      required: [action_type, trip_id]
+      properties:
+        action_type:
+          $ref: "#/components/schemas/ActionType"
+        trip_id:
+          type: string
+          format: uuid
+        plan_item_id:
+          type: string
+          format: uuid
+        payload:
+          type: object
+          description: Action-type-specific parameters (e.g. reservation time, party size).
+          additionalProperties: true
+
+    PendingAction:
+      type: object
+      required: [id, action_type, status, trip_id, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        action_type:
+          $ref: "#/components/schemas/ActionType"
+        status:
+          $ref: "#/components/schemas/ActionStatus"
+        trip_id:
+          type: string
+          format: uuid
+        plan_item_id:
+          type: string
+          format: uuid
+        summary:
+          type: object
+          description: What / when / where / cost rows for the confirm sheet, server-assembled.
+          additionalProperties: true
+        failure:
+          $ref: "#/components/schemas/ActionFailure"
+        reservation:
+          $ref: "#/components/schemas/Reservation"
+        updated_at:
+          type: string
+          format: date-time
+
+    ActionFailure:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        alternatives:
+          type: array
+          items:
+            $ref: "#/components/schemas/Place"
+        external_url:
+          type: string
+          format: uri
+          description: Honest fallback ("book directly") when the provider declines.
+
+    Reservation:
+      type: object
+      required: [id, status, provider, party_size]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/ReservationStatus"
+        provider:
+          $ref: "#/components/schemas/ReservationProvider"
+        confirmation_code:
+          type: string
+          description: Present iff status = confirmed (schema CHECK); the UI holds the same line.
+        reserved_for:
+          type: string
+          format: date-time
+        party_size:
+          type: integer
+          description: Not null in the database; the confirmation line reads "Party of 2 - Confirmation #4F21B".
+        failure_reason:
+          type: string
+          description: >-
+            Why the provider refused. Withheld while nothing could be done about
+            a refusal; retrying is now a second action against the same item, so
+            this is what the user acts on.
+        external_url:
+          type: string
+          format: uri
+          description: >-
+            Where to book it directly. The whole answer for an external_link
+            reservation, and the honest fallback when a provider declines.
+
+    EventCreate:
+      type: object
+      required: [kind, payload]
+      properties:
+        kind:
+          $ref: "#/components/schemas/EventKind"
+        trip_id:
+          type: string
+          format: uuid
+        payload:
+          type: object
+          description: Kind-specific payload (transcript text, UI intent name, etc.).
+          additionalProperties: true
+
+    RunRef:
+      type: object
+      required: [event_id]
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        run_id:
+          type: string
+          format: uuid
+          description: Present when the event started (or joined) an agent run.
+
+    AgentRun:
+      type: object
+      required: [id, kind, status, started_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          $ref: "#/components/schemas/RunKind"
+        status:
+          $ref: "#/components/schemas/RunStatus"
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+        result:
+          type: object
+          description: Structured run output (plan diff, cards); never free-form markdown.
+          additionalProperties: true
+
+    StreamEvent:
+      type: object
+      required: [event, data]
+      description: Envelope for SSE payloads on run and action streams.
+      properties:
+        event:
+          type: string
+          enum: [trace, status, result, error]
+        data:
+          type: object
+          additionalProperties: true
+
+    Preferences:
+      description: >-
+        Mirrors user_preferences 1:1. Drives Explore filters, plan ranking,
+        and the "Matched from your profile" chips; the autonomy toggles gate
+        what the action executor may do without asking. Array values are
+        lowercase slugs; the profile screen owns the display labels.
+      type: object
+      required:
+        - dietary
+        - activities
+        - amenities
+        - memberships
+        - preferred_times
+        - allow_calendar_write
+        - allow_auto_book
+        - watch_schedule
+        - updated_at
+      properties:
+        dietary:
+          type: array
+          items:
+            type: string
+          description: e.g. ["vegetarian"]
+        activities:
+          type: array
+          items:
+            type: string
+          description: e.g. ["swim", "running", "strength"]
+        amenities:
+          type: array
+          items:
+            type: string
+          description: e.g. ["pool", "treadmill"]
+        memberships:
+          type: array
+          items:
+            type: string
+          description: e.g. ["ymca_reciprocity", "hotel_gym"]
+        preferred_times:
+          type: array
+          items:
+            type: string
+          description: Time-of-day preference, e.g. ["mornings"]
+        price_level_max:
+          type: integer
+          minimum: 1
+          maximum: 4
+          description: 2 = "$$ or less". Absent = no cap.
+        day_pass_budget_cents:
+          type: integer
+          minimum: 0
+          description: 0 = free only. Absent = no budget set.
+        session_min_minutes:
+          type: integer
+          minimum: 5
+          maximum: 600
+        session_max_minutes:
+          type: integer
+          minimum: 5
+          maximum: 600
+        allow_calendar_write:
+          type: boolean
+        allow_auto_book:
+          type: boolean
+        watch_schedule:
+          type: boolean
+        updated_at:
+          type: string
+          format: date-time
+
+    PreferencesUpdate:
+      description: >-
+        Partial update: fields absent from the body are left unchanged; send
+        null to clear an optional scalar.
+      type: object
+      properties:
+        dietary:
+          type: array
+          items:
+            type: string
+        activities:
+          type: array
+          items:
+            type: string
+        amenities:
+          type: array
+          items:
+            type: string
+        memberships:
+          type: array
+          items:
+            type: string
+        preferred_times:
+          type: array
+          items:
+            type: string
+        price_level_max:
+          type: [integer, "null"]
+          minimum: 1
+          maximum: 4
+        day_pass_budget_cents:
+          type: [integer, "null"]
+          minimum: 0
+        session_min_minutes:
+          type: [integer, "null"]
+          minimum: 5
+          maximum: 600
+        session_max_minutes:
+          type: [integer, "null"]
+          minimum: 5
+          maximum: 600
+        allow_calendar_write:
+          type: boolean
+        allow_auto_book:
+          type: boolean
+        watch_schedule:
+          type: boolean
+
+    ConnectedSource:
+      type: object
+      required: [id, kind, status, connected_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          $ref: "#/components/schemas/SourceKind"
+        status:
+          $ref: "#/components/schemas/SourceStatus"
+        connected_at:
+          type: string
+          format: date-time
+        last_synced_at:
+          type: string
+          format: date-time
+
+    Notification:
+      type: object
+      required: [id, status, title, body, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/NotificationStatus"
+        title:
+          type: string
+        body:
+          type: string
+        cta:
+          type: object
+          required: [label, deep_link]
+          properties:
+            label:
+              type: string
+            deep_link:
+              type: string
+              description: In-app route the notification opens (routes/ owns the URL contract).
+        created_at:
+          type: string
+          format: date-time

@@ -1,92 +1,63 @@
-# backend
+# TravelWell backend
 
-Simple ReAct agent
-Agent generated with `agents-cli` version `1.0.0`
+FastAPI (async) + SQLAlchemy 2.0 + Alembic on PostgreSQL. The v1 API lives
+under `/api/v1` (contract: [docs/openapi.yaml](../docs/openapi.yaml)); the
+legacy hackathon concierge (`app/agent.py`, `POST /api/recommend`) is still
+mounted and retires as the v1 surface replaces it.
 
-## Project Structure
+## Structure
 
 ```
 backend/
-├── app/         # Core agent code
-│   ├── agent.py               # Main agent logic
-│   ├── fast_api_app.py        # FastAPI Backend server
-│   └── app_utils/             # App utilities and helpers
-├── tests/                     # Unit, integration, and load tests
-├── GEMINI.md                  # AI-assisted development guide
-└── pyproject.toml             # Project dependencies
+├── app/
+│   ├── api/         # /api/v1: auth, trips, profile; problem+json errors
+│   ├── db/          # SQLAlchemy models + async engine
+│   ├── agent.py     # legacy ADK concierge pipeline
+│   └── fast_api_app.py
+├── migrations/      # Alembic; operational schema truth
+├── scripts/         # seed, schema drift check, dev session helper
+└── tests/api/       # integration tests against a real Postgres
 ```
-
-> 💡 **Tip:** Use [Antigravity CLI](https://antigravity.google/) for AI-assisted development - project context is pre-configured in `GEMINI.md`.
 
 ## Requirements
 
-Before you begin, ensure you have:
-- **uv**: Python package manager (used for all dependency management in this project) - [Install](https://docs.astral.sh/uv/getting-started/installation/) ([add packages](https://docs.astral.sh/uv/concepts/dependencies/) with `uv add <package>`)
-- **agents-cli**: Agents CLI - Install with `uv tool install google-agents-cli`
-- **Google Cloud SDK**: For GCP services - [Install](https://cloud.google.com/sdk/docs/install)
+- **uv**: Python package manager, used for everything here -
+  [install](https://docs.astral.sh/uv/getting-started/installation/)
+- **Docker**: for the local Postgres (`compose.yaml`)
 
-
-## Quick Start
-
-Install `agents-cli` and its skills if not already installed:
+## Local development
 
 ```bash
-uvx google-agents-cli setup
+docker compose up -d               # Postgres 16 on localhost:5432
+uv run alembic upgrade head        # apply migrations
+uv run python scripts/seed.py      # demo user + trips (idempotent)
+uv run uvicorn app.fast_api_app:app --port 8000
 ```
 
-Install required packages:
+Connection comes from `DATABASE_URL` (defaults to the compose credentials).
+Sign in with `demo@travelwell.dev` and read the one-time code from the server
+log.
+
+## Database
+
+Operational schema truth is `migrations/`; the models in `app/db/models.py`
+are the authored description of the schema, and
+[docs/schema.sql](../docs/schema.sql) is generated from them by
+`scripts/dump_schema.py`. Change process: edit the models, write a migration,
+then regenerate `schema.sql`. `scripts/check_schema_drift.sh` holds the three
+together in CI.
+
+Drift checks run locally with
+`PGUSER=travelwell PGPASSWORD=travelwell ./scripts/check_schema_drift.sh`.
+
+## Tests
+
+With the compose Postgres running:
 
 ```bash
-agents-cli install
+uv run pytest tests/api
 ```
 
-Test the agent with a local web server:
-
-```bash
-agents-cli playground
-```
-
-You can also use features from the [ADK](https://adk.dev/) CLI with `uv run adk`.
-
-## Commands
-
-| Command              | Description                                                                                 |
-| -------------------- | ------------------------------------------------------------------------------------------- |
-| `agents-cli install` | Install dependencies using uv                                                         |
-| `agents-cli playground` | Launch local development environment                                                  |
-| `agents-cli lint`    | Run code quality checks                                                               |
-| `agents-cli eval`    | Evaluate agent behavior (generate, grade, analyze, and more — see `agents-cli eval --help`) |
-| `uv run pytest tests/unit tests/integration` | Run unit and integration tests                                                        || [A2A Inspector](https://github.com/a2aproject/a2a-inspector) | Launch A2A Protocol Inspector                                                        |
-
-## 🛠️ Project Management
-
-| Command | What It Does |
-|---------|--------------|
-| `agents-cli scaffold enhance` | Add CI/CD pipelines and Terraform infrastructure |
-| `agents-cli infra cicd` | One-command setup of entire CI/CD pipeline + infrastructure |
-| `agents-cli scaffold upgrade` | Auto-upgrade to latest version while preserving customizations |
-
----
-
-## Development
-
-Edit your agent logic in `app/agent.py` and test with `agents-cli playground` - it auto-reloads on save.
-
-## Deployment
-
-```bash
-gcloud config set project <your-project-id>
-agents-cli deploy
-```
-
-To add CI/CD and Terraform, run `agents-cli scaffold enhance`.
-To set up your production infrastructure, run `agents-cli infra cicd`.
-
-## Observability
-
-Built-in telemetry exports to Cloud Trace, BigQuery, and Cloud Logging.
-
-## A2A Inspector
-
-This agent supports the [A2A Protocol](https://a2a-protocol.org/). Use the [A2A Inspector](https://github.com/a2aproject/a2a-inspector) to test interoperability.
-See the [A2A Inspector docs](https://github.com/a2aproject/a2a-inspector) for details.
+The suite creates and migrates its own `travelwell_test` database on the same
+instance (the `_test` suffix is enforced) and isolates tests by truncation.
+The same suite runs in CI against a `postgres:16` service.

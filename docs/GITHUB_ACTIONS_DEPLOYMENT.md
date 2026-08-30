@@ -1,84 +1,119 @@
-# TravelWell AI GitHub Actions Deployment Guide
+# GitHub Actions: CI and Deployment
 
-This guide details the CI/CD configuration, required secrets, GCP permissions, deployment triggers, and rollback operations for TravelWell AI.
+## CI
 
----
+[.github/workflows/ci.yml](../.github/workflows/ci.yml) runs on every pull
+request, on pushes to non-main branches, and as a reusable workflow called by
+the deploy workflow. Three independent jobs.
 
-## 🔒 GitHub Secrets Configuration
+### Frontend gates
 
-To run the automated deployment workflow, configure the following secrets under **Settings > Secrets and variables > Actions** in your GitHub repository:
+Node 20, `working-directory: frontend`:
 
-| Secret Name | Description | Example / Format |
-| :--- | :--- | :--- |
-| `GCP_PROJECT_ID` | The Google Cloud project ID. | `your-gcp-project-id` |
-| `GCP_REGION` | Target deploy region for Cloud Run and Artifact Registry. | `us-central1` |
-| `GCP_SA_KEY` | JSON Key credential string for the authorized Service Account. | `{"type": "service_account", ...}` |
-| `GOOGLE_MAPS_API_KEY` | Backend Google Maps Platform credentials (Geocoding/Places/Routes). | `AIzaSy...` |
+1. **Generated client sync**: regenerates `src/api/schema.d.ts` from
+   `backend/openapi.json` and fails on any diff. Types come from the contract
+   the server actually serves rather than the hand-written design artifact
+   (see docs/adr/004, which is local-only).
+2. **Typecheck** (`tsc -b`), **lint** (ESLint including the import-boundary
+   rules), **unit tests** (Vitest), **build** (Vite production build).
 
----
+### Backend schema drift checks
 
-## 🛡️ Required GCP Service Account Roles
+Runs `backend/scripts/check_schema_drift.sh` against a `postgres:16` service.
+Three gates: `docs/schema.sql` is regenerated from the models and must match the
+committed copy; that file and the Alembic migration chain are applied to
+separate scratch databases and their `pg_dump` output diffed; and `alembic
+check` asserts the models match the migrated database. Together they hold the
+generated reference, the models and operational truth in step.
 
-The GCP Service Account linked to `GCP_SA_KEY` must have sufficient permissions to push images to Artifact Registry and deploy revision changes to Cloud Run. Assign the following roles in IAM Console:
+Then two contract links neither the frontend job nor the schema check can see.
+`scripts/dump_openapi.py` must reproduce the committed `backend/openapi.json`
+exactly, which proves that file is what the routers serve; and
+`scripts/check_openapi_drift.py` compares `docs/openapi.yaml` against that same
+API, so the design document cannot decay into decoration.
 
-1.  **Artifact Registry Writer (`roles/artifactregistry.writer`):** Allows building and pushing Docker image tags to the `travelwell-images` repository.
-2.  **Cloud Run Developer (`roles/run.developer`):** Allows deploying new revisions, managing services, and updating env parameters.
-3.  **Service Account User (`roles/iam.serviceAccountUser`):** Required to run deployments utilizing the default Cloud Run execution identity service account (`travelwell-cloudrun-sa@...`).
+### Backend tests
 
----
+Runs `pytest tests/api tests/unit` against a `postgres:16` service. The suite
+creates and migrates its own `travelwell_test` database (the `_test` suffix is
+enforced by the test setup) and isolates tests by truncation. `tests/integration`
+is excluded on purpose: it needs Vertex AI credentials the runner has no way to
+hold, and a permanently red gate gates nothing.
 
-## 🚀 Triggering Deployments
+All of these run locally with the same commands; see the backend and frontend
+READMEs.
 
-*   **Automation:** Push commits directly to the `main` branch. GitHub Actions catches the push event, runs code quality checks and unit tests via `uv`, compiles the React bundles, builds the container configurations, pushes image artifacts to Google Artifact Registry, and creates new Cloud Run revisions.
-*   **Manual Trigger:** Go to the **Actions** tab on your GitHub repository, select **Deploy TravelWell AI** from the sidebar, and click **Run workflow** choosing the branch you want to deploy from.
+## Deployment
 
----
+[.github/workflows/deploy.yml](../.github/workflows/deploy.yml) runs on merge to
+main, and on manual dispatch for redeploying a chosen ref.
 
-## ⏪ Manual Rollback Procedures
+### Why the gates run again on main
 
-If a deployment introduces issues, you can roll back to a previous revision instantly using `gcloud` or the GCP Console without rebuild steps:
+Merges to main are merge commits, never squashes. A `pull_request` check runs
+against a preview merge that GitHub computes at the time, not against the commit
+that ends up on main, so on its own it never tests the tree that would deploy.
+The deploy workflow therefore calls `ci.yml` as its `gates` job and every deploy
+job depends on it. `ci.yml` keeps `branches-ignore: main` so this call is the
+only run on main rather than a second one.
 
-### Option A: Using the Google Cloud Console (Recommended for Speed)
-1. Navigate to the **Cloud Run** console in Google Cloud.
-2. Select the service you want to revert (`travelwell-backend` or `travelwell-frontend`).
-3. Click the **Revisions** tab.
-4. Select the checkmark of the healthy historical revision (which was tagged with the specific GitHub SHA during build time).
-5. Click **Manage Traffic** at the top.
-6. Set the traffic routing percentage to `100%` for your chosen historical revision, and click **Save**.
+### What it does
 
-### Option B: Using gcloud CLI
-Run the following commands locally to shift traffic to a specific revision:
+`gates` and `preflight` run first, then the backend, then the frontend.
 
-```bash
-# Revert travelwell-backend
-gcloud run services update-traffic travelwell-backend \
-  --to-revisions=travelwell-backend-REVISION_NAME=100 \
-  --region=your-gcp-region \
-  --project=your-gcp-project-id
+The backend job builds `backend/`, pushes to Artifact Registry tagged with the
+short commit SHA, runs migrations, deploys the service and smoke tests
+`/readyz`, the one path the auth gate leaves open. Migrations run as a Cloud Run
+job from the exact image being deployed, before the new revision serves, so a
+failed migration fails the deploy instead of crash-looping instances at startup.
 
-# Revert travelwell-frontend
-gcloud run services update-traffic travelwell-frontend \
-  --to-revisions=travelwell-frontend-REVISION_NAME=100 \
-  --region=your-gcp-region \
-  --project=your-gcp-project-id
-```
-*(Replace `REVISION_NAME` with the targeted historical revision string, e.g., `00008-brs`)*
+The frontend job then builds and deploys the nginx image with `BACKEND_URL` read
+from the backend service that was just deployed, so it cannot drift from it, and
+smoke tests the SPA shell, `/config.json` and `POST /api/v1/auth/demo` through
+the nginx proxy. `VITE_API_BASE_URL` stays unset: an empty base keeps the SPA
+calling `/api/v1` on its own origin, which is what keeps the session cookie
+first-party.
 
----
+Neither deploy passes `--allow-unauthenticated`. The IAM policy lives on the
+service rather than the revision, so public access survives a redeploy untouched
+and the deployer never needs permission to change it.
 
-## 🌐 Custom Domains & CORS Management
+`CORS_ALLOWED_ORIGINS` is computed from the frontend service rather than
+hardcoded. Cloud Run answers on two hostnames and `status.url` reports only one,
+so the full set comes from the `run.googleapis.com/urls` annotation; ADK wraps
+the whole app in an origin guard, and an origin missing from that list gets a
+bare 403 on every non-GET, our own `/api/v1` routes included.
 
-To route traffic via your production custom domains (`https://travelwellai.com` and `https://www.travelwellai.com`), ensure both domains are verified and mapped in the Google Cloud Console:
+### Configuration
 
-1. **Cloud Run Domain Mapping:**
-   - Map `travelwellai.com` to the `travelwell-frontend` Cloud Run service.
-   - Map `api.travelwellai.com` or backend custom endpoints to `travelwell-backend` if applicable.
+Repository variables, under Settings > Secrets and variables > Actions:
 
-2. **CORS Management via Environment Variables:**
-   - By default, the backend allows standard development origins (localhost) and default Cloud Run service URLs.
-   - To manage permitted domains without modifying code, configure the `CORS_ALLOWED_ORIGINS` environment variable on the `travelwell-backend` Cloud Run service.
-   - **Format:** A comma-separated list of allowed origins.
-     *Example:*
-     `CORS_ALLOWED_ORIGINS=https://travelwellai.com,https://www.travelwellai.com,https://travelwell-frontend-163831374566.us-central1.run.app`
-   - Update this variable directly in the Cloud Run service container settings or pass it via GitHub Actions secrets.
+| Variable | Required | Meaning |
+| --- | --- | --- |
+| `GCP_PROJECT_ID` | yes | Google Cloud project |
+| `GCP_WIF_PROVIDER` | yes | Full resource name of the Workload Identity provider |
+| `GCP_DEPLOYER_SA` | yes | Deployer service account email |
+| `DB_TARGET` | no | `cloudsql` or `external`; defaults to `external` |
 
+No secrets are stored. Authentication is Workload Identity Federation, so the
+runner exchanges its own OIDC token for short-lived credentials and there is no
+service account key to leak or rotate.
+
+`DB_TARGET` exists because `DATABASE_URL` alone selects the database
+(`app/db/engine.py`) but only Cloud SQL also needs its instance attached to the
+revision. Staging currently runs against hosted Postgres over TCP, hence the
+default. The workflow clears the attachment rather than omitting the flag, since
+an omitted flag would keep whatever the previous revision had.
+
+### Setup still required
+
+The Workload Identity pool does not exist yet, so the three required variables
+are unset and **the deploy jobs skip while the gates still run**. Merges stay
+green and the run summary says why. Nothing in the workflow changes when the
+variables are filled in; the deploys simply start happening.
+
+Creating the pool needs project-level IAM that the repository owner does not
+hold. A project admin has to create the pool and an OIDC provider restricted to
+this repository, create the deployer service account, and grant it Cloud Run
+Admin, Artifact Registry Writer, Service Account User on `travelwell-runtime`,
+and Workload Identity User for the repository's principal.

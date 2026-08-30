@@ -1,0 +1,58 @@
+server {
+    listen 8080;
+    server_name localhost;
+    root /usr/share/nginx/html;
+
+    location / {
+        index index.html index.htm;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Same-origin API: the SPA calls /api/v1 on its own origin and nginx
+    # forwards to the backend service. This keeps the twl_session cookie
+    # first-party, so SameSite=Lax keeps working exactly as it does behind
+    # the Vite dev proxy; no CORS or SameSite=None needed.
+    # ${BACKEND_URL} is substituted by entrypoint.sh at container start.
+    location /api/ {
+        proxy_pass ${BACKEND_URL};
+        proxy_ssl_server_name on;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_http_version 1.1;
+        # SSE endpoints (later slices) must stream, not buffer.
+        proxy_buffering off;
+        proxy_read_timeout 75s;
+    }
+
+    # nginx's mime.types has no .webmanifest entry, so the manifest would ship
+    # as application/octet-stream. Exact-match locations beat the regex ones
+    # below, so this also keeps it out of the 1y asset cache.
+    location = /manifest.webmanifest {
+        default_type application/manifest+json;
+    }
+
+    # The regex below would otherwise cache sw.js for a year. Browsers cap the
+    # service-worker script at 24h regardless, but a stale worker is exactly
+    # how a deploy appears to have done nothing.
+    location = /sw.js {
+        add_header Cache-Control "no-cache";
+    }
+
+    # Cache media files
+    location ~* \.(?:jpg|jpeg|gif|png|ico|cur|gz|svg|svgz|mp4|ogg|ogv|webm|htc)$ {
+        expires 1M;
+        access_log off;
+        add_header Cache-Control "public";
+    }
+
+    # Cache CSS and JS assets
+    location ~* \.(?:css|js)$ {
+        expires 1y;
+        access_log off;
+        add_header Cache-Control "public";
+    }
+
+    # Error pages configuration
+    error_page 500 502 503 504 /50x.html;
+    location = /50x.html {
+    }
+}
