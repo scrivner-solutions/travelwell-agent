@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { formatInTimeZone } from 'date-fns-tz'
@@ -75,6 +75,43 @@ function Chevron({ open, className = '' }: { open: boolean; className?: string }
         strokeLinejoin="round"
       />
     </svg>
+  )
+}
+
+/**
+ * A nudge for the day strip, one per side.
+ *
+ * Fine pointers only. A vertical mouse wheel scrolls the page rather than a
+ * horizontal row, so with the scrollbar hidden a mouse had no way left to reach
+ * an off-screen day. Touch drags and a trackpad swipes sideways already, and on
+ * a phone the strip wants its full width, so these are display:none there.
+ */
+function StripArrow({
+  side,
+  disabled,
+  onClick,
+}: {
+  side: 'left' | 'right'
+  disabled: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={side === 'left' ? 'Earlier days' : 'Later days'}
+      className="hidden size-7 flex-none items-center justify-center rounded-full text-muted-soft disabled:opacity-25 [@media(pointer:fine)]:flex"
+    >
+      <svg aria-hidden viewBox="0 0 16 16" fill="none" className="size-4">
+        <path
+          d={side === 'left' ? 'M10 4L6 8l4 4' : 'M6 4l4 4-4 4'}
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </button>
   )
 }
 
@@ -247,6 +284,12 @@ export function TripScreen() {
     () => void navigate({ search: (prev) => ({ ...prev, sheet: 'trips' }) }),
     [navigate],
   )
+  // A separate destination, not the same sheet: a button that counts past
+  // trips has to open those, or the count it just made is not what you get.
+  const openArchiveSheet = useCallback(
+    () => void navigate({ search: (prev) => ({ ...prev, sheet: 'archive' }) }),
+    [navigate],
+  )
 
   const rangeDays = trip ? tripDays(trip.starts_on, trip.ends_on) : []
   const todayIso = trip
@@ -284,6 +327,30 @@ export function TripScreen() {
       node?.scrollIntoView({ inline: 'center', block: 'nearest' }),
     [],
   )
+  const stripRef = useRef<HTMLDivElement>(null)
+  // Which nudge still has somewhere to go. A strip that fits reports both ends
+  // at once, which greys out both arrows - the honest rendering of no room.
+  const [stripEnds, setStripEnds] = useState({ atStart: true, atEnd: true })
+  const syncStripEnds = useCallback(() => {
+    const el = stripRef.current
+    if (el === null) return
+    // 1px of slack: subpixel widths mean scrollLeft rarely lands on max exactly.
+    setStripEnds({
+      atStart: el.scrollLeft <= 1,
+      atEnd: el.scrollLeft >= el.scrollWidth - el.clientWidth - 1,
+    })
+  }, [])
+  // One chip per nudge, measured rather than assumed, so the row keeps landing
+  // on the column offsets it started from however the chips end up sized.
+  const nudgeStrip = useCallback((direction: -1 | 1) => {
+    const el = stripRef.current
+    if (el === null) return
+    const chip = el.firstElementChild
+    const gap = parseFloat(getComputedStyle(el).columnGap) || 0
+    const step =
+      chip instanceof HTMLElement ? chip.offsetWidth + gap : el.clientWidth / 2
+    el.scrollBy({ left: direction * step, behavior: 'smooth' })
+  }, [])
   const selectedDay =
     day ??
     openingDay({
@@ -293,6 +360,10 @@ export function TripScreen() {
       timelinePending: timeline.isPending,
     })
   const dayEntries = entriesByDay.get(selectedDay ?? '') ?? []
+  // Switching trips remounts the chips at a new scroll offset, and the selected
+  // cell's own ref may have re-centred the row; either way the arrows are stale
+  // until this runs. onScroll keeps them honest from then on.
+  useEffect(syncStripEnds, [syncStripEnds, strip.length, selectedDay])
   // Read back out of the live timeline rather than captured at tap, so a swap
   // made inside the sheet shows in the sheet that made it. Guarded rather than
   // relying on the find missing: with no open item every commitment entry has
@@ -391,58 +462,76 @@ export function TripScreen() {
             <PlanSection trip={trip} onShowProvenance={setProvenanceItem} />
 
             {/* Chips grow to fill the width and stop shrinking at 74px, so a
-                four-day trip spreads and a padded fortnight scrolls. */}
-            <div
-              className="flex gap-[7px] overflow-x-auto"
-              role="tablist"
-              aria-label="Trip days"
-            >
-              {strip.map((d) => {
-                const selectable = days.includes(d)
-                const selected = d === selectedDay
-                return (
-                  <button
-                    key={d}
-                    role="tab"
-                    aria-selected={selected}
-                    disabled={!selectable}
-                    ref={selected ? centerSelected : undefined}
-                    onClick={() =>
-                      void navigate({ search: (prev) => ({ ...prev, day: d }) })
-                    }
-                    className={`flex min-w-[74px] flex-1 flex-col items-center gap-[7px] rounded-control border px-2 pt-2.5 pb-[9px] ${
-                      selected
-                        ? 'border-ink bg-ink'
-                        : selectable
-                          ? 'border-border bg-card'
-                          : 'border-transparent'
-                    }`}
-                  >
-                    <span
-                      className={`whitespace-nowrap text-label font-semibold ${
+                four-day trip spreads and a padded fortnight scrolls. The
+                scrollbar is hidden because a desktop track is thicker than the
+                dots it sits under; the nudge arrows replace it for a mouse.
+                They sit outside the tablist on purpose - ARIA wants a
+                tablist's children to be tabs and nothing else. */}
+            <div className="flex items-center gap-1">
+              <StripArrow
+                side="left"
+                disabled={stripEnds.atStart}
+                onClick={() => nudgeStrip(-1)}
+              />
+              <div
+                ref={stripRef}
+                onScroll={syncStripEnds}
+                className="flex min-w-0 flex-1 gap-[7px] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                role="tablist"
+                aria-label="Trip days"
+              >
+                {strip.map((d) => {
+                  const selectable = days.includes(d)
+                  const selected = d === selectedDay
+                  return (
+                    <button
+                      key={d}
+                      role="tab"
+                      aria-selected={selected}
+                      disabled={!selectable}
+                      ref={selected ? centerSelected : undefined}
+                      onClick={() =>
+                        void navigate({ search: (prev) => ({ ...prev, day: d }) })
+                      }
+                      className={`flex min-w-[74px] flex-1 flex-col items-center gap-[7px] rounded-control border px-2 pt-2.5 pb-[9px] ${
                         selected
-                          ? 'text-surface'
+                          ? 'border-ink bg-ink'
                           : selectable
-                            ? 'text-ink'
-                            : 'text-muted-faint'
+                            ? 'border-border bg-card'
+                            : 'border-transparent'
                       }`}
                     >
-                      {cellLabel(d)}
-                    </span>
-                    {/* Fixed height so a day with nothing on it is the same
-                        size as a day that is full. Capped: past about five the
-                        dots stop counting and start being texture. */}
-                    <span className="flex h-1.5 items-center gap-[3px]">
-                      {(entriesByDay.get(d) ?? []).slice(0, 5).map((entry, i) => (
-                        <span
-                          key={i}
-                          className={`size-[5px] rounded-full ${entryDotClass(entry, selected)}`}
-                        />
-                      ))}
-                    </span>
-                  </button>
-                )
-              })}
+                      <span
+                        className={`whitespace-nowrap text-label font-semibold ${
+                          selected
+                            ? 'text-surface'
+                            : selectable
+                              ? 'text-ink'
+                              : 'text-muted-faint'
+                        }`}
+                      >
+                        {cellLabel(d)}
+                      </span>
+                      {/* Fixed height so a day with nothing on it is the same
+                          size as a day that is full. Capped: past about five
+                          the dots stop counting and start being texture. */}
+                      <span className="flex h-1.5 items-center gap-[3px]">
+                        {(entriesByDay.get(d) ?? []).slice(0, 5).map((entry, i) => (
+                          <span
+                            key={i}
+                            className={`size-[5px] rounded-full ${entryDotClass(entry, selected)}`}
+                          />
+                        ))}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              <StripArrow
+                side="right"
+                disabled={stripEnds.atEnd}
+                onClick={() => nudgeStrip(1)}
+              />
             </div>
 
             {/* min-height so switching between busy and empty days never
@@ -546,7 +635,7 @@ export function TripScreen() {
 
         {trips.isSuccess && pastTrips.length > 0 && (
           <button
-            onClick={openTripsSheet}
+            onClick={openArchiveSheet}
             className="flex w-full items-center justify-between gap-3 rounded-panel border border-dashed border-border-faint px-4 py-3.5 text-body-sm font-semibold text-muted hover:bg-card focus-visible:outline-2 focus-visible:outline-primary"
           >
             {pastTrips.length} past {pastTrips.length === 1 ? 'trip' : 'trips'}
@@ -555,16 +644,23 @@ export function TripScreen() {
         )}
       </div>
 
+      {/* One sheet, two lists. The header switches trips and needs all of
+          them; the archive button already said how many past trips there are,
+          so it lands on those alone and drops the add row with them. */}
       <TripsSheet
-        open={sheet === 'trips'}
+        open={sheet === 'trips' || sheet === 'archive'}
         onClose={() =>
           void navigate({ search: (prev) => ({ ...prev, sheet: undefined }) })
         }
-        trips={listedTrips}
+        title={sheet === 'archive' ? 'Past trips' : 'Your trips'}
+        trips={sheet === 'archive' ? pastTrips : listedTrips}
         selectedId={trip?.id}
         onSelect={onSelectTrip}
-        onAddTrip={() =>
-          void navigate({ search: (prev) => ({ ...prev, sheet: 'new' }) })
+        onAddTrip={
+          sheet === 'archive'
+            ? undefined
+            : () =>
+                void navigate({ search: (prev) => ({ ...prev, sheet: 'new' }) })
         }
       />
 
