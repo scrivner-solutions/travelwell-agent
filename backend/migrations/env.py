@@ -11,11 +11,18 @@ unfiltered and `alembic check` sees the whole schema.
 from logging.config import fileConfig
 
 from alembic import context
+from dotenv import load_dotenv
 from sqlalchemy import create_engine, pool
 
-from app.db import models  # noqa: F401  registers tables on Base.metadata
-from app.db.base import Base
-from app.db.engine import connect_args, database_url
+# Alembic has no application startup, so without this DATABASE_URL from
+# backend/.env is ignored and every worktree migrates the default database.
+# Must not override: the test suite sets DATABASE_URL to a *_test database it
+# drops and recreates, then upgrades in-process through this file.
+load_dotenv()
+
+from app.db import models  # noqa: E402, F401  registers tables on Base.metadata
+from app.db.base import Base  # noqa: E402
+from app.db.engine import connect_args, database_url  # noqa: E402
 
 config = context.config
 if config.config_file_name is not None:
