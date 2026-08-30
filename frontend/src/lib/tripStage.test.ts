@@ -113,6 +113,13 @@ describe('stageCopy', () => {
     expect(stageCopy(trip(), 'accepted', p, []).head).toBe('1 window is in your plan')
   })
 
+  // The head sits directly above the window list, so it counts that list. Its
+  // own filter kept `skipped` and read one higher than the rows beneath it.
+  it('leaves skipped windows out of the accepted count, as the list does', () => {
+    const p = plan([item({ status: 'planned' }), item({ id: 'i2', status: 'skipped' })])
+    expect(stageCopy(trip(), 'accepted', p, []).head).toBe('1 window is in your plan')
+  })
+
   it('reads the retrospective headline off the same numbers as the tiles', () => {
     const stats = [
       { n: 3, label: 'kept' },
@@ -127,6 +134,19 @@ describe('stageCopy', () => {
       { n: 0, label: 'skipped' },
     ]
     expect(stageCopy(trip(), 'done', undefined, stats).head).toBe('You kept every window')
+  })
+
+  // A window can fail to be kept without being skipped, and the old test was
+  // `skipped === 0` - which called London's failed dinner "every window".
+  it('does not call it every window when one could not be booked', () => {
+    const stats = [
+      { n: 1, label: 'kept' },
+      { n: 1, label: 'failed' },
+      { n: 0, label: 'skipped' },
+    ]
+    expect(stageCopy(trip(), 'done', undefined, stats).head).toBe(
+      'You kept 1 of 2 windows',
+    )
   })
 
   it('writes no body for a finished trip', () => {
@@ -166,6 +186,28 @@ describe('retrospectiveStats', () => {
       ]),
     )
     expect(stats.map((s) => s.label)).toEqual(['kept', 'booked', 'skipped'])
+  })
+
+  // The status says the window stood; only the reservation knows it never
+  // happened. Counting it as kept is what produced "You kept every window"
+  // one scroll above a row badged COULDN'T BOOK.
+  it('moves a window whose booking failed out of kept and names it', () => {
+    const stats = retrospectiveStats(
+      plan([
+        item({ id: 'a', status: 'planned' }),
+        item({
+          id: 'b',
+          status: 'planned',
+          needs_reservation: true,
+          reservation: { id: 'r1', status: 'failed', provider: 'opentable' },
+        }),
+      ]),
+    )
+    expect(stats).toEqual([
+      { n: 1, label: 'kept' },
+      { n: 1, label: 'failed' },
+      { n: 0, label: 'skipped' },
+    ])
   })
 })
 

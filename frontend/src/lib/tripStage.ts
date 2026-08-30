@@ -106,7 +106,9 @@ export function stageCopy(
   }
 
   if (stage === 'accepted') {
-    const live = plan ? plan.items.filter((i) => i.status !== 'removed').length : 0
+    // Counts the list it sits above, rather than holding its own opinion: its
+    // own filter kept `skipped`, so the head read one higher than the rows.
+    const live = windowItems(plan, stage).length
     return {
       head: `${live} ${live === 1 ? 'window is' : 'windows are'} in your plan`,
       body: plan?.provenance_summary,
@@ -118,13 +120,16 @@ export function stageCopy(
   // below — so this states what they add up to and stops. No body: anything
   // longer would be narrative about a trip nothing in the app watched.
   const kept = stats.find((s) => s.label === 'kept')?.n ?? 0
+  const failed = stats.find((s) => s.label === 'failed')?.n ?? 0
   const skipped = stats.find((s) => s.label === 'skipped')?.n ?? 0
-  const total = kept + skipped
+  const total = kept + failed + skipped
   return {
     head:
       total === 0
         ? 'Nothing was planned for this trip'
-        : skipped === 0
+        : // `kept === total`, not `skipped === 0`: a window can also fail to be
+          // kept by failing to book, and the old test called that every window.
+          kept === total
           ? 'You kept every window'
           : kept === 0
             ? 'None of these windows happened'
@@ -136,7 +141,8 @@ export function stageCopy(
 export type RetroStat = { n: number; label: string }
 
 /**
- * The retrospective's three tiles. `label` doubles as the key `stageCopy`
+ * The retrospective's tiles: `kept` and `skipped` always, the two reservation
+ * outcomes only when there were any. `label` doubles as the key `stageCopy`
  * reads, so the headline and the tiles can never disagree about the count.
  *
  * `removed` is in no tile: Q4's scope is that a removed item was withdrawn
@@ -144,20 +150,25 @@ export type RetroStat = { n: number; label: string }
  */
 export function retrospectiveStats(plan: Plan | undefined): RetroStat[] {
   if (plan === undefined) return []
+  const stood = (i: PlanItem) =>
+    i.status === 'confirmed' || i.status === 'planned' || i.status === 'changed'
+  // Whether it happened is the reservation's answer, not the status's: a
+  // `planned` dinner nobody could book did not happen, and counting it as kept
+  // headed a retrospective "You kept every window" over a COULDN'T BOOK row.
+  const failed = plan.items.filter(
+    (i) => stood(i) && i.reservation?.status === 'failed',
+  ).length
   const kept = plan.items.filter(
-    (i) => i.status === 'confirmed' || i.status === 'planned' || i.status === 'changed',
+    (i) => stood(i) && i.reservation?.status !== 'failed',
   ).length
   const skipped = plan.items.filter((i) => i.status === 'skipped').length
-  const booked = plan.items.filter(
-    (i) => i.reservation?.status === 'confirmed',
-  ).length
-  const tiles: RetroStat[] = [
-    { n: kept, label: 'kept' },
-    { n: skipped, label: 'skipped' },
-  ]
-  // Only when there were any: a "0 booked" tile on a trip that never wanted a
-  // reservation reports on a thing that was never in question.
-  if (booked > 0) tiles.splice(1, 0, { n: booked, label: 'booked' })
+  const booked = plan.items.filter((i) => i.reservation?.status === 'confirmed').length
+  // Both reservation tiles appear only when there were any: a "0 booked" tile on
+  // a trip that never wanted a reservation reports on a thing never in question.
+  const tiles: RetroStat[] = [{ n: kept, label: 'kept' }]
+  if (booked > 0) tiles.push({ n: booked, label: 'booked' })
+  if (failed > 0) tiles.push({ n: failed, label: 'failed' })
+  tiles.push({ n: skipped, label: 'skipped' })
   return tiles
 }
 

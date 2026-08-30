@@ -8,6 +8,17 @@ import {
 } from '@/lib/tripStage'
 
 /**
+ * "2 windows kept", but "2 skipped" needs no noun and "booked" means
+ * reservations - so the noun rides with the label rather than the number.
+ */
+function statNoun(label: string, n: number): string {
+  if (label === 'kept') return `window${n === 1 ? '' : 's'} kept`
+  if (label === 'booked') return `reservation${n === 1 ? '' : 's'}`
+  if (label === 'failed') return "couldn't book"
+  return 'skipped'
+}
+
+/**
  * The one card that says what this trip is currently about: a stage-coloured
  * border, a serif headline, a sentence, an optional block of numbers, the
  * actions, and a note on what happens without you.
@@ -50,13 +61,7 @@ export function TripStateCard({
             >
               <dd className="font-display text-display-sm tabular-nums">{stat.n}</dd>
               <dt className="mt-1.5 text-caption text-muted-soft">
-                {/* "windows kept", but "2 skipped" needs no noun and "booked"
-                    means reservations - so the noun rides with the label. */}
-                {stat.label === 'kept'
-                  ? `window${stat.n === 1 ? '' : 's'} kept`
-                  : stat.label === 'booked'
-                    ? `reservation${stat.n === 1 ? '' : 's'}`
-                    : 'skipped'}
+                {statNoun(stat.label, stat.n)}
               </dt>
             </div>
           ))}
