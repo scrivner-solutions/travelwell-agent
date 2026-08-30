@@ -17,4 +17,5 @@ async def send_sign_in_code(email: str, code: str) -> None:
     if sessions.dev_mode():
         logger.warning("Sign-in code for %s: %s", email, code)
         return
-    logger.error("No email provider configured; sign-in code for %s was not sent", email)
+    # No address in the log line: Cloud Logging is project-wide readable.
+    logger.error("No email provider configured; a sign-in code was not sent")
