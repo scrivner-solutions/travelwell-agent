@@ -5,8 +5,8 @@ All DDL, including the Postgres enum types, is created by migrations, never by
 metadata.create_all: every pg enum here is declared with create_type=False.
 
 Covered so far: users, user_preferences, login_codes, connected_sources,
-trips, trip_evidence, wellness_windows, plans, plan_items, plan_item_options. The
-remaining tables exist in the database via
+trips, trip_evidence, wellness_windows, plans, plan_items, plan_item_options,
+pending_actions, reservations. The remaining tables exist in the database via
 the initial migration and are reached with textual SQL until their vertical
 slice lands; migrations/env.py limits drift comparison to the tables modeled
 here, so partial coverage does not trip `alembic check`.
@@ -106,6 +106,24 @@ class ReservationStatus(enum.StrEnum):
     pending = "pending"
     holding = "holding"
     confirmed = "confirmed"
+    failed = "failed"
+    canceled = "canceled"
+
+
+class ActionType(enum.StrEnum):
+    make_reservation = "make_reservation"
+    cancel_reservation = "cancel_reservation"
+    create_calendar_event = "create_calendar_event"
+    update_calendar_event = "update_calendar_event"
+    delete_calendar_event = "delete_calendar_event"
+    send_invite = "send_invite"
+
+
+class ActionStatus(enum.StrEnum):
+    proposed = "proposed"
+    approved = "approved"
+    executing = "executing"
+    completed = "completed"
     failed = "failed"
     canceled = "canceled"
 
@@ -416,6 +434,69 @@ class PlanItemOption(Base):
     )
 
     item: Mapped[PlanItem] = relationship(back_populates="options")
+
+
+class PendingAction(Base):
+    """Every external side effect the app performs, durable and auditable.
+
+    Nothing books, cancels or writes a calendar directly: a caller proposes,
+    a user approves, and the executor claims the row and carries it out. That
+    is why `proposed_payload` is what *will* be done rather than what was --
+    the row is written before the effect exists, so a crash mid-execution
+    leaves a claim to resume rather than an effect nobody recorded.
+    """
+
+    __tablename__ = "pending_actions"
+    __table_args__ = (
+        sa.Index(
+            "pending_actions_status_idx",
+            "status",
+            postgresql_where=sa.text("status in ('proposed', 'approved', 'executing')"),
+        ),
+        sa.Index("pending_actions_trip_idx", "trip_id"),
+        sa.CheckConstraint(
+            "status not in ('completed') or (execution_result is not null)",
+            name="pending_actions_check",
+        ),
+    )
+
+    action_id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, server_default=sa.text("gen_random_uuid()")
+    )
+    trip_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("trips.trip_id", ondelete="CASCADE")
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("users.user_id", ondelete="CASCADE")
+    )
+    # Column is `type`; the attribute is not, because the contract and the rest
+    # of the code say action_type and shadowing the builtin reads badly.
+    action_type: Mapped[ActionType] = mapped_column(
+        "type", _pg_enum(ActionType, "action_type")
+    )
+    status: Mapped[ActionStatus] = mapped_column(
+        _pg_enum(ActionStatus, "action_status"),
+        server_default=sa.text("'proposed'::action_status"),
+    )
+    approval_required: Mapped[bool] = mapped_column(server_default=sa.text("true"))
+    subject_item_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.ForeignKey("plan_items.item_id")
+    )
+    proposed_payload: Mapped[dict] = mapped_column(pg.JSONB)
+    # What the provider returned when the effect was submitted, and what we
+    # re-read afterwards to confirm it. Two fields because "we sent it" and
+    # "we checked it landed" are different claims, and only the second is
+    # evidence.
+    execution_result: Mapped[dict | None] = mapped_column(pg.JSONB)
+    verification: Mapped[dict | None] = mapped_column(pg.JSONB)
+    # Unique across the whole table, so callers namespace it per user the way
+    # the demo seed does; two users must not be able to collide or read across.
+    idempotency_key: Mapped[str | None] = mapped_column(unique=True)
+    proposed_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+    approved_at: Mapped[datetime | None]
+    executed_at: Mapped[datetime | None]
+
+    trip: Mapped["Trip"] = relationship()
 
 
 class Reservation(Base):
