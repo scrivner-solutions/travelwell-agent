@@ -4,6 +4,7 @@ import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Button } from '@/components/ui/Button'
 import { api, throwOnError, ApiError } from '@/api/client'
 import { loadRuntimeConfig } from '@/lib/config'
+import { InstallPrompt } from '@/components/ui/InstallPrompt'
 
 function errorCopy(error: unknown): string {
   if (error instanceof ApiError) {
@@ -202,6 +203,10 @@ export function SignInScreen() {
         )}
         </>
       )}
+
+      {/* Installing first matters on iOS: the installed app has its own cookie
+          jar, so a session started in Safari does not carry over. */}
+      <InstallPrompt />
     </main>
   )
 }

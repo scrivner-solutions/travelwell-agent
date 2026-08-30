@@ -2,6 +2,7 @@ import type { ReactNode, SVGProps } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { tripsQueryOptions } from '@/api/queries'
+import { InstallPrompt } from '@/components/ui/InstallPrompt'
 
 /**
  * Tab icons traced from the design prototype's tab bar (exact SVG paths, not
@@ -120,6 +121,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col">
       <main className="flex-1 px-4 pb-24 pt-[max(1rem,env(safe-area-inset-top))]">
+        <InstallPrompt className="mb-4" />
         {children}
       </main>
       <nav
