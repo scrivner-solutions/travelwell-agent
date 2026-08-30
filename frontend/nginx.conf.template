@@ -23,6 +23,20 @@ server {
         proxy_read_timeout 75s;
     }
 
+    # nginx's mime.types has no .webmanifest entry, so the manifest would ship
+    # as application/octet-stream. Exact-match locations beat the regex ones
+    # below, so this also keeps it out of the 1y asset cache.
+    location = /manifest.webmanifest {
+        default_type application/manifest+json;
+    }
+
+    # The regex below would otherwise cache sw.js for a year. Browsers cap the
+    # service-worker script at 24h regardless, but a stale worker is exactly
+    # how a deploy appears to have done nothing.
+    location = /sw.js {
+        add_header Cache-Control "no-cache";
+    }
+
     # Cache media files
     location ~* \.(?:jpg|jpeg|gif|png|ico|cur|gz|svg|svgz|mp4|ogg|ogv|webm|htc)$ {
         expires 1M;

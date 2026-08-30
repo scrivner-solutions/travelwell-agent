@@ -19,7 +19,13 @@ export default defineConfig(({ mode }) => ({
         short_name: 'TravelWell',
         description: 'Your proactive travel wellness agent',
         display: 'standalone',
+        // Falls back to minimal-ui on browsers that reject standalone rather
+        // than dropping all the way to a normal tab.
+        display_override: ['standalone', 'minimal-ui'],
         start_url: '/',
+        // Set to the value browsers already infer from start_url. Pinning it
+        // means a future start_url change cannot re-register as a second app.
+        id: '/',
         theme_color: '#185FA5',
         background_color: '#F4F7FB',
         icons: [

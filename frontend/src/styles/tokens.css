@@ -193,11 +193,27 @@ html {
   background: var(--surface);
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
+  /* Installed-app feel: no browser pull-to-refresh, no rubber-band chaining to
+     the viewport, no double-tap zoom. */
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
   min-height: 100dvh;
+}
+
+/* Long-pressing a control should not raise iOS's selection magnifier or link
+   preview. Scoped to chrome on purpose: itinerary text (addresses, venue
+   names) stays selectable so it can be copied. */
+nav,
+button,
+[role="button"] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
