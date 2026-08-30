@@ -99,6 +99,24 @@ def with_docs(table: sa.Table, ddl: str) -> str:
     return f"{as_comment(prose)}\n{out}" if prose else out
 
 
+def stable(captured: list[tuple[object, str]]) -> list[tuple[object, str]]:
+    """Sort each run of CREATE INDEX by name; everything else keeps its place.
+
+    create_all walks Table.indexes, which is a set of objects hashed by memory
+    address, so index order varied between this machine and a CI runner.
+    """
+    ordered: list[tuple[object, str]] = []
+    run: list[tuple[object, str]] = []
+    for item in captured:
+        if isinstance(getattr(item[0], "element", None), sa.Index):
+            run.append(item)
+            continue
+        ordered += sorted(run, key=lambda i: i[0].element.name)
+        run = []
+        ordered.append(item)
+    return ordered + sorted(run, key=lambda i: i[0].element.name)
+
+
 def render() -> str:
     captured: list[tuple[object, str]] = []
     engine = sa.create_mock_engine(
@@ -123,7 +141,7 @@ def render() -> str:
     captured.clear()
     Base.metadata.create_all(engine, checkfirst=False)
     chunks.append(section("Tables, indexes and constraints"))
-    for sql, text in captured:
+    for sql, text in stable(captured):
         table = getattr(sql, "element", None)
         if isinstance(table, sa.Table):
             text = with_docs(table, text)

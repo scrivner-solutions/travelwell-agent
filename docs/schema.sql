@@ -192,9 +192,9 @@ CREATE TABLE trips (
     CONSTRAINT trips_hotel_place_fk FOREIGN KEY(hotel_place_id) REFERENCES places (place_id)
 );
 
-CREATE INDEX trips_user_state_idx ON trips (user_id, state);
-
 CREATE INDEX trips_activation_idx ON trips (state, activation_at) WHERE state in ('confirmed', 'upcoming');
+
+CREATE INDEX trips_user_state_idx ON trips (user_id, state);
 
 -- A free interval the agent found ("5:30 PM · 90 minutes free").
 CREATE TABLE wellness_windows (
@@ -270,9 +270,9 @@ CREATE TABLE agent_events (
     FOREIGN KEY(trip_id) REFERENCES trips (trip_id) ON DELETE CASCADE
 );
 
-CREATE INDEX agent_events_trip_time_idx ON agent_events (trip_id, occurred_at DESC);
-
 CREATE INDEX agent_events_disposition_idx ON agent_events (disposition) WHERE disposition = 'pending'::event_disposition;
+
+CREATE INDEX agent_events_trip_time_idx ON agent_events (trip_id, occurred_at DESC);
 
 -- One agent workflow execution; context_snapshot is the exact model input.
 CREATE TABLE agent_runs (
@@ -356,9 +356,9 @@ CREATE TABLE plan_items (
     FOREIGN KEY(window_id) REFERENCES wellness_windows (window_id)
 );
 
-CREATE INDEX plan_items_window_idx ON plan_items (window_id);
-
 CREATE INDEX plan_items_trip_status_idx ON plan_items (trip_id, status);
+
+CREATE INDEX plan_items_window_idx ON plan_items (window_id);
 
 -- Every candidate the agent considered for a slot - selected, alternatives
 -- ("Other options" sheet), and rejected ones with the reason shown in "Also
@@ -415,9 +415,9 @@ CREATE TABLE pending_actions (
     UNIQUE (idempotency_key)
 );
 
-CREATE INDEX pending_actions_trip_idx ON pending_actions (trip_id);
-
 CREATE INDEX pending_actions_status_idx ON pending_actions (status) WHERE status in ('proposed', 'approved', 'executing');
+
+CREATE INDEX pending_actions_trip_idx ON pending_actions (trip_id);
 
 -- Reservation record - created by a completed make_reservation action, or in
 -- 'failed' with failure_reason when the provider declines the hold (the
