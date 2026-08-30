@@ -45,7 +45,7 @@ frontend/dev-dist/
 # Local-only planning docs; the public contract set (openapi.yaml,
 # schema.sql, ERD.md) stays tracked.
 docs/ROADMAP.md
-docs/adr/
+docs/adr
 docs/AGENT_ARCHITECTURE_GUIDE.md
 docs/AGENT_DESIGN.md
 docs/AGENT_DESIGN.html
@@ -57,4 +57,4 @@ docs/FRONTEND_IMPLEMENTATION_PLAN.md
 docs/RESERVATIONS.md
 docs/TRACKS.md
 docs/UX_DESIGN_BRIEF.md
-infra/
+infra
