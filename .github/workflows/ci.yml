@@ -4,7 +4,11 @@ on:
   pull_request:
   push:
     branches-ignore:
+      # Covered by deploy.yml, which calls this workflow as the gate on the
+      # merge commit; without the ignore every merge would run it twice.
       - main
+  # Called by deploy.yml, so main is gated by this definition, not a copy.
+  workflow_call:
 
 jobs:
   frontend:
@@ -80,7 +84,7 @@ jobs:
       - name: Install Postgres client tools
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends postgresql-client-16
 
-      - name: Schema drift checks (schema.sql vs migrations, models vs DB)
+      - name: Schema drift checks (generated schema.sql, migrations, models)
         run: ./scripts/check_schema_drift.sh
         env:
           PGHOST: localhost
@@ -103,7 +107,7 @@ jobs:
           uv run python scripts/check_openapi_drift.py
 
   backend-tests:
-    name: Backend API integration tests
+    name: Backend tests
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -134,7 +138,9 @@ jobs:
 
       # The suite creates and migrates its own travelwell_test database on
       # the service instance; the name must end in _test (conftest enforces).
-      - name: API integration tests
-        run: uv run pytest tests/api -q
+      # tests/integration stays out: it needs Vertex credentials this runner
+      # has no way to hold, and a permanently red gate gates nothing.
+      - name: API and unit tests
+        run: uv run pytest tests/api tests/unit -q
         env:
           TEST_DATABASE_URL: postgresql+psycopg://travelwell:travelwell@localhost:5432/travelwell_test
