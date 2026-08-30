@@ -31,14 +31,16 @@ from app.logging_config import configure_logging
 load_dotenv()
 configure_logging()
 logger = logging.getLogger(__name__)
+# ADK's own guard (google/adk/cli/api_server.py) 403s any non-GET whose Origin
+# is missing here, our /api/v1 routes included, so a deployed frontend MUST be
+# listed. Its run.app URL is not knowable at build time; deploy-staging.sh
+# passes the real one via CORS_ALLOWED_ORIGINS. Local defaults only.
 DEFAULT_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:4173",
     "http://localhost:8000",
-    "https://travelwell-frontend-163831374566.us-central1.run.app",
-    "https://travelwell-frontend-msbiisna6q-uc.a.run.app",
     "https://travelwellai.com",
-    "https://www.travelwellai.com"
+    "https://www.travelwellai.com",
 ]
 
 custom_origins_env = os.getenv("CORS_ALLOWED_ORIGINS") or os.getenv("ALLOW_ORIGINS")
