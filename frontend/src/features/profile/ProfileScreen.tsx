@@ -53,7 +53,7 @@ const PREF_CHIPS: Chip[] = [
   slugChip('Strength', 'activities', 'strength'),
   {
     label: '$$ or less',
-    isOn: (p) => p.price_level_max !== undefined && p.price_level_max <= 2,
+    isOn: (p) => p.price_level_max != null && p.price_level_max <= 2,
     patch: (_p, on) => ({ price_level_max: on ? 2 : null }),
   },
   {
@@ -374,7 +374,7 @@ export function ProfileScreen() {
                   const state = SOURCE_STATE[source.status]
                   const sub =
                     meta.sub ??
-                    (source.last_synced_at !== undefined
+                    (source.last_synced_at != null
                       ? `Synced ${formatAgo(source.last_synced_at)}`
                       : undefined)
                   return (

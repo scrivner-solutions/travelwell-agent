@@ -10,6 +10,8 @@ function item(status: ItemStatus): PlanItem {
     title: 'Mildreds Soho',
     starts_at: '2026-09-02T19:00:00Z',
     needs_reservation: true,
+    why: [],
+    options: [],
     updated_at: '2026-09-01T00:00:00Z',
   }
 }

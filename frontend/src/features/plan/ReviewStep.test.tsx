@@ -26,12 +26,14 @@ const SELECTED = {
   display_summary: 'Pool + treadmill · 75 min',
   reason: 'Fits your 90-minute opening',
   distance_minutes: 7,
+  matched_preferences: [],
 }
 const ALTERNATIVE = {
   id: 'opt-alt',
   state: 'alternative' as const,
   display_name: 'Hotel fitness room',
   distance_minutes: 0,
+  matched_preferences: [],
 }
 
 const ITEM: PlanItem = {
@@ -42,6 +44,7 @@ const ITEM: PlanItem = {
   starts_at: '2026-09-19T21:30:00Z',
   updated_at: '2026-08-28T00:00:00Z',
   needs_reservation: false,
+  why: [],
   window: {
     id: 'w-1',
     status: 'open',

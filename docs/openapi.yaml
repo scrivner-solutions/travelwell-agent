@@ -3,9 +3,15 @@ info:
   title: TravelWell API
   version: 1.0.0-draft
   description: |
-    Contract-first API for the TravelWell frontend. This spec is the only interface
-    the frontend knows: the TypeScript client and
-    all status enums are generated from this file (npm run generate:api in frontend/).
+    The designed contract for the TravelWell API. This file is written by hand and is
+    where an endpoint is agreed before it is built, so it may describe endpoints the
+    server does not serve yet.
+
+    It is not the frontend's type source. Per docs/adr/004, the frontend generates
+    src/api/schema.d.ts from backend/openapi.json, which is dumped from the running
+    routers, so the client can only name fields the server actually sends.
+    backend/scripts/check_openapi_drift.py asserts this file against that one on every
+    pull request, which is what keeps a design artifact from decaying into decoration.
 
     Conventions:
     - Every enum mirrors the Postgres enum of the same name in docs/schema.sql. Enums are
@@ -1063,7 +1069,7 @@ components:
 
     Trip:
       type: object
-      required: [id, state, origin, destination_name, timezone, starts_on, ends_on, plan_progress, needs_you_count, updated_at]
+      required: [id, state, origin, destination_name, timezone, starts_on, ends_on, plan_progress, needs_you_count, state_line, evidence, updated_at]
       properties:
         id:
           type: string
@@ -1277,8 +1283,9 @@ components:
       type: object
       # starts_at and needs_reservation are non-null columns, so the server
       # always sends them; leaving them optional only pushed dead undefined
-      # branches into every caller.
-      required: [id, kind, status, title, starts_at, needs_reservation, updated_at]
+      # branches into every caller. why and options are always sent too, empty
+      # when there is nothing to say, which is a list the caller can just map.
+      required: [id, kind, status, title, starts_at, needs_reservation, why, options, updated_at]
       properties:
         id:
           type: string
@@ -1337,7 +1344,7 @@ components:
 
     PlanItemOption:
       type: object
-      required: [id, state, display_name]
+      required: [id, state, display_name, matched_preferences]
       properties:
         id:
           type: string

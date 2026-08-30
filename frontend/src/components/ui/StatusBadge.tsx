@@ -1,7 +1,7 @@
 import type { components } from '@/api/schema'
 import { itemBadge } from '@/lib/timeline'
 
-type PlanItem = components['schemas']['PlanItem']
+type PlanItem = components['schemas']['PlanItemOut']
 
 /**
  * The only place an item's status becomes a word.

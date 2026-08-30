@@ -8,8 +8,29 @@ the request path; the installed handler renders it.
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 PROBLEM_MEDIA_TYPE = "application/problem+json"
+# No per-problem type URIs yet; `code` is what the client actually branches on.
+PROBLEM_TYPE = "about:blank"
+
+
+class ProblemOut(BaseModel):
+    """The error body, declared so it reaches the generated contract.
+
+    Rendered by an exception handler rather than returned from a route, so
+    FastAPI cannot infer it; app/api/router.py attaches it to every operation
+    as the default response. problem_response() below builds from this model,
+    which is what keeps the declaration and the wire body the same shape.
+    """
+
+    title: str
+    status: int
+    code: str = Field(description="Stable machine code the client maps to a failure state.")
+    # No default: a default is what makes Pydantic declare a field optional, and
+    # every error body carries this one. problem_response() passes it.
+    type: str
+    detail: str | None = None
 
 
 class Problem(Exception):
@@ -26,14 +47,9 @@ class Problem(Exception):
 def problem_response(
     status: int, title: str, code: str, detail: str | None = None
 ) -> JSONResponse:
-    body: dict = {
-        "type": "about:blank",
-        "title": title,
-        "status": status,
-        "code": code,
-    }
-    if detail is not None:
-        body["detail"] = detail
+    body = ProblemOut(
+        type=PROBLEM_TYPE, title=title, status=status, code=code, detail=detail
+    ).model_dump(exclude_none=True)
     return JSONResponse(status_code=status, content=body, media_type=PROBLEM_MEDIA_TYPE)
 
 

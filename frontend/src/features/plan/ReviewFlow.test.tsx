@@ -35,7 +35,8 @@ function item(
     starts_at: '2026-09-19T14:45:00Z',
     updated_at: '2026-08-28T00:00:00Z',
     needs_reservation: needsRes,
-    options: [{ id: `${id}-o`, state: 'selected', display_name: title }],
+    why: [],
+    options: [{ id: `${id}-o`, state: 'selected', display_name: title, matched_preferences: [] }],
   }
 }
 

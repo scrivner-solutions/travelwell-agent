@@ -154,7 +154,7 @@ export function evidenceRows(evidence: NonNullable<Trip['evidence']>): FactRow[]
   return evidence.map((row) => ({
     tag: evidenceTag(row.kind),
     title: row.summary,
-    sub: row.detail,
+    sub: row.detail ?? undefined,
     source: sourceLabel(row.source),
   }))
 }

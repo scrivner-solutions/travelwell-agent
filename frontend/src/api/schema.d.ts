@@ -4,17 +4,28 @@
  */
 
 export interface paths {
-    "/config": {
+    "/auth/demo": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Runtime configuration for the web client */
-        get: operations["getRuntimeConfig"];
+        get?: never;
         put?: never;
-        post?: never;
+        /**
+         * Demo Login
+         * @description Mint a fresh demo account pre-populated with the demo trips.
+         *
+         *     Per-tap accounts keep testers isolated (mutations are real and would
+         *     collide on a shared account) and build the dates fresh, so the demo never
+         *     goes stale. The optional name is just a label, not a credential: the
+         *     account lives only in this browser's session cookie.
+         *
+         *     The email is the one thing this route owns; everything else about the
+         *     account is content, and lives in app/services/demo_user/data.py.
+         */
+        post: operations["demo_login_api_v1_auth_demo_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -30,8 +41,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Send a one-time sign-in code to an email address */
-        post: operations["requestEmailCode"];
+        /** Request Email Code */
+        post: operations["request_email_code_api_v1_auth_email_code_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -47,59 +58,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Exchange an email code for an httpOnly session cookie */
-        post: operations["verifyEmailCode"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/demo": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Mint a fresh pre-populated demo account (flag-gated; off outside dev) */
-        post: operations["demoLogin"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/oauth/{provider}/start": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Begin an OAuth sign-in (server-side redirect flow, BFF pattern) */
-        get: operations["startOauth"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/oauth/{provider}/callback": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Provider redirect target; sets the session cookie on success */
-        get: operations["oauthCallback"];
-        put?: never;
-        post?: never;
+        /** Verify Email Code */
+        post: operations["verify_email_code_api_v1_auth_email_code_verify_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -115,8 +75,42 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Clear the session cookie */
-        post: operations["logout"];
+        /** Logout */
+        post: operations["logout_api_v1_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/oauth/{provider}/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Oauth Callback */
+        get: operations["oauth_callback_api_v1_auth_oauth__provider__callback_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/oauth/{provider}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Start Oauth */
+        get: operations["start_oauth_api_v1_auth_oauth__provider__start_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -130,400 +124,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Current authenticated user */
-        get: operations["getMe"];
+        /** Get Me */
+        get: operations["get_me_api_v1_me_get"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
         /**
-         * Update fields stored on the user (partial)
-         * @description Fields on the user record itself. Wellness preferences and autonomy
-         *     toggles are a separate row and a separate endpoint (PATCH
-         *     /me/preferences).
+         * Update Me
+         * @description Fields on users itself; preferences live on PATCH /me/preferences.
          */
-        patch: operations["updateMe"];
-        trace?: never;
-    };
-    "/trips": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Trips for the current user, with derived "needs you" counts */
-        get: operations["listTrips"];
-        put?: never;
-        /** Create a trip manually */
-        post: operations["createTrip"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/trips/{tripId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** A single trip with its evidence */
-        get: operations["getTrip"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/trips/{tripId}/confirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Confirm a detected trip */
-        post: operations["confirmTrip"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/trips/{tripId}/dismiss": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Reject a detected trip ("not a trip")
-         * @description The other half of the detection gate. Detection is noisy, so the list must be clearable; a dismissed trip stops being re-offered rather than being deleted, so re-detection cannot resurrect it.
-         */
-        post: operations["dismissTrip"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/trips/{tripId}/today": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** The Today view for a trip (window card, next-up items, state line) */
-        get: operations["getTripToday"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/trips/{tripId}/timeline": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Calendar events and plan items interleaved by time */
-        get: operations["getTripTimeline"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/trips/{tripId}/plan": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** The current plan (versioned) with its items and selected options */
-        get: operations["getTripPlan"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/trips/{tripId}/plan/accept-all": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Accept every item still open for a decision
-         * @description Takes no `updated_at`: the operation is "accept whatever is open right now", which is well defined at any moment, so there is no single row a caller could hold a stale token for. Items already decided are left alone, which also makes a retry safe. Returns the whole plan so one response settles the screen.
-         */
-        post: operations["acceptAllPlanItems"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/plan-items/{itemId}/accept": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Accept a suggested item into the plan */
-        post: operations["acceptPlanItem"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/plan-items/{itemId}/select-option": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Choose which option an item uses (no data loss, flips option_state)
-         * @description The named option becomes `selected` and the previous one falls back to `alternative`; nothing is deleted. Rejected options are not selectable (422): promoting one would have to clear the `rejection_reason` a CHECK constraint ties to the state, erasing the text "Also considered" shows.
-         */
-        post: operations["selectPlanItemOption"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/plan-items/{itemId}/skip": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Skip or remove an item */
-        post: operations["skipPlanItem"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/plan-items/{itemId}/provenance": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** "How I got here": window bounds, matched preferences, rejected options */
-        get: operations["getPlanItemProvenance"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/actions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Propose an action (reservation, calendar write) for approval */
-        post: operations["createAction"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/actions/{actionId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** A pending action (polling fallback for the SSE stream) */
-        get: operations["getAction"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/actions/{actionId}/approve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Approve a proposed action for execution */
-        post: operations["approveAction"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/actions/{actionId}/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * SSE stream of an executing action's progress
-         * @description text/event-stream. Event types: `trace` (purposeful progress copy),
-         *     `status` (action_status change), `result` (terminal payload), `error`.
-         *     Data payloads follow StreamEvent.
-         */
-        get: operations["streamActionEvents"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Submit a user event (voice, text, or UI intent) to the agent event spine
-         * @description Voice, text, and taps are the same pipeline; nothing invokes the agent directly.
-         */
-        post: operations["submitEvent"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/runs/{runId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** An agent run (polling fallback for the SSE stream) */
-        get: operations["getRun"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/runs/{runId}/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * SSE stream of a live agent run
-         * @description text/event-stream, the re-homed version of the prototype's proven
-         *     /api/events/{session_id} channel. Event types: `trace`, `status`,
-         *     `result` (structured run output, never markdown), `error`.
-         */
-        get: operations["streamRunEvents"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/explore": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Place candidates for the Explore map, filtered by category and preferences */
-        get: operations["explore"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/resolve_location": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Resolve a free-text location to coordinates (kept from the prototype) */
-        get: operations["resolveLocation"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
+        patch: operations["update_me_api_v1_me_patch"];
         trace?: never;
     };
     "/me/preferences": {
@@ -533,15 +145,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Wellness preferences and autonomy toggles */
-        get: operations["getPreferences"];
+        /** Get Preferences */
+        get: operations["get_preferences_api_v1_me_preferences_get"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        /** Update preferences (partial) */
-        patch: operations["updatePreferences"];
+        /** Update Preferences */
+        patch: operations["update_preferences_api_v1_me_preferences_patch"];
         trace?: never;
     };
     "/me/sources": {
@@ -551,8 +163,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Connected calendar/email sources with real connection status */
-        get: operations["listConnectedSources"];
+        /** List Connected Sources */
+        get: operations["list_connected_sources_api_v1_me_sources_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -561,24 +173,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/notifications": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Notification inbox */
-        get: operations["listNotifications"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/notifications/{notificationId}/opened": {
+    "/plan-items/{item_id}/accept": {
         parameters: {
             query?: never;
             header?: never;
@@ -587,8 +182,224 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Record that a notification was opened (deep-link tracking) */
-        post: operations["markNotificationOpened"];
+        /**
+         * Accept Plan Item
+         * @description Take a suggestion into the plan.
+         */
+        post: operations["accept_plan_item_api_v1_plan_items__item_id__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/plan-items/{item_id}/provenance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Plan Item Provenance
+         * @description "How I got here", served from stored rows and never regenerated.
+         *
+         *     Unlike PlanItem.options this includes the rejected candidates: they are
+         *     read-only here, which is exactly why they are safe to show.
+         */
+        get: operations["get_plan_item_provenance_api_v1_plan_items__item_id__provenance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/plan-items/{item_id}/select-option": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Select Plan Item Option
+         * @description Choose which option the item uses. Status is untouched: picking a place
+         *     is not the same act as accepting the suggestion, and the review card lets
+         *     someone swap and only then keep.
+         */
+        post: operations["select_plan_item_option_api_v1_plan_items__item_id__select_option_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/plan-items/{item_id}/skip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Skip Plan Item
+         * @description Decline an item. `remove` is the stronger form: skipped means not this
+         *     time, removed is a tombstone the agent should not re-offer.
+         */
+        post: operations["skip_plan_item_api_v1_plan_items__item_id__skip_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Trips */
+        get: operations["list_trips_api_v1_trips_get"];
+        put?: never;
+        /** Create Trip */
+        post: operations["create_trip_api_v1_trips_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{trip_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Trip */
+        get: operations["get_trip_api_v1_trips__trip_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{trip_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm Trip */
+        post: operations["confirm_trip_api_v1_trips__trip_id__confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{trip_id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss Trip
+         * @description "Not a trip". Detection is noisy, so the gate has to open both ways.
+         */
+        post: operations["dismiss_trip_api_v1_trips__trip_id__dismiss_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{trip_id}/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Trip Plan */
+        get: operations["get_trip_plan_api_v1_trips__trip_id__plan_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{trip_id}/plan/accept-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept All Plan Items
+         * @description Answer every open item at once, the way `Accept all` reads.
+         *
+         *     Items needing a reservation still land on `planned`, not `awaiting_user`:
+         *     booking is its own gate later, and the review summary is what tells the
+         *     user a reservation is still coming. Accepting is not agreeing to book.
+         */
+        post: operations["accept_all_plan_items_api_v1_trips__trip_id__plan_accept_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{trip_id}/timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Trip Timeline */
+        get: operations["get_trip_timeline_api_v1_trips__trip_id__timeline_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{trip_id}/today": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Trip Today */
+        get: operations["get_trip_today_api_v1_trips__trip_id__today_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -599,547 +410,582 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** @enum {string} */
+        /**
+         * AuthProvider
+         * @enum {string}
+         */
         AuthProvider: "google" | "apple" | "email";
-        /** @enum {string} */
-        SourceKind: "google_calendar" | "gmail" | "apple_calendar" | "manual_import";
-        /** @enum {string} */
-        SourceStatus: "connected" | "error" | "revoked";
-        /** @enum {string} */
-        TripState: "detected" | "confirmed" | "upcoming" | "preparing" | "active" | "completed" | "archived" | "dismissed";
-        /** @enum {string} */
-        TripOrigin: "calendar_detection" | "manual" | "import";
-        /** @enum {string} */
-        PlaceKind: "workout" | "food" | "outdoor" | "recovery" | "lodging";
-        /** @enum {string} */
-        WindowStatus: "open" | "filled" | "expired" | "superseded";
-        /** @enum {string} */
-        PlanStatus: "draft" | "proposed" | "partially_accepted" | "accepted" | "superseded";
-        /** @enum {string} */
-        ItemStatus: "suggested" | "awaiting_user" | "planned" | "confirmed" | "working" | "changed" | "skipped" | "removed";
-        /** @enum {string} */
-        ItemKind: "activity" | "meal";
-        /** @enum {string} */
-        OptionState: "selected" | "alternative" | "rejected";
-        /** @enum {string} */
-        ReservationProvider: "travelwell" | "opentable" | "external_link";
-        /** @enum {string} */
-        ReservationStatus: "pending" | "holding" | "confirmed" | "failed" | "canceled";
-        /** @enum {string} */
-        ActionType: "make_reservation" | "cancel_reservation" | "create_calendar_event" | "update_calendar_event" | "delete_calendar_event" | "send_invite";
-        /** @enum {string} */
-        ActionStatus: "proposed" | "approved" | "executing" | "completed" | "failed" | "canceled";
-        /** @enum {string} */
-        EventKind: "scheduled_activation" | "scheduled_daily" | "user_text" | "user_voice" | "ui_action" | "calendar_changed" | "trip_changed" | "reservation_changed" | "external_context";
-        /** @enum {string} */
-        RunKind: "pretrip_plan" | "replan_conflict" | "user_request" | "reservation_flow" | "daily_checkin" | "trip_detection";
-        /** @enum {string} */
-        RunStatus: "running" | "completed" | "failed" | "canceled";
-        /** @enum {string} */
-        NotificationStatus: "pending" | "sent" | "opened" | "dismissed";
-        Problem: {
-            /** Format: uri */
-            type?: string;
+        /** CalendarEventSummaryOut */
+        CalendarEventSummaryOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Location Name */
+            location_name?: string | null;
+            /** Title */
             title: string;
-            status: number;
-            detail?: string;
-            /** @description Stable machine code the client maps to honest failure states (e.g. reservation_declined). */
-            code: string;
         };
-        RuntimeConfig: {
-            api_base_url: string;
-            maps_browser_key?: string;
-            /** @description VAPID/FCM public key for Web Push subscription. */
-            push_public_key?: string;
-        };
-        User: {
-            /** Format: uuid */
+        /** ConnectedSourceOut */
+        ConnectedSourceOut: {
+            /**
+             * Connected At
+             * Format: date-time
+             */
+            connected_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
             id: string;
-            /** Format: email */
+            kind: components["schemas"]["SourceKind"];
+            /** Last Synced At */
+            last_synced_at?: string | null;
+            status: components["schemas"]["SourceStatus"];
+        };
+        /** DemoLoginRequest */
+        DemoLoginRequest: {
+            /** Name */
+            name?: string | null;
+        };
+        /** EmailCodeRequest */
+        EmailCodeRequest: {
+            /**
+             * Email
+             * Format: email
+             */
             email: string;
-            display_name?: string;
-            auth_provider: components["schemas"]["AuthProvider"];
-            /** Format: date-time */
-            created_at: string;
+        };
+        /** EmailCodeVerify */
+        EmailCodeVerify: {
+            /** Code */
+            code: string;
             /**
-             * @description IANA name of the user's home base, used as the fallback zone for
-             *     manually added trips. "UTC" means it has never been set: the client
-             *     offers the browser zone rather than treating it as a real answer.
-             * @example America/Los_Angeles
+             * Email
+             * Format: email
              */
-            home_timezone: string;
+            email: string;
         };
-        UserUpdate: {
-            display_name?: string;
+        /**
+         * ItemKind
+         * @enum {string}
+         */
+        ItemKind: "activity" | "meal";
+        /**
+         * ItemStatus
+         * @enum {string}
+         */
+        ItemStatus: "suggested" | "awaiting_user" | "planned" | "confirmed" | "working" | "changed" | "skipped" | "removed";
+        /** ItemTokenIn */
+        ItemTokenIn: {
             /**
-             * @description IANA name; unknown zones are rejected with 422. Null is a no-op,
-             *     not a clear, because the stored field is never empty.
-             * @example Europe/Berlin
+             * Updated At
+             * Format: date-time
              */
-            home_timezone?: string;
-        };
-        TripCreate: {
-            destination_name: string;
-            /** Format: date */
-            starts_on: string;
-            /** Format: date */
-            ends_on: string;
-            lodging_name?: string;
-            /** @description Short trip descriptor for the header eyebrow ("Conference trip"). */
-            label?: string;
-        };
-        Trip: {
-            /** Format: uuid */
-            id: string;
-            state: components["schemas"]["TripState"];
-            origin: components["schemas"]["TripOrigin"];
-            destination_name: string;
-            /** @description Short trip descriptor for the header eyebrow ("Conference trip"). */
-            label?: string;
-            /** @description IANA zone; all trip times render in this zone, never the device zone. */
-            timezone: string;
-            /** Format: date */
-            starts_on: string;
-            /** Format: date */
-            ends_on: string;
-            detection_confidence?: number;
-            /** @description "Based on" rows for the detection card. */
-            evidence?: components["schemas"]["TripEvidence"][];
-            /** @description Real trust indicator ("Active - watching your schedule"), server-derived. */
-            state_line?: string;
-            plan_progress: components["schemas"]["PlanProgress"];
-            /** @description Derived from open plan_items / pending_actions; never computed client-side. */
-            needs_you_count: number;
-            needs_you_kind?: components["schemas"]["NeedsYouKind"];
-            /** Format: date-time */
             updated_at: string;
         };
         /**
-         * @description How far along this trip's plan is, rolled up from plan_items over the current (non-draft, non-superseded) plan. Drives the one badge a trip row carries; `none` renders as no badge at all. Server-derived: the client has no plan items in the trips payload.
+         * NeedsYouKind
+         * @description Which gate the open work belongs to, so a row can name the ask.
+         * @enum {string}
+         */
+        NeedsYouKind: "plan" | "approval" | "mixed";
+        /**
+         * OptionState
+         * @enum {string}
+         */
+        OptionState: "selected" | "alternative" | "rejected";
+        /** PlanItemOptionOut */
+        PlanItemOptionOut: {
+            /** Display Name */
+            display_name: string;
+            /** Display Summary */
+            display_summary?: string | null;
+            /** Distance Minutes */
+            distance_minutes?: number | null;
+            /** Duration Minutes */
+            duration_minutes?: number | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Matched Preferences */
+            matched_preferences: string[];
+            /** Reason */
+            reason?: string | null;
+            /** Rejection Reason */
+            rejection_reason?: string | null;
+            state: components["schemas"]["OptionState"];
+        };
+        /** PlanItemOut */
+        PlanItemOut: {
+            /** Ends At */
+            ends_at?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kind: components["schemas"]["ItemKind"];
+            /** Needs Reservation */
+            needs_reservation: boolean;
+            /** Options */
+            options: components["schemas"]["PlanItemOptionOut"][];
+            reservation?: components["schemas"]["ReservationOut"] | null;
+            selected_option?: components["schemas"]["PlanItemOptionOut"] | null;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            status: components["schemas"]["ItemStatus"];
+            /** Title */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Why */
+            why: string[];
+            window?: components["schemas"]["WellnessWindowOut"] | null;
+            /** Window Id */
+            window_id?: string | null;
+        };
+        /** PlanOut */
+        PlanOut: {
+            /** Headline */
+            headline: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items */
+            items: components["schemas"]["PlanItemOut"][];
+            /** Provenance Summary */
+            provenance_summary?: string | null;
+            status: components["schemas"]["PlanStatus"];
+            /**
+             * Trip Id
+             * Format: uuid
+             */
+            trip_id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+        };
+        /**
+         * PlanProgress
+         * @description The one badge a trip row carries. `none` renders as no badge at all.
          * @enum {string}
          */
         PlanProgress: "none" | "preparing" | "planned" | "booking";
         /**
-         * @description Which gate the open work belongs to, so the row can name the ask rather than only count it. `plan` = decisions on plan items, `approval` = pending actions awaiting approval, `mixed` = both. Absent when needs_you_count is 0.
+         * PlanStatus
          * @enum {string}
          */
-        NeedsYouKind: "plan" | "approval" | "mixed";
-        TripEvidence: {
-            source: components["schemas"]["SourceKind"];
-            /** @description Bold headline of the evidence row ("The Gwen"). */
-            summary: string;
-            /** @description Caption rendered under the summary ("521 N Rush St · 3 nights"). Absent when detection has no second line to show. */
-            detail?: string;
-            /** @description Evidence category (flight_event, hotel_email, conference_event, calendar_block, ...); drives the tag box on evidence rows. Open-ended - render unknown kinds with a generic tag. */
-            kind: string;
-        };
-        TodayView: {
-            /** Format: uuid */
-            trip_id: string;
-            /** @description Server-derived ("Day 2 of 4 - Chicago"). */
-            day_label: string;
-            state_word: string;
-            /** @description Second half of the state line ("Watching for schedule changes"). */
-            state_detail?: string;
-            timezone: string;
-            window?: components["schemas"]["WellnessWindow"];
-            next_up: components["schemas"]["PlanItem"][];
-        };
-        WellnessWindow: {
-            /** Format: uuid */
-            id: string;
-            status: components["schemas"]["WindowStatus"];
-            /** Format: date-time */
-            starts_at: string;
-            /** Format: date-time */
-            ends_at: string;
-            /** @description Headline for the window card ("90 minutes free"). */
-            label: string;
-            /** @description One sentence on the gap ("Between your workshop and dinner, 5:30 to 7:00."). */
-            gap_explanation?: string;
-            /** @description Display-shaped provenance rows for "What makes the opening". */
-            bounds: components["schemas"]["WindowBound"][];
-        };
-        WindowBound: {
-            /** @description Short mono badge (CAL, PLAN, HTL). */
-            tag: string;
-            title: string;
-            detail?: string;
-            /** @description Where this bound came from ("Calendar", "This plan", "Email"). */
-            source_label?: string;
-        };
-        TimelineEntry: {
-            /** @enum {string} */
-            entry_type: "calendar_event" | "plan_item";
-            /** Format: date-time */
-            starts_at: string;
-            /** Format: date-time */
-            ends_at?: string;
-            calendar_event?: components["schemas"]["CalendarEventSummary"];
-            plan_item?: components["schemas"]["PlanItem"];
-        };
-        CalendarEventSummary: {
-            /** Format: uuid */
-            id: string;
-            title: string;
-            location_name?: string;
-        };
-        Plan: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            trip_id: string;
-            version: number;
-            status: components["schemas"]["PlanStatus"];
-            headline: string;
-            /** @description How the plan was built, in one line ("Prepared Aug 11, seven days out, read 11 calendar events, found 3 open windows"). */
-            provenance_summary?: string;
-            items: components["schemas"]["PlanItem"][];
-            /** Format: date-time */
-            updated_at: string;
-        };
-        PlanItem: {
-            /** Format: uuid */
-            id: string;
-            kind: components["schemas"]["ItemKind"];
-            status: components["schemas"]["ItemStatus"];
-            title: string;
-            /** Format: date-time */
-            starts_at: string;
-            /** Format: date-time */
-            ends_at?: string;
-            /**
-             * Format: uuid
-             * @description Wellness window this item fills, if any. The Today screen nests the item inside its window card (design: the opening, then what fits it).
-             */
-            window_id?: string;
-            /** @description The opening itself, embedded. The review flow leads with it (label, headline, gap) before naming the place, so a card that had to fetch provenance per item could not render in one pass. */
-            window?: components["schemas"]["WellnessWindow"];
-            /** @description Somebody has to say yes to a booking. Drives the "Needs a reservation" chip and the review summary's list of what the plan still wants from the user. */
-            needs_reservation: boolean;
-            /** @description Matched preferences served from plan_item_options.matched_preferences. */
-            why?: string[];
-            selected_option?: components["schemas"]["PlanItemOption"];
-            /** @description The selected option and its live alternatives, by rank. Rejected candidates are excluded and appear only in Provenance, so a card can offer every option here without clearing a rejection_reason. */
-            options?: components["schemas"]["PlanItemOption"][];
-            reservation?: components["schemas"]["Reservation"];
-            /** Format: date-time */
-            updated_at: string;
-        };
-        PlanItemOption: {
-            /** Format: uuid */
-            id: string;
-            state: components["schemas"]["OptionState"];
-            /** @description Denormalized for stable display; survives place cache churn. */
-            display_name: string;
-            /** @description "Pool + treadmill · 75 min" */
-            display_summary?: string;
-            /** @description The why-chip ("Fits your 90-minute opening"). */
-            reason?: string;
-            distance_minutes?: number;
-            duration_minutes?: number;
-            matched_preferences?: string[];
-            /** @description Required by schema CHECK when state = rejected. */
-            rejection_reason?: string;
-            /** @description Populated once the places cache slice lands; display_* fields are authoritative until then. */
-            place?: components["schemas"]["Place"];
-        };
-        Provenance: {
-            /** Format: uuid */
-            item_id: string;
-            /** @description Absent for items that fill no opening; a dinner is placed against the day, not against a gap the agent had to find. */
-            window?: components["schemas"]["WellnessWindow"];
-            /** @description All options including rejected ones with their stored rejection_reason. */
-            considered: components["schemas"]["PlanItemOption"][];
-        };
-        Place: {
-            /** Format: uuid */
-            id: string;
-            kind: components["schemas"]["PlaceKind"];
-            name: string;
-            rating?: number;
-            distance_meters?: number;
-            walk_minutes?: number;
-            price_level?: number;
-            lat?: number;
-            lng?: number;
-            /** Format: uri */
-            photo_url?: string;
-            /** Format: uri */
-            external_url?: string;
-        };
-        ResolvedLocation: {
-            query: string;
-            name: string;
-            lat: number;
-            lng: number;
-            timezone?: string;
-        };
-        ActionCreate: {
-            action_type: components["schemas"]["ActionType"];
-            /** Format: uuid */
-            trip_id: string;
-            /** Format: uuid */
-            plan_item_id?: string;
-            /** @description Action-type-specific parameters (e.g. reservation time, party size). */
-            payload?: {
-                [key: string]: unknown;
-            };
-        };
-        PendingAction: {
-            /** Format: uuid */
-            id: string;
-            action_type: components["schemas"]["ActionType"];
-            status: components["schemas"]["ActionStatus"];
-            /** Format: uuid */
-            trip_id: string;
-            /** Format: uuid */
-            plan_item_id?: string;
-            /** @description What / when / where / cost rows for the confirm sheet, server-assembled. */
-            summary?: {
-                [key: string]: unknown;
-            };
-            failure?: components["schemas"]["ActionFailure"];
-            reservation?: components["schemas"]["Reservation"];
-            /** Format: date-time */
-            updated_at: string;
-        };
-        ActionFailure: {
-            code: string;
-            message: string;
-            alternatives?: components["schemas"]["Place"][];
-            /**
-             * Format: uri
-             * @description Honest fallback ("book directly") when the provider declines.
-             */
-            external_url?: string;
-        };
-        Reservation: {
-            /** Format: uuid */
-            id: string;
-            status: components["schemas"]["ReservationStatus"];
-            provider: components["schemas"]["ReservationProvider"];
-            /** @description Present iff status = confirmed (schema CHECK); the UI holds the same line. */
-            confirmation_code?: string;
-            /** Format: date-time */
-            reserved_for?: string;
-            /** Format: uri */
-            external_url?: string;
-        };
-        EventCreate: {
-            kind: components["schemas"]["EventKind"];
-            /** Format: uuid */
-            trip_id?: string;
-            /** @description Kind-specific payload (transcript text, UI intent name, etc.). */
-            payload: {
-                [key: string]: unknown;
-            };
-        };
-        RunRef: {
-            /** Format: uuid */
-            event_id: string;
-            /**
-             * Format: uuid
-             * @description Present when the event started (or joined) an agent run.
-             */
-            run_id?: string;
-        };
-        AgentRun: {
-            /** Format: uuid */
-            id: string;
-            kind: components["schemas"]["RunKind"];
-            status: components["schemas"]["RunStatus"];
-            /** Format: date-time */
-            started_at: string;
-            /** Format: date-time */
-            finished_at?: string;
-            /** @description Structured run output (plan diff, cards); never free-form markdown. */
-            result?: {
-                [key: string]: unknown;
-            };
-        };
-        /** @description Envelope for SSE payloads on run and action streams. */
-        StreamEvent: {
-            /** @enum {string} */
-            event: "trace" | "status" | "result" | "error";
-            data: {
-                [key: string]: unknown;
-            };
-        };
-        /** @description Mirrors user_preferences 1:1. Drives Explore filters, plan ranking, and the "Matched from your profile" chips; the autonomy toggles gate what the action executor may do without asking. Array values are lowercase slugs; the profile screen owns the display labels. */
-        Preferences: {
-            /** @description e.g. ["vegetarian"] */
-            dietary: string[];
-            /** @description e.g. ["swim", "running", "strength"] */
+        PlanStatus: "draft" | "proposed" | "partially_accepted" | "accepted" | "superseded";
+        /** PreferencesOut */
+        PreferencesOut: {
+            /** Activities */
             activities: string[];
-            /** @description e.g. ["pool", "treadmill"] */
-            amenities: string[];
-            /** @description e.g. ["ymca_reciprocity", "hotel_gym"] */
-            memberships: string[];
-            /** @description Time-of-day preference, e.g. ["mornings"] */
-            preferred_times: string[];
-            /** @description 2 = "$$ or less". Absent = no cap. */
-            price_level_max?: number;
-            /** @description 0 = free only. Absent = no budget set. */
-            day_pass_budget_cents?: number;
-            session_min_minutes?: number;
-            session_max_minutes?: number;
-            allow_calendar_write: boolean;
+            /** Allow Auto Book */
             allow_auto_book: boolean;
-            watch_schedule: boolean;
-            /** Format: date-time */
-            updated_at: string;
-        };
-        /** @description Partial update: fields absent from the body are left unchanged; send null to clear an optional scalar. */
-        PreferencesUpdate: {
-            dietary?: string[];
-            activities?: string[];
-            amenities?: string[];
-            memberships?: string[];
-            preferred_times?: string[];
-            price_level_max?: number | null;
+            /** Allow Calendar Write */
+            allow_calendar_write: boolean;
+            /** Amenities */
+            amenities: string[];
+            /** Day Pass Budget Cents */
             day_pass_budget_cents?: number | null;
-            session_min_minutes?: number | null;
+            /** Dietary */
+            dietary: string[];
+            /** Memberships */
+            memberships: string[];
+            /** Preferred Times */
+            preferred_times: string[];
+            /** Price Level Max */
+            price_level_max?: number | null;
+            /** Session Max Minutes */
             session_max_minutes?: number | null;
-            allow_calendar_write?: boolean;
+            /** Session Min Minutes */
+            session_min_minutes?: number | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Watch Schedule */
+            watch_schedule: boolean;
+        };
+        /**
+         * PreferencesUpdateIn
+         * @description Partial update: only fields present in the body are applied
+         *     (model_dump(exclude_unset=True)); explicit null clears a nullable scalar.
+         *     Defaults below are never used, they only make every field optional.
+         */
+        PreferencesUpdateIn: {
+            /** Activities */
+            activities?: string[];
+            /**
+             * Allow Auto Book
+             * @default false
+             */
             allow_auto_book?: boolean;
+            /**
+             * Allow Calendar Write
+             * @default false
+             */
+            allow_calendar_write?: boolean;
+            /** Amenities */
+            amenities?: string[];
+            /** Day Pass Budget Cents */
+            day_pass_budget_cents?: number | null;
+            /** Dietary */
+            dietary?: string[];
+            /** Memberships */
+            memberships?: string[];
+            /** Preferred Times */
+            preferred_times?: string[];
+            /** Price Level Max */
+            price_level_max?: number | null;
+            /** Session Max Minutes */
+            session_max_minutes?: number | null;
+            /** Session Min Minutes */
+            session_min_minutes?: number | null;
+            /**
+             * Watch Schedule
+             * @default true
+             */
             watch_schedule?: boolean;
         };
-        ConnectedSource: {
-            /** Format: uuid */
-            id: string;
-            kind: components["schemas"]["SourceKind"];
-            status: components["schemas"]["SourceStatus"];
-            /** Format: date-time */
-            connected_at: string;
-            /** Format: date-time */
-            last_synced_at?: string;
-        };
-        Notification: {
-            /** Format: uuid */
-            id: string;
-            status: components["schemas"]["NotificationStatus"];
+        /**
+         * ProblemOut
+         * @description The error body, declared so it reaches the generated contract.
+         *
+         *     Rendered by an exception handler rather than returned from a route, so
+         *     FastAPI cannot infer it; app/api/router.py attaches it to every operation
+         *     as the default response. problem_response() below builds from this model,
+         *     which is what keeps the declaration and the wire body the same shape.
+         */
+        ProblemOut: {
+            /**
+             * Code
+             * @description Stable machine code the client maps to a failure state.
+             */
+            code: string;
+            /** Detail */
+            detail?: string | null;
+            /** Status */
+            status: number;
+            /** Title */
             title: string;
-            body: string;
-            cta?: {
-                label: string;
-                /** @description In-app route the notification opens (routes/ owns the URL contract). */
-                deep_link: string;
-            };
-            /** Format: date-time */
+            /** Type */
+            type: string;
+        };
+        /**
+         * ProvenanceOut
+         * @description "How I got here": the opening, and every candidate considered for it.
+         */
+        ProvenanceOut: {
+            /** Considered */
+            considered: components["schemas"]["PlanItemOptionOut"][];
+            /**
+             * Item Id
+             * Format: uuid
+             */
+            item_id: string;
+            window?: components["schemas"]["WellnessWindowOut"] | null;
+        };
+        /**
+         * ReservationOut
+         * @description A booking the agent attempted for an item.
+         *
+         *     `failure_reason` is stored but deliberately not carried: the contract does
+         *     not have it, so a client can say a booking was refused and not why. Adding
+         *     it is D17's call, with the retry it implies.
+         */
+        ReservationOut: {
+            /** Confirmation Code */
+            confirmation_code?: string | null;
+            /** External Url */
+            external_url?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            provider: components["schemas"]["ReservationProvider"];
+            /** Reserved For */
+            reserved_for?: string | null;
+            status: components["schemas"]["ReservationStatus"];
+        };
+        /**
+         * ReservationProvider
+         * @enum {string}
+         */
+        ReservationProvider: "travelwell" | "opentable" | "external_link";
+        /**
+         * ReservationStatus
+         * @enum {string}
+         */
+        ReservationStatus: "pending" | "holding" | "confirmed" | "failed" | "canceled";
+        /** SelectOptionIn */
+        SelectOptionIn: {
+            /**
+             * Option Id
+             * Format: uuid
+             */
+            option_id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** SkipIn */
+        SkipIn: {
+            /**
+             * Remove
+             * @default false
+             */
+            remove?: boolean;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * SourceKind
+         * @enum {string}
+         */
+        SourceKind: "google_calendar" | "gmail" | "apple_calendar" | "manual_import";
+        /**
+         * SourceStatus
+         * @enum {string}
+         */
+        SourceStatus: "connected" | "error" | "revoked";
+        /** SourcesOut */
+        SourcesOut: {
+            /** Sources */
+            sources: components["schemas"]["ConnectedSourceOut"][];
+        };
+        /** TimelineEntryOut */
+        TimelineEntryOut: {
+            calendar_event?: components["schemas"]["CalendarEventSummaryOut"] | null;
+            /** Ends At */
+            ends_at?: string | null;
+            /** Entry Type */
+            entry_type: string;
+            plan_item?: components["schemas"]["PlanItemOut"] | null;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+        };
+        /** TimelineOut */
+        TimelineOut: {
+            /** Entries */
+            entries: components["schemas"]["TimelineEntryOut"][];
+        };
+        /** TodayViewOut */
+        TodayViewOut: {
+            /** Day Label */
+            day_label: string;
+            /** Next Up */
+            next_up: components["schemas"]["PlanItemOut"][];
+            /** State Detail */
+            state_detail?: string | null;
+            /** State Word */
+            state_word: string;
+            /** Timezone */
+            timezone: string;
+            /**
+             * Trip Id
+             * Format: uuid
+             */
+            trip_id: string;
+            window?: components["schemas"]["WellnessWindowOut"] | null;
+        };
+        /** TripConfirmIn */
+        TripConfirmIn: {
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** TripCreateIn */
+        TripCreateIn: {
+            /** Destination Name */
+            destination_name: string;
+            /**
+             * Ends On
+             * Format: date
+             */
+            ends_on: string;
+            /** Label */
+            label?: string | null;
+            /** Lodging Name */
+            lodging_name?: string | null;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+        };
+        /** TripEvidenceOut */
+        TripEvidenceOut: {
+            /** Detail */
+            detail?: string | null;
+            /** Kind */
+            kind: string;
+            source: components["schemas"]["SourceKind"];
+            /** Summary */
+            summary: string;
+        };
+        /** TripListOut */
+        TripListOut: {
+            /** Trips */
+            trips: components["schemas"]["TripOut"][];
+        };
+        /**
+         * TripOrigin
+         * @enum {string}
+         */
+        TripOrigin: "calendar_detection" | "manual" | "import";
+        /** TripOut */
+        TripOut: {
+            /** Destination Name */
+            destination_name: string;
+            /** Detection Confidence */
+            detection_confidence?: number | null;
+            /**
+             * Ends On
+             * Format: date
+             */
+            ends_on: string;
+            /** Evidence */
+            evidence: components["schemas"]["TripEvidenceOut"][];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Label */
+            label?: string | null;
+            /** Needs You Count */
+            needs_you_count: number;
+            needs_you_kind?: components["schemas"]["NeedsYouKind"] | null;
+            origin: components["schemas"]["TripOrigin"];
+            plan_progress: components["schemas"]["PlanProgress"];
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            state: components["schemas"]["TripState"];
+            /** State Line */
+            state_line: string;
+            /** Timezone */
+            timezone: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * TripState
+         * @enum {string}
+         */
+        TripState: "detected" | "confirmed" | "upcoming" | "preparing" | "active" | "completed" | "archived" | "dismissed";
+        /** UserOut */
+        UserOut: {
+            auth_provider: components["schemas"]["AuthProvider"];
+            /**
+             * Created At
+             * Format: date-time
+             */
             created_at: string;
+            /** Display Name */
+            display_name?: string | null;
+            /** Email */
+            email: string;
+            /** Home Timezone */
+            home_timezone: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
         };
-    };
-    responses: {
-        /** @description RFC 9457 problem details with a stable machine code */
-        Problem: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/problem+json": components["schemas"]["Problem"];
-            };
+        /** UserUpdateIn */
+        UserUpdateIn: {
+            /** Display Name */
+            display_name?: string | null;
+            /** Home Timezone */
+            home_timezone?: string | null;
         };
-        /** @description The entity changed since the client last read it (agent replan, another device). Refetch and re-present. */
-        Conflict: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/problem+json": components["schemas"]["Problem"];
-            };
+        /** WellnessWindowOut */
+        WellnessWindowOut: {
+            /** Bounds */
+            bounds: components["schemas"]["WindowBoundOut"][];
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Gap Explanation */
+            gap_explanation?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            status: components["schemas"]["WindowStatus"];
         };
+        /** WindowBoundOut */
+        WindowBoundOut: {
+            /** Detail */
+            detail?: string | null;
+            /** Source Label */
+            source_label?: string | null;
+            /** Tag */
+            tag: string;
+            /** Title */
+            title: string;
+        };
+        /**
+         * WindowStatus
+         * @enum {string}
+         */
+        WindowStatus: "open" | "filled" | "expired" | "superseded";
     };
-    parameters: {
-        TripId: string;
-        ItemId: string;
-        ActionId: string;
-        RunId: string;
-        /** @description Client-generated UUID; mirrors pending_actions.idempotency_key so retries are safe. */
-        IdempotencyKey: string;
-    };
+    responses: never;
+    parameters: never;
     requestBodies: never;
     headers: never;
     pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    getRuntimeConfig: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Runtime config (also emitted as /config.json by entrypoint.sh) */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RuntimeConfig"];
-                };
-            };
-        };
-    };
-    requestEmailCode: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: email */
-                    email: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Code sent (or silently accepted for unknown addresses) */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            default: components["responses"]["Problem"];
-        };
-    };
-    verifyEmailCode: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: email */
-                    email: string;
-                    code: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Session established; Set-Cookie carries the httpOnly session */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["User"];
-                };
-            };
-            default: components["responses"]["Problem"];
-        };
-    };
-    demoLogin: {
+    demo_login_api_v1_auth_demo_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1148,105 +994,31 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": {
-                    /** @description Display name for the demo account; just a label */
-                    name?: string;
-                };
+                "application/json": components["schemas"]["DemoLoginRequest"] | null;
             };
         };
         responses: {
-            /** @description Session established; Set-Cookie carries the httpOnly session */
+            /** @description Successful Response */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["User"];
+                    "application/json": components["schemas"]["UserOut"];
                 };
             };
-            default: components["responses"]["Problem"];
-        };
-    };
-    startOauth: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                provider: "google";
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Redirect to the provider's consent screen */
-            302: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    oauthCallback: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                provider: "google";
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Redirect back into the app: to / with the session cookie set, or to /sign-in?error=oauth_failed|not_allowed without one. */
-            302: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    logout: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Session cleared */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    getMe: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The signed-in user */
-            200: {
+            /** @description Problem details (RFC 9457) */
+            default: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["User"];
+                    "application/json": components["schemas"]["ProblemOut"];
                 };
             };
-            default: components["responses"]["Problem"];
         };
     };
-    updateMe: {
+    request_email_code_api_v1_auth_email_code_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1255,629 +1027,31 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UserUpdate"];
+                "application/json": components["schemas"]["EmailCodeRequest"];
             };
         };
         responses: {
-            /** @description The updated user */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["User"];
-                };
-            };
-            default: components["responses"]["Problem"];
-        };
-    };
-    listTrips: {
-        parameters: {
-            query?: {
-                state?: components["schemas"]["TripState"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Trips ordered by start date */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        trips: components["schemas"]["Trip"][];
-                    };
-                };
-            };
-            default: components["responses"]["Problem"];
-        };
-    };
-    createTrip: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Client-generated UUID; mirrors pending_actions.idempotency_key so retries are safe. */
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TripCreate"];
-            };
-        };
-        responses: {
-            /** @description Created trip (state = confirmed, origin = manual) */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Trip"];
-                };
-            };
-            default: components["responses"]["Problem"];
-        };
-    };
-    getTrip: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                tripId: components["parameters"]["TripId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The trip */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Trip"];
-                };
-            };
-            default: components["responses"]["Problem"];
-        };
-    };
-    confirmTrip: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                tripId: components["parameters"]["TripId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: date-time */
-                    updated_at: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Trip confirmed */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Trip"];
-                };
-            };
-            409: components["responses"]["Conflict"];
-            default: components["responses"]["Problem"];
-        };
-    };
-    dismissTrip: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                tripId: components["parameters"]["TripId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: date-time */
-                    updated_at: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Trip dismissed */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Trip"];
-                };
-            };
-            409: components["responses"]["Conflict"];
-            default: components["responses"]["Problem"];
-        };
-    };
-    getTripToday: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                tripId: components["parameters"]["TripId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Today view assembled server-side in the trip's timezone */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TodayView"];
-                };
-            };
-            default: components["responses"]["Problem"];
-        };
-    };
-    getTripTimeline: {
-        parameters: {
-            query?: {
-                /** @description Trip-local date (YYYY-MM-DD); omitted = whole trip */
-                day?: string;
-            };
-            header?: never;
-            path: {
-                tripId: components["parameters"]["TripId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Timeline entries ordered by start time */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        entries: components["schemas"]["TimelineEntry"][];
-                    };
-                };
-            };
-            default: components["responses"]["Problem"];
-        };
-    };
-    getTripPlan: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                tripId: components["parameters"]["TripId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Current plan */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Plan"];
-                };
-            };
-            default: components["responses"]["Problem"];
-        };
-    };
-    acceptAllPlanItems: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                tripId: components["parameters"]["TripId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The plan after acceptance */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Plan"];
-                };
-            };
-            default: components["responses"]["Problem"];
-        };
-    };
-    acceptPlanItem: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                itemId: components["parameters"]["ItemId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: date-time */
-                    updated_at: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Updated item */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PlanItem"];
-                };
-            };
-            409: components["responses"]["Conflict"];
-            default: components["responses"]["Problem"];
-        };
-    };
-    selectPlanItemOption: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                itemId: components["parameters"]["ItemId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: uuid */
-                    option_id: string;
-                    /** Format: date-time */
-                    updated_at: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Updated item with the newly selected option */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PlanItem"];
-                };
-            };
-            409: components["responses"]["Conflict"];
-            422: components["responses"]["Problem"];
-            default: components["responses"]["Problem"];
-        };
-    };
-    skipPlanItem: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                itemId: components["parameters"]["ItemId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: date-time */
-                    updated_at: string;
-                    /** @default false */
-                    remove?: boolean;
-                };
-            };
-        };
-        responses: {
-            /** @description Updated item (status = skipped or removed) */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PlanItem"];
-                };
-            };
-            409: components["responses"]["Conflict"];
-            default: components["responses"]["Problem"];
-        };
-    };
-    getPlanItemProvenance: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                itemId: components["parameters"]["ItemId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Provenance served from stored data, never generated client-side */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Provenance"];
-                };
-            };
-            default: components["responses"]["Problem"];
-        };
-    };
-    createAction: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Client-generated UUID; mirrors pending_actions.idempotency_key so retries are safe. */
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ActionCreate"];
-            };
-        };
-        responses: {
-            /** @description Proposed action */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PendingAction"];
-                };
-            };
-            default: components["responses"]["Problem"];
-        };
-    };
-    getAction: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                actionId: components["parameters"]["ActionId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The action */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PendingAction"];
-                };
-            };
-            default: components["responses"]["Problem"];
-        };
-    };
-    approveAction: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                actionId: components["parameters"]["ActionId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: date-time */
-                    updated_at: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Action approved (status = approved, then executing) */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PendingAction"];
-                };
-            };
-            409: components["responses"]["Conflict"];
-            default: components["responses"]["Problem"];
-        };
-    };
-    streamActionEvents: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                actionId: components["parameters"]["ActionId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Event stream */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/event-stream": components["schemas"]["StreamEvent"];
-                };
-            };
-            default: components["responses"]["Problem"];
-        };
-    };
-    submitEvent: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Client-generated UUID; mirrors pending_actions.idempotency_key so retries are safe. */
-                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["EventCreate"];
-            };
-        };
-        responses: {
-            /** @description Event accepted; if it starts a run, the reference is returned */
+            /** @description Successful Response */
             202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RunRef"];
+                    "application/json": unknown;
                 };
             };
-            default: components["responses"]["Problem"];
-        };
-    };
-    getRun: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                runId: components["parameters"]["RunId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The run */
-            200: {
+            /** @description Problem details (RFC 9457) */
+            default: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AgentRun"];
+                    "application/json": components["schemas"]["ProblemOut"];
                 };
             };
-            default: components["responses"]["Problem"];
         };
     };
-    streamRunEvents: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                runId: components["parameters"]["RunId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Event stream */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/event-stream": components["schemas"]["StreamEvent"];
-                };
-            };
-            default: components["responses"]["Problem"];
-        };
-    };
-    explore: {
-        parameters: {
-            query: {
-                trip_id: string;
-                category?: components["schemas"]["PlaceKind"];
-                query?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Surfaced candidates (cached server-side in places) */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        places: components["schemas"]["Place"][];
-                    };
-                };
-            };
-            default: components["responses"]["Problem"];
-        };
-    };
-    resolveLocation: {
-        parameters: {
-            query: {
-                query: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Best-effort geocoding result */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResolvedLocation"];
-                };
-            };
-            default: components["responses"]["Problem"];
-        };
-    };
-    getPreferences: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Preferences */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Preferences"];
-                };
-            };
-            default: components["responses"]["Problem"];
-        };
-    };
-    updatePreferences: {
+    verify_email_code_api_v1_auth_email_code_verify_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1886,23 +1060,31 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PreferencesUpdate"];
+                "application/json": components["schemas"]["EmailCodeVerify"];
             };
         };
         responses: {
-            /** @description Updated preferences */
+            /** @description Successful Response */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Preferences"];
+                    "application/json": components["schemas"]["UserOut"];
                 };
             };
-            default: components["responses"]["Problem"];
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
         };
     };
-    listConnectedSources: {
+    logout_api_v1_auth_logout_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1911,62 +1093,666 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Sources */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        sources: components["schemas"]["ConnectedSource"][];
-                    };
-                };
-            };
-            default: components["responses"]["Problem"];
-        };
-    };
-    listNotifications: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Notifications, newest first */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        notifications: components["schemas"]["Notification"][];
-                    };
-                };
-            };
-            default: components["responses"]["Problem"];
-        };
-    };
-    markNotificationOpened: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                notificationId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Recorded */
+            /** @description Successful Response */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            default: components["responses"]["Problem"];
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    oauth_callback_api_v1_auth_oauth__provider__callback_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    start_oauth_api_v1_auth_oauth__provider__start_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    get_me_api_v1_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    update_me_api_v1_me_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserUpdateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    get_preferences_api_v1_me_preferences_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferencesOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    update_preferences_api_v1_me_preferences_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreferencesUpdateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferencesOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    list_connected_sources_api_v1_me_sources_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourcesOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    accept_plan_item_api_v1_plan_items__item_id__accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ItemTokenIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanItemOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    get_plan_item_provenance_api_v1_plan_items__item_id__provenance_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProvenanceOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    select_plan_item_option_api_v1_plan_items__item_id__select_option_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SelectOptionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanItemOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    skip_plan_item_api_v1_plan_items__item_id__skip_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SkipIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanItemOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    list_trips_api_v1_trips_get: {
+        parameters: {
+            query?: {
+                state?: components["schemas"]["TripState"] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripListOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    create_trip_api_v1_trips_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TripCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    get_trip_api_v1_trips__trip_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    confirm_trip_api_v1_trips__trip_id__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TripConfirmIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    dismiss_trip_api_v1_trips__trip_id__dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TripConfirmIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    get_trip_plan_api_v1_trips__trip_id__plan_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    accept_all_plan_items_api_v1_trips__trip_id__plan_accept_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    get_trip_timeline_api_v1_trips__trip_id__timeline_get: {
+        parameters: {
+            query?: {
+                day?: string | null;
+            };
+            header?: never;
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimelineOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    get_trip_today_api_v1_trips__trip_id__today_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodayViewOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
         };
     };
 }

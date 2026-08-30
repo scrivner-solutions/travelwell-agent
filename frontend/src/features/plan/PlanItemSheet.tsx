@@ -46,10 +46,10 @@ function SheetBody({
         {formatTripDay(item.starts_at, timezone)}
       </p>
       <p className="mt-1.5 text-body text-muted">
-        {item.ends_at !== undefined
+        {item.ends_at != null
           ? formatTripTimeRange(item.starts_at, item.ends_at, timezone)
           : formatTripTime(item.starts_at, timezone)}
-        {selected?.display_summary !== undefined && ` · ${selected.display_summary}`}
+        {selected?.display_summary != null && ` · ${selected.display_summary}`}
       </p>
 
       <div className="mt-3.5 flex flex-wrap gap-1.5">

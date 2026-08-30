@@ -117,7 +117,7 @@ export function CommitmentRow({
       gutter={<Gutter at={at} timezone={timezone} withWeekday={withWeekday} />}
       chrome={commitmentChrome}
       title={event.title}
-      sub={event.location_name}
+      sub={event.location_name ?? undefined}
     />
   )
 }
@@ -143,8 +143,8 @@ export function PlanItemRow({
       }
       chrome={rowChromeFor(item.status)}
       title={item.selected_option?.display_name ?? item.title}
-      sub={item.selected_option?.display_summary}
-      note={item.window?.gap_explanation}
+      sub={item.selected_option?.display_summary ?? undefined}
+      note={item.window?.gap_explanation ?? undefined}
       badge={<StatusBadge item={item} />}
       onSelect={onSelect === undefined ? undefined : () => onSelect(item.id)}
       selectLabel={`${item.title}. Open details`}

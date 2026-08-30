@@ -146,7 +146,9 @@ export function reservationNote(item: PlanItem): ReservationNote | null {
   // `needs_reservation` is the intent, the reservation is the fact. Once one
   // exists it answers for the item - otherwise the sheet keeps asking for a
   // table it already holds, which is what it did for every booked window.
-  if (res === undefined) {
+  // == null, not === undefined: the server omits empty fields today, but the
+  // contract types them nullable, and this holds either way.
+  if (res == null) {
     return item.needs_reservation
       ? { label: 'Needs a reservation', className: NEUTRAL_CHIP }
       : null
@@ -155,7 +157,7 @@ export function reservationNote(item: PlanItem): ReservationNote | null {
   if (note === null) return null
   // The code is the whole point of a confirmation, and the database guarantees
   // it is there iff confirmed - but the contract types it optional, so ask.
-  return res.status === 'confirmed' && res.confirmation_code !== undefined
+  return res.status === 'confirmed' && res.confirmation_code != null
     ? { ...note, label: `Booked · confirmation ${res.confirmation_code}` }
     : note
 }

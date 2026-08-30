@@ -87,7 +87,7 @@ export function ReviewStep({
             )}
           </div>
           <span className="flex-none rounded-lg bg-state-neutral-soft px-2.5 py-1.5 text-caption font-semibold text-ink tabular-nums">
-            {window !== undefined
+            {window != null
               ? formatTripTimeRange(item.starts_at, window.ends_at, timezone)
               : formatTripTime(item.starts_at, timezone)}
           </span>

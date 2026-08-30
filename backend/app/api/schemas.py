@@ -154,7 +154,7 @@ class TripOut(BaseModel):
     starts_on: date
     ends_on: date
     detection_confidence: float | None = None
-    evidence: list[TripEvidenceOut] = []
+    evidence: list[TripEvidenceOut]
     state_line: str
     plan_progress: PlanProgress
     needs_you_count: int
@@ -180,7 +180,9 @@ class WellnessWindowOut(BaseModel):
     ends_at: datetime
     label: str
     gap_explanation: str | None = None
-    bounds: list[WindowBoundOut] = []
+    # No default here or below: a default is what makes Pydantic declare the
+    # field optional, and the contract requires it. Every caller passes it.
+    bounds: list[WindowBoundOut]
 
 
 class PlanItemOptionOut(BaseModel):
@@ -191,7 +193,7 @@ class PlanItemOptionOut(BaseModel):
     reason: str | None = None
     distance_minutes: int | None = None
     duration_minutes: int | None = None
-    matched_preferences: list[str] = []
+    matched_preferences: list[str]
     rejection_reason: str | None = None
 
 
@@ -223,12 +225,12 @@ class PlanItemOut(BaseModel):
     # The opening, embedded: the review card leads with it, and a per-item
     # provenance fetch would make that card cost one request each.
     window: WellnessWindowOut | None = None
-    needs_reservation: bool = False
-    why: list[str] = []
+    needs_reservation: bool
+    why: list[str]
     selected_option: PlanItemOptionOut | None = None
     # Selected + alternatives, by rank. Rejected ones are reachable only through
     # provenance, so a card cannot offer a choice that would erase its reason.
-    options: list[PlanItemOptionOut] = []
+    options: list[PlanItemOptionOut]
     # The newest attempt only. Retries are a list in the database; a card asks
     # "where does this booking stand", which is a question about the last one.
     reservation: ReservationOut | None = None
@@ -242,7 +244,7 @@ class PlanOut(BaseModel):
     status: PlanStatus
     headline: str
     provenance_summary: str | None = None
-    items: list[PlanItemOut] = []
+    items: list[PlanItemOut]
     updated_at: datetime
 
 
@@ -251,7 +253,7 @@ class ProvenanceOut(BaseModel):
 
     item_id: uuid.UUID
     window: WellnessWindowOut | None = None
-    considered: list[PlanItemOptionOut] = []
+    considered: list[PlanItemOptionOut]
 
 
 class TodayViewOut(BaseModel):
@@ -261,7 +263,7 @@ class TodayViewOut(BaseModel):
     state_detail: str | None = None
     timezone: str
     window: WellnessWindowOut | None = None
-    next_up: list[PlanItemOut] = []
+    next_up: list[PlanItemOut]
 
 
 class CalendarEventSummaryOut(BaseModel):

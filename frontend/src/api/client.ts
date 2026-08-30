@@ -2,7 +2,7 @@ import createClient from 'openapi-fetch'
 import type { paths, components } from './schema'
 import { loadRuntimeConfig } from '@/lib/config'
 
-export type Problem = components['schemas']['Problem']
+export type Problem = components['schemas']['ProblemOut']
 
 /**
  * Thrown for every non-2xx response so TanStack Query sees a real failure.

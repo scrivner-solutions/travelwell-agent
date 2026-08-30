@@ -252,10 +252,10 @@ export function TodayScreen() {
                           {item.selected_option.display_summary}
                         </p>
                       )}
-                      {item.starts_at !== undefined && item.ends_at !== undefined && (
+                      {item.starts_at != null && item.ends_at != null && (
                         <p className="text-caption text-muted">
                           {formatTripTimeRange(item.starts_at, item.ends_at, today.data.timezone)}
-                          {item.selected_option?.distance_minutes !== undefined &&
+                          {item.selected_option?.distance_minutes != null &&
                             ` · ${
                               item.selected_option.distance_minutes === 0
                                 ? 'In the hotel'

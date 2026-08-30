@@ -300,7 +300,7 @@ export function TripScreen() {
   const openPlanItem =
     openItem === undefined
       ? undefined
-      : timeline.data?.find((e) => e.plan_item?.id === openItem)?.plan_item
+      : (timeline.data?.find((e) => e.plan_item?.id === openItem)?.plan_item ?? undefined)
   const commitmentCount = dayEntries.filter(
     (e) => e.entry_type === 'calendar_event',
   ).length

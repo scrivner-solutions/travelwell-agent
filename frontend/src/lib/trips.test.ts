@@ -21,6 +21,8 @@ function trip(over: Partial<Trip> = {}): Trip {
     ends_on: '2026-09-15',
     plan_progress: 'none',
     needs_you_count: 0,
+    state_line: 'Watching your schedule',
+    evidence: [],
     updated_at: '2026-08-28T00:00:00Z',
     ...over,
   }

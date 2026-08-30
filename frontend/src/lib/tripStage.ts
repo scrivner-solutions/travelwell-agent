@@ -100,7 +100,7 @@ export function stageCopy(
     const open = plan ? openPlanItems(plan).length : 0
     return {
       head: plan?.headline ?? `${open} ${open === 1 ? 'window' : 'windows'} to review`,
-      body: plan?.provenance_summary,
+      body: plan?.provenance_summary ?? undefined,
       note: 'Reservations still ask you first.',
     }
   }
@@ -111,7 +111,7 @@ export function stageCopy(
     const live = windowItems(plan, stage).length
     return {
       head: `${live} ${live === 1 ? 'window is' : 'windows are'} in your plan`,
-      body: plan?.provenance_summary,
+      body: plan?.provenance_summary ?? undefined,
       note: 'Reservations still ask you first.',
     }
   }

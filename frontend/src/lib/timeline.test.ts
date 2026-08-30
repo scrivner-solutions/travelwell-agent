@@ -21,6 +21,8 @@ function item(over: Partial<PlanItem> = {}): PlanItem {
     title: 'Morning swim',
     starts_at: '2026-09-02T07:15:00Z',
     needs_reservation: false,
+    why: [],
+    options: [],
     updated_at: '2026-09-01T00:00:00Z',
     ...over,
   }

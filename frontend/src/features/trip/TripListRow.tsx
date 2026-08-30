@@ -28,7 +28,7 @@ export function TripListRow({
 }) {
   // The gate outranks the lifecycle word: one is work waiting on you, the
   // other is a fact you can do nothing about.
-  const needsYou = needsYouLabel(trip.needs_you_count, trip.needs_you_kind)
+  const needsYou = needsYouLabel(trip.needs_you_count, trip.needs_you_kind ?? undefined)
 
   return (
     <button

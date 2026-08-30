@@ -32,13 +32,13 @@ export function ProvenanceSheet({
         <p className="text-body-sm text-muted">Loading…</p>
       )}
 
-      {window !== undefined && (
+      {window != null && (
         <section>
           <h3 className="text-caption font-semibold uppercase tracking-wide text-muted">
             The opening
           </h3>
           <p className="mt-1 text-body font-semibold">{window.label}</p>
-          {window.gap_explanation !== undefined && (
+          {window.gap_explanation != null && (
             <p className="mt-1 text-body-sm text-muted text-pretty">
               {window.gap_explanation}
             </p>
