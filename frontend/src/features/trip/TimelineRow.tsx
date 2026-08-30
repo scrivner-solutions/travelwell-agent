@@ -51,7 +51,7 @@ function TimelineRow({
       {badge}
     </>
   )
-  const frame = `flex min-w-0 flex-1 items-center gap-[11px] rounded-control border-[1.5px] px-3.5 py-[13px] text-left ${chrome.frame}`
+  const frame = `flex min-w-0 flex-1 items-center gap-[11px] rounded-control border px-3.5 py-[13px] text-left ${chrome.frame}`
 
   return (
     <li className="flex items-stretch gap-3">

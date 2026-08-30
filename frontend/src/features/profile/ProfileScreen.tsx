@@ -317,7 +317,7 @@ export function ProfileScreen() {
                     }
                     className={`h-[46px] flex-1 rounded-xl border text-body-sm font-semibold ${
                       selected
-                        ? 'border-[1.5px] border-primary bg-state-confirmed-soft text-primary'
+                        ? 'border border-primary bg-state-confirmed-soft text-primary'
                         : 'border-border bg-card text-ink'
                     }`}
                   >

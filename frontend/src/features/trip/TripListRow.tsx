@@ -8,7 +8,7 @@ import { formatDateRange } from '@/lib/time'
  * never describe the same trip differently.
  *
  * Border utilities are the caller's, not the base: the sheet marks the current
- * trip with a 1.5px blue edge and the screen's list does not, and Tailwind
+ * trip with a blue edge and the screen's list does not, and Tailwind
  * gives no reliable way to override one border class with another. `muted` is
  * a prop for the same reason - the archive drops the fill entirely, which is a
  * swap of the base rather than something a caller can layer over it.

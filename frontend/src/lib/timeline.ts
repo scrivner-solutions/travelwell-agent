@@ -36,9 +36,10 @@ export const commitmentChrome: RowChrome = {
  * A plan item's frame, keyed on the generated enum so a new contract value
  * fails the typecheck rather than rendering an unstyled row.
  *
- * The borders are the 1.5px row set (`--border-row-*`), not the 1px card set:
- * a row states its status at a smaller scale than a card and needs more
- * contrast to do it. Two of them are load-bearing beyond decoration - dashed
+ * All 1px: Blink floors fractional widths, so the 1.5px these used to declare
+ * painted exactly like a card's border. `--border-row-suggested` is the one
+ * row-scale token left, darker rather than thicker to carry the same
+ * distinction. Two of these are load-bearing beyond decoration - dashed
  * says a suggestion is not real yet, and full-ink says this one needs you,
  * which is the only marker `awaiting_user` has now that its badge is gone.
  */
@@ -50,17 +51,17 @@ const chromeByStatus: Record<ItemStatus, RowChrome> = {
   },
   awaiting_user: { frame: 'border-ink bg-card', dot: 'bg-ink', name: 'text-ink' },
   planned: {
-    frame: 'border-border-row-settled bg-card',
+    frame: 'border-border-confirmed bg-card',
     dot: 'bg-state-confirmed',
     name: 'text-ink',
   },
   confirmed: {
-    frame: 'border-border-row-settled bg-card',
+    frame: 'border-border-confirmed bg-card',
     dot: 'bg-state-confirmed',
     name: 'text-ink',
   },
   working: {
-    frame: 'border-border-row-settled bg-card',
+    frame: 'border-border-confirmed bg-card',
     dot: 'bg-state-working',
     name: 'text-ink',
   },

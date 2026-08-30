@@ -55,15 +55,14 @@
   /* A past trip. The one warm grey in the palette, and deliberately so. */
   --state-archived: #c4c1b6;
 
-  /* State borders, 1px, on the card that owns a lifecycle stage.
+  /* State borders, 1px, on the card or row that carries the state.
      --agent-soft above is this set's "proposed" member. */
   --border-needs: #c8d6e6;
   --border-confirmed: #c8ddf2;
 
-  /* State borders, 1.5px, on a timeline row. A distinct set: a row states its
-     status at a smaller scale than a card and needs more contrast to do it. */
+  /* The one row-scale addition. Blink floors fractional border widths, so a
+     row cannot outweigh a card at 1.5px; this is darker instead of thicker. */
   --border-row-suggested: #cfccf3;
-  --border-row-settled: #c9def3;
 
   /* Type */
   --font-stack-display: "Newsreader", Georgia, "Times New Roman", serif;
@@ -100,7 +99,6 @@
   --color-border-needs: var(--border-needs);
   --color-border-confirmed: var(--border-confirmed);
   --color-border-row-suggested: var(--border-row-suggested);
-  --color-border-row-settled: var(--border-row-settled);
   --color-muted: var(--muted);
   --color-muted-soft: var(--muted-soft);
   --color-muted-faint: var(--muted-faint);

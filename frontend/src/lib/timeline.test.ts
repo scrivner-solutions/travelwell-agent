@@ -162,9 +162,17 @@ describe('rowChromeFor', () => {
     expect(rowChromeFor('awaiting_user').frame).toContain('border-ink')
   })
 
-  it('uses the 1.5px row borders, not the 1px card set', () => {
-    expect(rowChromeFor('planned').frame).toContain('border-border-row-settled')
+  it('shares the card border once settled and keeps one darker token for suggestions', () => {
+    expect(rowChromeFor('planned').frame).toContain('border-border-confirmed')
     expect(rowChromeFor('suggested').frame).toContain('border-border-row-suggested')
+  })
+
+  // Blink floors fractional border widths, so a declared 1.5px paints as 1px
+  // and silently means something else in an engine that does not floor.
+  it('declares no fractional border widths', () => {
+    for (const status of ALL_STATUSES) {
+      expect(rowChromeFor(status).frame).not.toMatch(/border-\[[\d.]*\.\d+px\]/)
+    }
   })
 
   it('gives a commitment the muted fill that says the agent did not place it', () => {

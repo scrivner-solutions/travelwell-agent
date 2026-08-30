@@ -24,7 +24,7 @@ export function OptionRow({
       aria-checked={chosen}
       onClick={onChoose}
       disabled={disabled || chosen}
-      className={`flex w-full items-start gap-3 rounded-control border-[1.5px] bg-card px-3.5 py-3.5 text-left disabled:cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+      className={`flex w-full items-start gap-3 rounded-control border bg-card px-3.5 py-3.5 text-left disabled:cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
         chosen ? 'border-primary' : 'border-border hover:border-primary disabled:opacity-60'
       }`}
     >
