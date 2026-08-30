@@ -13,41 +13,24 @@
 # limitations under the License.
 
 import contextlib
+import logging
 import os
 from collections.abc import AsyncIterator
 
-import google.auth
 from a2a.server.tasks import InMemoryTaskStore
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from google.adk.cli.fast_api import get_fast_api_app
 from google.adk.runners import Runner
-from google.cloud import logging as google_cloud_logging
 
 from app.app_utils import services
 from app.app_utils.a2a import attach_a2a_routes
-from app.app_utils.telemetry import setup_telemetry
 from app.app_utils.typing import Feedback
+from app.logging_config import configure_logging
 
 load_dotenv()
-setup_telemetry()
-logger = None
-project_id = None
-if os.getenv("DISABLE_TELEMETRY") != "true":
-    try:
-        _, project_id = google.auth.default()
-        logging_client = google_cloud_logging.Client()
-        logger = logging_client.logger(__name__)
-    except Exception as e:
-        import logging as py_logging
-        py_logging.warning(f"Could not initialize Google Cloud Logging client (using standard python logging): {e}")
-
-if logger is None:
-    import logging as py_logging
-    logger = py_logging.getLogger(__name__)
-    def log_struct_mock(info, severity="INFO"):
-        py_logging.info(f"[{severity}] {info}")
-    logger.log_struct = log_struct_mock
+configure_logging()
+logger = logging.getLogger(__name__)
 DEFAULT_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:4173",
@@ -131,6 +114,7 @@ app.add_middleware(
 
 # Versioned API surface (docs/openapi.yaml). Legacy prototype endpoints below
 # stay at the root and retire slice by slice.
+from app.api.deps import CurrentUser
 from app.api.problems import install_problem_handlers
 from app.api.router import api_router
 
@@ -138,8 +122,9 @@ app.include_router(api_router)
 install_problem_handlers(app)
 
 
-@app.get("/healthz")
-async def healthz() -> dict[str, str]:
+# /healthz is intercepted at the run.app edge and never reaches the container.
+@app.get("/readyz")
+async def readyz() -> dict[str, str]:
     """Deploy smoke check: process up and database reachable."""
     from sqlalchemy import text
 
@@ -151,16 +136,10 @@ async def healthz() -> dict[str, str]:
 
 
 @app.post("/feedback")
-def collect_feedback(feedback: Feedback) -> dict[str, str]:
-    """Collect and log feedback.
-
-    Args:
-        feedback: The feedback data to log
-
-    Returns:
-        Success message
-    """
-    logger.log_struct(feedback.model_dump(), severity="INFO")
+def collect_feedback(feedback: Feedback, _user: CurrentUser) -> dict[str, str]:
+    """Collect and log feedback."""
+    # Nested so a Feedback field can never collide with a LogRecord attribute.
+    logger.info("feedback", extra={"feedback": feedback.model_dump()})
     return {"status": "success"}
 
 

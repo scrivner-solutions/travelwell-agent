@@ -42,7 +42,6 @@ if not (make_url(TEST_DATABASE_URL).database or "").endswith("_test"):
 # Must happen before any `app.*` import (the engine reads it at import time);
 # app imports therefore live inside fixtures, never at module top.
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
-os.environ.setdefault("DISABLE_TELEMETRY", "true")
 # Sessions fail hard without a secret outside dev/test (sessions.py).
 os.environ.setdefault("APP_ENV", "test")
 
