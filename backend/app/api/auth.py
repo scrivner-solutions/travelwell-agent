@@ -164,14 +164,16 @@ def _provider_or_404(provider: str) -> None:
         raise Problem(404, "Unknown sign-in provider", "not_found")
 
 
-@router.get("/auth/oauth/{provider}/start")
+# status_code only documents the redirect the handler already returns; FastAPI
+# cannot infer it from RedirectResponse and would otherwise declare a 200.
+@router.get("/auth/oauth/{provider}/start", status_code=status.HTTP_302_FOUND)
 async def start_oauth(provider: str, request: Request) -> RedirectResponse:
     _provider_or_404(provider)
     redirect_uri = f"{_public_base_url()}/api/v1/auth/oauth/google/callback"
     return await _google_client().authorize_redirect(request, redirect_uri)
 
 
-@router.get("/auth/oauth/{provider}/callback")
+@router.get("/auth/oauth/{provider}/callback", status_code=status.HTTP_302_FOUND)
 async def oauth_callback(
     provider: str, request: Request, session: SessionDep
 ) -> RedirectResponse:
