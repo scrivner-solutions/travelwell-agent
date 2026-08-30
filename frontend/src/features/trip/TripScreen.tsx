@@ -21,6 +21,7 @@ import {
   evidenceRows,
   focusTrip,
   isPast,
+  openingDay,
   tripDays,
   tripDot,
   tripStateWord,
@@ -283,15 +284,14 @@ export function TripScreen() {
       node?.scrollIntoView({ inline: 'center', block: 'nearest' }),
     [],
   )
-  // Today wins when it is a chip; while the timeline is loading we cannot
-  // know that yet (red-eye days), so select nothing rather than a wrong day.
   const selectedDay =
     day ??
-    (days.includes(todayIso)
-      ? todayIso
-      : timeline.isPending
-        ? undefined
-        : rangeDays[0])
+    openingDay({
+      days,
+      todayIso,
+      dayHasEntries: (d) => entriesByDay.has(d),
+      timelinePending: timeline.isPending,
+    })
   const dayEntries = entriesByDay.get(selectedDay ?? '') ?? []
   // Read back out of the live timeline rather than captured at tap, so a swap
   // made inside the sheet shows in the sheet that made it. Guarded rather than

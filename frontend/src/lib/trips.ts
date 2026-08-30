@@ -248,6 +248,28 @@ export function calendarSpan(first: string, last: string): string[] {
   )
 }
 
+/**
+ * Which day a trip opens on, in precedence order: today when the trip is
+ * running, nothing while the timeline is still loading (a red-eye can add a day
+ * outside the range, so we cannot yet know today is not a chip), then the first
+ * day with something on it.
+ *
+ * That last rung was `days[0]`, which opens most future trips on a blank
+ * timeline: an arrival day is empty on purpose - you land and check in - so the
+ * trip's first day and its first day worth showing are rarely the same.
+ */
+export function openingDay(opts: {
+  days: string[]
+  todayIso: string
+  dayHasEntries: (day: string) => boolean
+  timelinePending: boolean
+}): string | undefined {
+  if (opts.days.includes(opts.todayIso)) return opts.todayIso
+  if (opts.timelinePending) return undefined
+  // Reached only when no day has entries, where `days` is just the trip range.
+  return opts.days.find(opts.dayHasEntries) ?? opts.days[0]
+}
+
 // Profile identity subline: "4 trips this year · 18 nights away". Real data
 // from /trips, never a canned figure; dismissed detections don't count.
 export function travelStats(trips: Trip[]): { tripsThisYear: number; nightsAway: number } {

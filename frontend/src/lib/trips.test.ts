@@ -6,6 +6,7 @@ import {
   evidenceSourceSummary,
   isPast,
   needsYouLabel,
+  openingDay,
   tripBadge,
 } from './trips'
 
@@ -134,5 +135,65 @@ describe('isPast', () => {
     expect(isPast(trip({ state: 'archived' }))).toBe(true)
     expect(isPast(trip({ state: 'active' }))).toBe(false)
     expect(isPast(trip())).toBe(false)
+  })
+})
+
+describe('openingDay', () => {
+  const days = ['2026-09-12', '2026-09-13', '2026-09-14', '2026-09-15']
+  const on = (...withEntries: string[]) => (d: string) => withEntries.includes(d)
+
+  it('opens a running trip on today even when today is empty', () => {
+    expect(
+      openingDay({
+        days,
+        todayIso: '2026-09-13',
+        dayHasEntries: on('2026-09-14'),
+        timelinePending: false,
+      }),
+    ).toBe('2026-09-13')
+  })
+
+  it('selects nothing until the timeline can say where the entries are', () => {
+    expect(
+      openingDay({
+        days,
+        todayIso: '2026-10-01',
+        dayHasEntries: on(),
+        timelinePending: true,
+      }),
+    ).toBeUndefined()
+  })
+
+  it('skips an empty arrival day to the first day with something on it', () => {
+    expect(
+      openingDay({
+        days,
+        todayIso: '2026-10-01',
+        dayHasEntries: on('2026-09-14', '2026-09-15'),
+        timelinePending: false,
+      }),
+    ).toBe('2026-09-14')
+  })
+
+  it('falls back to day one when the whole trip is empty', () => {
+    expect(
+      openingDay({
+        days,
+        todayIso: '2026-10-01',
+        dayHasEntries: on(),
+        timelinePending: false,
+      }),
+    ).toBe('2026-09-12')
+  })
+
+  it('opens on a red-eye day that sits before the trip range', () => {
+    expect(
+      openingDay({
+        days: ['2026-09-11', ...days],
+        todayIso: '2026-10-01',
+        dayHasEntries: on('2026-09-11', '2026-09-14'),
+        timelinePending: false,
+      }),
+    ).toBe('2026-09-11')
   })
 })
