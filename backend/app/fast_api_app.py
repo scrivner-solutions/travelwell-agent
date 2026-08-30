@@ -31,6 +31,10 @@ from app.logging_config import configure_logging
 load_dotenv()
 configure_logging()
 logger = logging.getLogger(__name__)
+
+# Imported here, not with the header block: app.api.sessions resolves
+# SESSION_SECRET at import time, so it must come after load_dotenv().
+from app.api.sessions import dev_mode
 # ADK's own guard (google/adk/cli/api_server.py) 403s any non-GET whose Origin
 # is missing here, our /api/v1 routes included, so a deployed frontend MUST be
 # listed. Its run.app URL is not knowable at build time; deploy-staging.sh
@@ -79,7 +83,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app: FastAPI = get_fast_api_app(
     agents_dir=AGENT_DIR,
-    web=True,
+    # ADK's dev UI, agent builder and eval runners: 33 routes that write agent
+    # definitions and run evaluations. Local tooling, never a deployed surface.
+    web=dev_mode(),
     artifact_service_uri=services.ARTIFACT_SERVICE_URI,
     allow_origins=allow_origins,
     session_service_uri=services.SESSION_SERVICE_URI,
