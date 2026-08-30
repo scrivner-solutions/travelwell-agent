@@ -115,7 +115,9 @@ app.add_middleware(
 )
 
 # Versioned API surface (docs/openapi.yaml). Legacy prototype endpoints below
-# stay at the root and retire slice by slice.
+# stay at the root and retire slice by slice. They are gated rather than
+# deleted because the agent design that replaces them is not built yet, and
+# the service is public: /api/recommend spends Geocoding and Vertex per call.
 from app.api.deps import CurrentUser
 from app.api.problems import install_problem_handlers
 from app.api.router import api_router
@@ -146,7 +148,7 @@ def collect_feedback(feedback: Feedback, _user: CurrentUser) -> dict[str, str]:
 
 
 @app.get("/api/config")
-def get_config():
+def get_config(_user: CurrentUser):
     """Returns dynamic runtime configuration including Google Maps API Key."""
     return {
         "mapsApiKey": os.getenv("GOOGLE_MAPS_API_KEY", "")
@@ -154,7 +156,7 @@ def get_config():
 
 
 @app.get("/resolve_location")
-def resolve_location(address: str) -> dict:
+def resolve_location(address: str, _user: CurrentUser) -> dict:
     """Resolves a landmark, neighborhood, venue or partial address using Geocoding."""
     from app.services.google_maps import geocode_address
     return geocode_address(address)
@@ -658,7 +660,7 @@ def parse_markdown_to_recommendations(markdown: str, budget_sel: str = "20", has
 
 
 @app.post("/api/recommend")
-async def recommend_workout(request: Request):
+async def recommend_workout(request: Request, _user: CurrentUser):
     import json
     import traceback
     from fastapi.responses import StreamingResponse, JSONResponse
