@@ -341,6 +341,17 @@ class SourcesOut(BaseModel):
     sources: list[ConnectedSourceOut]
 
 
+class SyncOut(BaseModel):
+    """What one sync run did. Counts rather than a bare ok, because "nothing
+    changed" and "nothing was returned" are different answers and only one of
+    them is a problem."""
+
+    created: int
+    updated: int
+    unchanged: int
+    last_synced_at: datetime
+
+
 def preferences_to_out(prefs: UserPreferences) -> PreferencesOut:
     return PreferencesOut(
         dietary=prefs.dietary,

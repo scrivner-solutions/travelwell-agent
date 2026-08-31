@@ -145,18 +145,36 @@ CREATE TABLE user_preferences (
     FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE
 );
 
--- OAuth grants. Tokens live in Secret Manager; only the reference is here.
+-- OAuth grants. The token itself is held by the token store; only its
+-- reference is here, so the storage backend can change without a migration.
 CREATE TABLE connected_sources (
     source_id UUID DEFAULT gen_random_uuid() NOT NULL,
     user_id UUID NOT NULL,
     kind source_kind NOT NULL,
     status source_status DEFAULT 'connected'::source_status NOT NULL,
     scopes TEXT[] DEFAULT '{}'::text[] NOT NULL,
-    secret_ref TEXT,  -- Secret Manager resource name
+    secret_ref TEXT,  -- Opaque token-store reference; only the store that minted it may parse it
     last_synced_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
     PRIMARY KEY (source_id),
     CONSTRAINT connected_sources_user_id_kind_key UNIQUE (user_id, kind),
+    FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE
+);
+
+-- Long-lived secrets, encrypted at rest, addressed only by reference. A
+-- separate table rather than a column on `connected_sources` because the
+-- reference has to stay meaningful when the backend is not this table: a
+-- caller holding `secret_ref` must not care which store answers it.
+CREATE TABLE stored_secrets (
+    secret_id UUID DEFAULT gen_random_uuid() NOT NULL,
+    user_id UUID NOT NULL,
+    kind TEXT NOT NULL,  -- What the secret is for, e.g. google_refresh_token
+    nonce BYTEA NOT NULL,  -- AES-GCM nonce, freshly generated on every write
+    ciphertext BYTEA NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    PRIMARY KEY (secret_id),
+    CONSTRAINT stored_secrets_user_id_kind_key UNIQUE (user_id, kind),
     FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE
 );
 
@@ -246,6 +264,7 @@ CREATE TABLE calendar_events (
     status TEXT DEFAULT 'confirmed'::text NOT NULL,  -- provider status
     content_hash TEXT NOT NULL,  -- change detection on sync
     last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    busy BOOLEAN,  -- Does this block time? NULL = not yet classified, which is not 'free'
     PRIMARY KEY (cal_event_id),
     CONSTRAINT calendar_events_source_id_external_id_key UNIQUE (source_id, external_id),
     FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE,
@@ -254,6 +273,8 @@ CREATE TABLE calendar_events (
 );
 
 CREATE INDEX calendar_events_trip_time_idx ON calendar_events (trip_id, starts_at);
+
+CREATE INDEX calendar_events_user_time_idx ON calendar_events (user_id, starts_at);
 
 -- Trace root: every inbound trigger lands here before anything runs.
 CREATE TABLE agent_events (
