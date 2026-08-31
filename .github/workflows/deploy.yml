@@ -27,11 +27,11 @@ env:
   AR_HOST: us-central1-docker.pkg.dev
   PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
   RUNTIME_SA: travelwell-runtime@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
-  # DATABASE_URL alone selects the target (app/db/engine.py); only Cloud SQL
-  # also needs its instance attached to the revision. Staging currently runs
-  # against hosted Postgres over TCP, so external is the default.
+  # DATABASE_URL alone selects the target (app/db/engine.py); Cloud SQL also
+  # needs its instance attached to the revision. Both come from repo config so
+  # that no environment is named here.
   DB_TARGET: ${{ vars.DB_TARGET || 'external' }}
-  CLOUDSQL_INSTANCE: ${{ vars.GCP_PROJECT_ID }}:us-central1:travelwell-staging
+  CLOUDSQL_INSTANCE: ${{ vars.GCP_SQL_CONNECTION_NAME }}
 
 jobs:
   gates:
@@ -99,6 +99,27 @@ jobs:
           SHA=${GITHUB_SHA::7}
           echo "SHA=$SHA" >> "$GITHUB_ENV"
           echo "IMAGE=$AR_HOST/$PROJECT_ID/travelwell/backend:$SHA" >> "$GITHUB_ENV"
+
+      # DB_TARGET is the one input with a default, and its default detaches
+      # whatever the service has attached. Both halves fail silently at runtime,
+      # so refuse before the build rather than after the revision serves.
+      - name: Check database config
+        run: |
+          if [[ "$DB_TARGET" == cloudsql ]]; then
+            if [[ -z "$CLOUDSQL_INSTANCE" ]]; then
+              echo "DB_TARGET is cloudsql but GCP_SQL_CONNECTION_NAME is unset" >&2
+              exit 1
+            fi
+          else
+            ATTACHED=$(gcloud run services describe travelwell-backend --region "$REGION" \
+              --format='value(spec.template.metadata.annotations["run.googleapis.com/cloudsql-instances"])' \
+              2>/dev/null || true)
+            if [[ -n "$ATTACHED" ]]; then
+              echo "DB_TARGET is external but $ATTACHED is attached." >&2
+              echo "This deploy would detach it. Set DB_TARGET=cloudsql, or detach on purpose first." >&2
+              exit 1
+            fi
+          fi
 
       # Both the "attach nothing" flags below make gcloud require this API and
       # prompt for it. A project with it off can have nothing attached, so on
