@@ -8,7 +8,8 @@ tables stay textual SQL, mirroring ADR-001 point 3).
 
 DATABASE_URL is forced to the test database before any app import, so the
 suite can never touch the dev database. Point TEST_DATABASE_URL elsewhere to
-override; the database name must end in `_test` because it gets dropped.
+override (backend/.env is read, so a worktree can keep its own); the database
+name must end in `_test` because it gets dropped.
 """
 
 import os
@@ -23,11 +24,17 @@ import pytest_asyncio
 import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
+from dotenv import load_dotenv
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
+
+# Parallel worktrees would otherwise all drop and recreate one shared
+# `travelwell_test`, failing each other's runs. Reading .env lets each keep
+# its own; a real environment variable still wins.
+load_dotenv()
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
@@ -44,6 +51,9 @@ if not (make_url(TEST_DATABASE_URL).database or "").endswith("_test"):
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 # Sessions fail hard without a secret outside dev/test (sessions.py).
 os.environ.setdefault("APP_ENV", "test")
+# Pinned rather than defaulted: migrations/env.py calls load_dotenv(), so a
+# worktree's backend/.env would otherwise decide what the redirect tests assert.
+os.environ["PUBLIC_BASE_URL"] = "http://localhost:5173"
 
 # Everything the initial migration creates, modeled or not. Truncated together
 # so FK order never matters; CASCADE covers any table a future migration adds.
