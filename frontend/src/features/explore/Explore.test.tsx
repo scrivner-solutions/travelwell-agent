@@ -8,8 +8,10 @@ import { PlaceMap } from './PlaceMap'
 
 /**
  * What this pins: the card says each fact once, a category with nothing in it
- * is visible rather than hidden, and the map puts north up and scales to the
- * places it was given rather than to the radius that was searched.
+ * is visible rather than hidden, the map puts north up and scales to the
+ * places it was given rather than to the radius that was searched, and what
+ * could not be judged about a place is stated rather than left to look like a
+ * poor match.
  */
 
 const anchor: ExploreAnchor = {
@@ -26,6 +28,7 @@ function place(over: Partial<ExplorePlace> = {}): ExplorePlace {
     name: 'YMCA',
     amenities: [],
     matched_preferences: [],
+    unknown_notes: [],
     ...over,
   }
 }
@@ -41,6 +44,42 @@ describe('PlaceCard', () => {
     )
     expect(screen.getAllByText(/7 min/)).toHaveLength(1)
     expect(screen.getByText(/\$15 day pass/)).toBeTruthy()
+  })
+
+  it('states what could not be judged instead of letting it read as a poor match', () => {
+    render(
+      <PlaceCard
+        place={place({
+          matched_preferences: ['Swim'],
+          unknown_notes: ['Facilities not listed', 'Day-pass price not listed'],
+        })}
+        selected={false}
+        onSelect={() => {}}
+      />,
+    )
+    expect(screen.getByText(/Facilities not listed/)).toBeTruthy()
+    expect(screen.getByText(/Day-pass price not listed/)).toBeTruthy()
+  })
+
+  it('does not dress an unknown up as a matched preference', () => {
+    /* The chips are what the place earned. A note is the absence of an answer,
+       so it must not land in the same list or it reads as a fifth match. */
+    render(
+      <PlaceCard
+        place={place({
+          matched_preferences: ['Swim'],
+          unknown_notes: ['Facilities not listed'],
+        })}
+        selected={false}
+        onSelect={() => {}}
+      />,
+    )
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Swim'])
+  })
+
+  it('says nothing at all when there is nothing unknown', () => {
+    render(<PlaceCard place={place()} selected={false} onSelect={() => {}} />)
+    expect(screen.queryByText(/not listed/)).toBeNull()
   })
 
   it('leaves the price to the summary when there is one', () => {

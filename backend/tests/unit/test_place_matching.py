@@ -7,11 +7,16 @@ list columns are passed explicitly wherever they matter.
 
 from app.db.models import Place, PlaceKind, UserPreferences
 from app.services.places.matching import (
+    UNKNOWN_DAY_PASS,
+    UNKNOWN_DIETARY_OPTIONS,
+    UNKNOWN_FACILITIES,
+    UNKNOWN_PRICE,
     distance_from,
     match_preferences,
     meters_between,
     over_budget_reason,
     rank_places,
+    unknown_notes,
 )
 
 
@@ -138,3 +143,91 @@ def test_over_budget_sorts_last_even_with_more_matches():
 def test_ranking_is_stable_without_any_coordinates():
     a, b = place(name="Alpha"), place(name="Beta")
     assert [r.place.name for r in rank_places([b, a], None)] == ["Alpha", "Beta"]
+
+
+# ---------------------------------------------------------------------------
+# Unknown as a third value (OWNER.md #8). The pair that matters is
+# amenities=None against amenities=[]: one is "nobody told us" and the other is
+# "we asked and there are none", and before this they were the same row.
+
+
+def test_unknown_amenities_are_admitted_when_the_user_asked_about_them():
+    p = place(amenities=None)
+    assert unknown_notes(p, prefs(activities=["swim"])) == [UNKNOWN_FACILITIES]
+
+
+def test_the_note_names_the_users_concern_not_our_column():
+    """One column, two questions. A restaurant answers a dietary preference and
+    a gym answers an activity one, so the same NULL is worded differently."""
+    food = place(kind=PlaceKind.food, amenities=None)
+    gym = place(kind=PlaceKind.workout, amenities=None)
+    user = prefs(dietary=["vegetarian"], activities=["swim"])
+    assert unknown_notes(food, user) == [UNKNOWN_DIETARY_OPTIONS]
+    assert unknown_notes(gym, user) == [UNKNOWN_FACILITIES]
+
+
+def test_a_gym_is_not_marked_for_someone_who_only_set_dietary_preferences():
+    """Dietary never applied to a gym, so a note here would name a concern the
+    user does not have about this place."""
+    gym = place(kind=PlaceKind.workout, amenities=None)
+    assert unknown_notes(gym, prefs(dietary=["vegetarian"])) == []
+
+
+def test_a_restaurant_is_not_marked_for_someone_who_only_set_activities():
+    food = place(kind=PlaceKind.food, amenities=None)
+    assert unknown_notes(food, prefs(activities=["swim"])) == []
+
+
+def test_known_empty_amenities_are_not_an_unknown():
+    """`[]` is an answer. Reporting it as missing data would be a lie in the
+    opposite direction and would put a note on every honest row."""
+    p = place(amenities=[])
+    assert unknown_notes(p, prefs(activities=["swim"])) == []
+
+
+def test_an_unknown_nobody_asked_about_is_not_reported():
+    """A card that lists every absent column teaches the user to stop reading
+    cards, so marking is scoped to fields the preferences make relevant."""
+    p = place(amenities=None)
+    assert unknown_notes(p, prefs()) == []
+
+
+def test_unknown_amenities_earn_no_chip_and_lose_no_place():
+    """The whole invariant in one test: never credited, never excluded, said."""
+    p = place(amenities=None)
+    user = prefs(activities=["swim"])
+    assert match_preferences(p, user) == []
+    assert over_budget_reason(p, user) is None
+    assert unknown_notes(p, user) == [UNKNOWN_FACILITIES]
+    assert [r.place for r in rank_places([p], user)] == [p]
+
+
+def test_an_unpriced_day_pass_is_unjudged_not_under_budget():
+    """The failure this prevents: null reads as cheap and sails through a
+    budget filter that would have caught a real price."""
+    p = place(kind=PlaceKind.workout, day_pass_cents=None)
+    user = prefs(day_pass_budget_cents=2500)
+    assert over_budget_reason(p, user) is None
+    assert "Within your day-pass budget" not in match_preferences(p, user)
+    assert unknown_notes(p, user) == [UNKNOWN_DAY_PASS]
+
+
+def test_a_restaurant_without_a_day_pass_price_is_not_missing_data():
+    p = place(kind=PlaceKind.food, day_pass_cents=None)
+    assert unknown_notes(p, prefs(day_pass_budget_cents=2500)) == []
+
+
+def test_an_unpriced_restaurant_is_reported_when_a_ceiling_is_set():
+    p = place(kind=PlaceKind.food, price_level=None)
+    assert unknown_notes(p, prefs(price_level_max=2)) == [UNKNOWN_PRICE]
+
+
+def test_no_preferences_means_nothing_to_be_unable_to_judge():
+    assert unknown_notes(place(amenities=None), None) == []
+
+
+def test_rank_places_carries_the_notes_onto_every_row():
+    known = place(name="Known", amenities=["pool"])
+    unknown = place(name="Unknown", amenities=None)
+    ranked = {r.place.name: r.unknown_notes for r in rank_places([known, unknown], prefs(activities=["swim"]))}
+    assert ranked == {"Known": [], "Unknown": [UNKNOWN_FACILITIES]}

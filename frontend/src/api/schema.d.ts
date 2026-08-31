@@ -707,7 +707,7 @@ export interface components {
             /** Address */
             address?: string | null;
             /** Amenities */
-            amenities: string[];
+            amenities?: string[] | null;
             /** Day Pass Cents */
             day_pass_cents?: number | null;
             /** Distance Meters */
@@ -735,6 +735,8 @@ export interface components {
             reservable_via?: components["schemas"]["ReservationProvider"] | null;
             /** Summary */
             summary?: string | null;
+            /** Unknown Notes */
+            unknown_notes: string[];
             /** Walk Minutes */
             walk_minutes?: number | null;
         };

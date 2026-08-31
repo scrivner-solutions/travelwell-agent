@@ -328,3 +328,70 @@ async def test_a_provider_failure_is_502_not_a_missing_place(
     r = await authed_client.get("/api/v1/geocode", params={"query": "Chicago"})
     assert r.status_code == 502
     assert r.json()["code"] == "geocoding_failed"
+
+
+# --- Unknown as a third value on the wire (OWNER.md #8) ---------------------
+
+
+async def _make_unlisted_place():
+    """A row as a live Google fetch would write it: no amenities field at all."""
+    import app.db.engine as db
+    from app.db.models import Place, PlaceKind
+
+    async with db.SessionFactory() as session:
+        session.add(
+            Place(
+                name="Unlisted Gym", kind=PlaceKind.workout,
+                lat=ANCHOR_LAT + 0.001, lng=ANCHOR_LNG,
+                amenities=None, day_pass_cents=None,
+            )
+        )
+        await session.commit()
+
+
+async def test_unknown_amenities_are_absent_from_the_wire_and_empty_ones_are_not(
+    authed_client, user
+):
+    """The distinction has to survive serialisation or it does not exist.
+
+    `ApiRoute` omits None, so absent means unknown and `[]` means the venue has
+    none. A client that reads a missing key as an empty list rebuilds exactly
+    the conflation this removed.
+    """
+    trip_id = await _make_trip(user)
+    await _make_places()
+    await _make_unlisted_place()
+    # No category filter: the two rows being contrasted are different kinds.
+    body = (
+        await authed_client.get("/api/v1/explore", params={"trip_id": str(trip_id)})
+    ).json()
+    by_name = {p["name"]: p for p in body["places"]}
+    assert "amenities" not in by_name["Unlisted Gym"]
+    assert by_name["Riverwalk"]["amenities"] == []
+
+
+async def test_a_place_we_know_nothing_about_says_so_rather_than_ranking_silently(
+    authed_client, user
+):
+    trip_id = await _make_trip(user)
+    await _make_places()
+    await _make_unlisted_place()
+    await authed_client.patch(
+        "/api/v1/me/preferences",
+        json={"activities": ["swim"], "day_pass_budget_cents": 2000},
+    )
+    body = (
+        await authed_client.get(
+            "/api/v1/explore", params={"trip_id": str(trip_id), "category": "workout"}
+        )
+    ).json()
+    by_name = {p["name"]: p for p in body["places"]}
+    unlisted = by_name["Unlisted Gym"]
+    assert unlisted["matched_preferences"] == []
+    assert unlisted["unknown_notes"] == [
+        "Facilities not listed",
+        "Day-pass price not listed",
+    ]
+    # Said, not dropped: it is still a card, and still not over budget.
+    assert "over_budget_reason" not in unlisted
+    assert by_name["Corner Pool"]["unknown_notes"] == []

@@ -641,10 +641,18 @@ class ExplorePlaceOut(BaseModel):
     lng: float | None = None
     price_level: int | None = None
     day_pass_cents: int | None = None
-    amenities: list[str]
+    # Absent means the provider never told us; `[]` means it has none. The
+    # default is load-bearing rather than dead: `ApiRoute` omits None, so
+    # without it the schema would declare a field the response drops.
+    amenities: list[str] | None = None
     photo_url: str | None = None
     reservable_via: ReservationProvider | None = None
     matched_preferences: list[str]
+    # What could not be judged about this place, phrased for the user. Always
+    # present, usually empty. Read it next to `matched_preferences`: two chips
+    # out of four preferences means something different when the other two were
+    # unanswerable rather than unmet.
+    unknown_notes: list[str]
     # Why this sits outside what the user said, rather than dropping it. A
     # candidate that vanishes silently cannot be argued with.
     over_budget_reason: str | None = None
@@ -693,10 +701,11 @@ def explore_place_to_out(ranked: RankedPlace) -> ExplorePlaceOut:
         lng=place.lng,
         price_level=place.price_level,
         day_pass_cents=place.day_pass_cents,
-        amenities=list(place.amenities or ()),
+        amenities=None if place.amenities is None else list(place.amenities),
         photo_url=place.photo_url,
         reservable_via=place.reservable_via,
         matched_preferences=ranked.matched_preferences,
+        unknown_notes=ranked.unknown_notes,
         over_budget_reason=ranked.over_budget_reason,
         distance_meters=ranked.distance_meters,
         walk_minutes=ranked.walk_minutes,

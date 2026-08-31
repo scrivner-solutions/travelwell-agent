@@ -66,7 +66,11 @@ class ProviderPlace:
     summary: str | None = None
     price_level: int | None = None
     day_pass_cents: int | None = None
-    amenities: tuple[str, ...] = ()
+    # None means the provider has no amenities field or did not answer; `()`
+    # means it answered "none". Defaulting to None rather than `()` is the
+    # load-bearing part: a provider that says nothing must not be recorded as
+    # having said "there are none".
+    amenities: tuple[str, ...] | None = None
     # Per-weekday open/close minutes from midnight, local: {"mon": [360, 1320]}.
     # The shape the seed writes and the planner reads; a client that invents a
     # different one silently breaks candidate selection rather than failing.

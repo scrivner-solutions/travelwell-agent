@@ -354,11 +354,18 @@
             "title": "Address"
           },
           "amenities": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Amenities",
-            "type": "array"
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amenities"
           },
           "day_pass_cents": {
             "anyOf": [
@@ -477,6 +484,13 @@
             ],
             "title": "Summary"
           },
+          "unknown_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unknown Notes",
+            "type": "array"
+          },
           "walk_minutes": {
             "anyOf": [
               {
@@ -493,8 +507,8 @@
           "id",
           "kind",
           "name",
-          "amenities",
-          "matched_preferences"
+          "matched_preferences",
+          "unknown_notes"
         ],
         "title": "ExplorePlaceOut",
         "type": "object"

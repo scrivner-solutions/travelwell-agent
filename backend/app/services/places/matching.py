@@ -16,7 +16,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from app.db.models import Place, UserPreferences
+from app.db.models import Place, PlaceKind, UserPreferences
 
 # Slug -> the label the user sees. Mirrors the chip labels in
 # frontend/src/features/profile/ProfileScreen.tsx, because the contract carries
@@ -52,6 +52,24 @@ ACTIVITY_AMENITIES = {
 _METERS_PER_MINUTE = 75.0
 _EARTH_RADIUS_M = 6_371_000.0
 
+# Kinds where a day pass is a thing to have a price for. A restaurant with no
+# day-pass price is not missing data, it is a restaurant, and saying so on its
+# card would be noise dressed as honesty.
+_DAY_PASS_KINDS = (PlaceKind.workout, PlaceKind.recovery)
+
+# The words for a field the provider never filled in. DRAFT, pending
+# ratification with the planner: Explore and the plan must describe the same
+# missing field identically, or one venue reads as two different venues on two
+# screens. Constants rather than literals so both surfaces import the string
+# instead of each writing its own version of it.
+# "Amenities" is our column, not the user's concern, so the note names what
+# they actually asked about. Which one applies is decided by kind, because the
+# same column answers a different question for a restaurant and for a gym.
+UNKNOWN_DIETARY_OPTIONS = "Dietary options not listed"
+UNKNOWN_FACILITIES = "Facilities not listed"
+UNKNOWN_DAY_PASS = "Day-pass price not listed"
+UNKNOWN_PRICE = "Price not listed"
+
 
 def _label(slug: str) -> str:
     return PREFERENCE_LABELS.get(slug, slug.replace("_", " ").capitalize())
@@ -72,6 +90,8 @@ def match_preferences(place: Place, prefs: UserPreferences | None) -> list[str]:
     if prefs is None:
         return []
 
+    # `None` and `()` both credit nothing, which is correct here and is not the
+    # whole story: an unknown must also be *said*, and that is `unknown_notes`.
     amenities = set(place.amenities or ())
     matched: list[str] = []
 
@@ -102,6 +122,53 @@ def match_preferences(place: Place, prefs: UserPreferences | None) -> list[str]:
     return matched
 
 
+def unknown_notes(place: Place, prefs: UserPreferences | None) -> list[str]:
+    """What could not be judged about this place, in the user's own terms.
+
+    Only fields the user's preferences make relevant are reported. An unknown
+    nobody asked about is noise rather than honesty, and a card that lists
+    every absent column teaches the user to stop reading cards.
+
+    Never a filter and never a credit: an unknown neither earns a chip nor
+    removes the place from the list. `rank_places` does sort a place with no
+    matches downwards, and these notes are what keeps that demotion visible
+    instead of silent -- which is the whole difference between degrading and
+    excluding.
+    """
+    if prefs is None:
+        return []
+
+    notes: list[str] = []
+
+    # Trigger and wording are chosen together. A gym with unknown amenities is
+    # not worth marking for someone who only set dietary preferences: dietary
+    # never applied to a gym, so the note would name a concern the user does
+    # not have here. This is the "only what their preferences make relevant"
+    # rule at preference-kind grain rather than at place grain.
+    if place.amenities is None:
+        if place.kind is PlaceKind.food:
+            if prefs.dietary:
+                notes.append(UNKNOWN_DIETARY_OPTIONS)
+        elif prefs.activities or prefs.amenities:
+            notes.append(UNKNOWN_FACILITIES)
+
+    if (
+        prefs.day_pass_budget_cents is not None
+        and place.day_pass_cents is None
+        and place.kind in _DAY_PASS_KINDS
+    ):
+        notes.append(UNKNOWN_DAY_PASS)
+
+    if (
+        prefs.price_level_max is not None
+        and place.price_level is None
+        and place.kind is PlaceKind.food
+    ):
+        notes.append(UNKNOWN_PRICE)
+
+    return notes
+
+
 def over_budget_reason(place: Place, prefs: UserPreferences | None) -> str | None:
     """Why this place sits outside what the user said, or None.
 
@@ -109,6 +176,10 @@ def over_budget_reason(place: Place, prefs: UserPreferences | None) -> str | Non
     works this way -- `plan_item_options.rejection_reason` is documented as
     "'$$$, above the budget you set'" -- and a candidate that vanishes silently
     cannot be argued with.
+
+    Every test here is on a value we have. An unknown price is not over budget
+    and not under it; it is unjudged, and it comes back from `unknown_notes`
+    instead. A filter may only fail on known-bad.
     """
     if prefs is None:
         return None
@@ -168,6 +239,10 @@ class RankedPlace:
 
     place: Place
     matched_preferences: list[str]
+    # What we could not judge, alongside what we could. Both are needed to read
+    # the card honestly: three chips out of five preferences means something
+    # different when the other two were unanswerable.
+    unknown_notes: list[str]
     over_budget_reason: str | None
     distance_meters: int | None
     walk_minutes: int | None
@@ -192,6 +267,7 @@ def rank_places(
             RankedPlace(
                 place=p,
                 matched_preferences=match_preferences(p, prefs),
+                unknown_notes=unknown_notes(p, prefs),
                 over_budget_reason=over_budget_reason(p, prefs),
                 distance_meters=meters,
                 walk_minutes=minutes,

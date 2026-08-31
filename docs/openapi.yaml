@@ -1438,7 +1438,7 @@ components:
         `external_url` were designed here and are not served: no column backs a
         rating, and "book it yourself" is Reservation.external_url, which means
         something more precise than a link on a discovery card.
-      required: [id, kind, name, amenities, matched_preferences]
+      required: [id, kind, name, matched_preferences, unknown_notes]
       properties:
         id:
           type: string
@@ -1459,9 +1459,17 @@ components:
           type: integer
         day_pass_cents:
           type: integer
-          description: 0 means free or included with a membership.
+          description: >
+            0 means free or included with a membership. Absent means the
+            provider did not price it, which is not the same as cheap: it is
+            the value a budget filter is not allowed to judge.
         amenities:
           type: array
+          description: >
+            Absent means the provider has no amenities field or did not answer;
+            `[]` means it answered "none". Not required, and that is the point:
+            Google supplies no amenities at all, so a required array would make
+            every live row assert that its venue has none.
           items:
             type: string
         photo_url:
@@ -1474,6 +1482,18 @@ components:
           description: >
             Display labels, not slugs -- ProvenanceSheet renders them verbatim.
             Derived per request from the caller's own preferences row.
+          items:
+            type: string
+        unknown_notes:
+          type: array
+          description: >
+            What could not be judged about this place, phrased for the user and
+            only for fields their preferences make relevant. Always present,
+            usually empty. Read next to matched_preferences: two chips out of
+            four preferences means something different when the other two were
+            unanswerable rather than unmet. The strings come from the shared
+            matcher so this surface and the plan describe the same missing
+            field with the same words.
           items:
             type: string
         over_budget_reason:

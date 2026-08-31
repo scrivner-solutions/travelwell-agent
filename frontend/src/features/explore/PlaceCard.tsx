@@ -58,6 +58,16 @@ export function PlaceCard({ place, selected, onSelect }: PlaceCardProps) {
         </ul>
       )}
 
+      {/* Muted prose, never a chip. A chip reads as something the place has,
+          and these are the opposite: what nobody could tell us about it. Kept
+          next to the chips on purpose, because "two matches" means something
+          different when a third preference was unanswerable rather than unmet. */}
+      {place.unknown_notes.length > 0 && (
+        <p className="mt-3 text-body-sm text-muted">
+          {place.unknown_notes.join(' · ')}
+        </p>
+      )}
+
       {/* Shown, not hidden: the user set the limit and can decide to break it. */}
       {place.over_budget_reason != null && (
         <p className="mt-3 text-body-sm text-muted">{place.over_budget_reason}</p>

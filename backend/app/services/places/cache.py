@@ -44,7 +44,8 @@ def _row(place: ProviderPlace) -> dict:
         "lng": place.lng,
         "price_level": place.price_level,
         "day_pass_cents": place.day_pass_cents,
-        "amenities": list(place.amenities),
+        # None stays None: unknown is a value the column now holds.
+        "amenities": None if place.amenities is None else list(place.amenities),
         "hours": place.hours,
         "photo_url": place.photo_url,
         "fetched_at": datetime.now(UTC),
@@ -59,6 +60,10 @@ async def upsert_places(
     Amenities are overwritten rather than merged. The provider is authoritative
     by design, and a merge would make a venue accumulate amenities it no longer
     has, which is exactly the kind of quiet wrongness a cache should not add.
+
+    A provider that reports no amenities field overwrites with NULL, not `{}`.
+    Refreshing from a provider that cannot see amenities must not be able to
+    convert a known list into a claim that the venue has none.
     """
     if not found:
         return []
