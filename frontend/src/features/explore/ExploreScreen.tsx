@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { exploreQueryOptions, tripsQueryOptions, type PlaceKind } from '@/api/queries'
 import { focusTrip } from '@/lib/trips'
@@ -48,6 +48,8 @@ export function ExploreScreen() {
   // One selection drives both surfaces, which is what keeps the pins and the
   // cards in step rather than each holding its own idea of "current".
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // The callout's chevron leads to the card, which is where the actions are.
+  const cards = useRef<Record<string, HTMLLIElement | null>>({})
 
   const trips = useQuery(tripsQueryOptions())
   const trip = trips.data ? focusTrip(trips.data) : undefined
@@ -109,8 +111,12 @@ export function ExploreScreen() {
           places={data.places}
           radiusM={data.radius_m}
           timezone={trip.timezone}
+          route={data.route}
           selectedId={selectedId}
           onSelect={setSelectedId}
+          onOpen={(id) =>
+            cards.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
         >
           <CategoryChips kinds={data.kinds} selected={category} onSelect={setCategory} />
         </PlaceMap>
@@ -141,7 +147,12 @@ export function ExploreScreen() {
         ) : (
           <ul className="mt-3 flex flex-col gap-[11px]">
             {data.places.map((place) => (
-              <li key={place.id}>
+              <li
+                key={place.id}
+                ref={(el) => {
+                  cards.current[place.id] = el
+                }}
+              >
                 <PlaceCard
                   place={place}
                   timezone={trip.timezone}

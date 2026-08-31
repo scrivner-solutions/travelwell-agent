@@ -1,7 +1,8 @@
+import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ExploreAnchor, ExplorePlace } from '@/api/queries'
+import type { ExploreAnchor, ExplorePlace, ExploreRoute } from '@/api/queries'
 import { CategoryChips } from './CategoryChips'
 import { PlaceCard } from './PlaceCard'
 import { PlaceMap } from './PlaceMap'
@@ -213,6 +214,35 @@ describe('PlaceMap', () => {
   const north = place({ id: 'n', name: 'North', lat: 41.9, lng: -87.6252, distance_meters: 840, walk_minutes: 7 })
   const east = place({ id: 'e', name: 'East', lat: 41.8924, lng: -87.61, distance_meters: 1260 })
 
+  const noRoute: ExploreRoute = { stops: [], total_minutes: null }
+  const anchorStop = {
+    name: 'The Gwen',
+    lat: 41.8924,
+    lng: -87.6252,
+    is_anchor: true,
+    walk_minutes: null,
+  }
+  const routeToNorth: ExploreRoute = {
+    stops: [anchorStop, { name: 'North', lat: 41.9, lng: -87.6252, is_anchor: false, walk_minutes: 11 }],
+    total_minutes: 11,
+  }
+
+  function draw(over: Partial<ComponentProps<typeof PlaceMap>> = {}) {
+    return render(
+      <PlaceMap
+        anchor={anchor}
+        places={[north, east]}
+        route={noRoute}
+        radiusM={8000}
+        timezone={TZ}
+        selectedId={null}
+        onSelect={() => {}}
+        onOpen={() => {}}
+        {...over}
+      />,
+    )
+  }
+
   /** The place pins, which are the only aria-pressed buttons on the map. */
   function pins(container: HTMLElement) {
     return [...container.querySelectorAll('button[aria-pressed]')] as HTMLElement[]
@@ -222,17 +252,18 @@ describe('PlaceMap', () => {
     return { x: Number.parseFloat(el.style.left), y: Number.parseFloat(el.style.top) }
   }
 
+  const lines = (container: HTMLElement) => [...container.querySelectorAll('polyline')]
+  const route = (container: HTMLElement) =>
+    lines(container).find((l) => l.getAttribute('stroke-dasharray') === null)
+  const spur = (container: HTMLElement) =>
+    lines(container).find((l) => l.getAttribute('stroke-dasharray') !== null)
+  const xs = (line: SVGPolylineElement) =>
+    line.getAttribute('points')!.split(' ').map((p) => Number.parseFloat(p.split(',')[0]!))
+  const ys = (line: SVGPolylineElement) =>
+    line.getAttribute('points')!.split(' ').map((p) => Number.parseFloat(p.split(',')[1]!))
+
   it('puts north above the anchor and east to its right', () => {
-    const { container } = render(
-      <PlaceMap
-        anchor={anchor}
-        places={[north, east]}
-        radiusM={8000}
-        timezone={TZ}
-        selectedId={null}
-        onSelect={() => {}}
-      />,
-    )
+    const { container } = draw()
     // Percentages of a square plot, so 50% is the anchor in both axes.
     const placed = pins(container).map(at)
     expect(placed).toHaveLength(2)
@@ -244,48 +275,35 @@ describe('PlaceMap', () => {
   })
 
   it('scales to the furthest place, not to the radius searched', () => {
-    const { container } = render(
-      <PlaceMap
-        anchor={anchor}
-        places={[north, east]}
-        radiusM={8000}
-        timezone={TZ}
-        selectedId={null}
-        onSelect={() => {}}
-      />,
-    )
-    // 1.26 km furthest, so the outer ring reads in hundreds of metres rather
-    // than the 8 km that was searched.
-    const labels = [...container.querySelectorAll('text')].map((t) => t.textContent)
-    expect(labels).toContain('1.4 km')
-    expect(labels).not.toContain('8.0 km')
+    const { container } = draw()
+    // 1.26 km furthest inside an 8 km search. Scaled to the radius, the east
+    // pin would sit near 57%, barely off the anchor; scaled to the places it
+    // reaches the edge of the plot. The rings that used to say so are gone
+    // with the design, so the pin's own position is what carries it.
+    const e = at(pins(container)[1]!)
+    expect(e.x).toBeGreaterThan(80)
+  })
+
+  it('keeps a route stop on the plot when its category is filtered out', () => {
+    // Dinner, while the Workout chip is selected: no pin, but the line still
+    // has to reach it. Scaled to the visible places alone this runs to roughly
+    // x=736 in a 320-wide plot, which is off the band entirely.
+    const { container } = draw({
+      route: {
+        stops: [anchorStop, { name: 'Dinner', lat: 41.8924, lng: -87.55, is_anchor: false, walk_minutes: 83 }],
+        total_minutes: 83,
+      },
+    })
+    expect(Math.max(...xs(route(container)!))).toBeLessThanOrEqual(320)
   })
 
   it('a place with no coordinates gets no pin instead of a wrong one', () => {
-    const { container } = render(
-      <PlaceMap
-        anchor={anchor}
-        places={[north, place({ id: 'x', name: 'Unlocated' })]}
-        radiusM={8000}
-        timezone={TZ}
-        selectedId={null}
-        onSelect={() => {}}
-      />,
-    )
+    const { container } = draw({ places: [north, place({ id: 'x', name: 'Unlocated' })] })
     expect(pins(container)).toHaveLength(1)
   })
 
   it('names only the selected place, so the map does not become a word cloud', () => {
-    const { container } = render(
-      <PlaceMap
-        anchor={anchor}
-        places={[north, east]}
-        radiusM={8000}
-        timezone={TZ}
-        selectedId="n"
-        onSelect={() => {}}
-      />,
-    )
+    const { container } = draw({ selectedId: 'n' })
     // Every pin carries an initial and nothing more; the name belongs to the
     // callout, which only the selected place has.
     const visible = pins(container).map((b) => b.querySelector('[aria-hidden]')?.textContent)
@@ -295,17 +313,62 @@ describe('PlaceMap', () => {
 
   it('keeps the callout inside the band when its pin sits at the edge', () => {
     const far = place({ id: 'f', name: 'Far east', lat: 41.8924, lng: -87.55, distance_meters: 6000 })
-    const { container } = render(
-      <PlaceMap
-        anchor={anchor}
-        places={[far]}
-        radiusM={8000}
-        timezone={TZ}
-        selectedId="f"
-        onSelect={() => {}}
-      />,
-    )
-    const callout = container.querySelector('.z-20') as HTMLElement
+    const { container } = draw({ places: [far], selectedId: 'f' })
+    const callout = container.querySelector('.z-30') as HTMLElement
     expect(Number.parseFloat(callout.style.left)).toBeLessThanOrEqual(80)
+  })
+
+  it('shows the anchor over a pin that sits on it, without disabling that pin', async () => {
+    // A hotel gym is a minute from the hotel, so its pin lands on the anchor.
+    const inHouse = place({ id: 'g', name: 'Gym', lat: 41.8925, lng: -87.6252, walk_minutes: 1 })
+    const onSelect = vi.fn()
+    const { container } = draw({ places: [inHouse, east], onSelect })
+    const anchorDot = container.querySelector('.bg-ink') as HTMLElement
+    expect(anchorDot.className).toContain('pointer-events-none')
+    await userEvent.click(pins(container)[0]!)
+    expect(onSelect).toHaveBeenCalledWith('g')
+  })
+
+  it('the callout chevron leads to the card rather than nowhere', async () => {
+    const onOpen = vi.fn()
+    const { container } = draw({ selectedId: 'n', onOpen })
+    await userEvent.click(container.querySelector('.z-30 button') as HTMLElement)
+    expect(onOpen).toHaveBeenCalledWith('n')
+  })
+
+  it("draws the day as one line through its stops, north still up", () => {
+    const { container } = draw({ route: routeToNorth })
+    const drawn = route(container)!
+    expect(xs(drawn)).toHaveLength(2)
+    const [start, stop] = ys(drawn) as [number, number]
+    expect(stop).toBeLessThan(start)
+  })
+
+  it('reads the day back as a walk, with what it adds up to', () => {
+    const { container } = draw({ route: routeToNorth })
+    // Scoped to the strip: the anchor and the stop are both named elsewhere on
+    // the map, by the pins' screen-reader labels.
+    const strip = container.querySelector('.z-20 > div')!.textContent
+    expect(strip).toContain('The Gwen')
+    expect(strip).toContain('11 min')
+    expect(strip).toContain('North')
+    expect(strip).toContain('11 min walking')
+  })
+
+  it('says the day is empty rather than leaving a bare map', () => {
+    draw()
+    expect(screen.getByText('Nothing planned today')).toBeTruthy()
+  })
+
+  it('offers a place the day does not go to as a spur, priced from the anchor', () => {
+    const { container } = draw({ selectedId: 'n' })
+    expect(spur(container)).toBeDefined()
+    expect(screen.getByText('Add North: +7 min from The Gwen')).toBeTruthy()
+  })
+
+  it('offers no spur to a place the day already goes to', () => {
+    const { container } = draw({ selectedId: 'n', route: routeToNorth })
+    expect(spur(container)).toBeUndefined()
+    expect(screen.queryByText(/^Add North/)).toBeNull()
   })
 })

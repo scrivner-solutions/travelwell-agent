@@ -819,6 +819,7 @@ export interface components {
             places: components["schemas"]["ExplorePlaceOut"][];
             /** Radius M */
             radius_m: number;
+            route: components["schemas"]["ExploreRouteOut"];
             /**
              * Trip Id
              * Format: uuid
@@ -871,6 +872,39 @@ export interface components {
             summary?: string | null;
             /** Unknown Notes */
             unknown_notes: string[];
+            /** Walk Minutes */
+            walk_minutes?: number | null;
+        };
+        /**
+         * ExploreRouteOut
+         * @description Today's plan as a path, for the map's line and its summary strip.
+         *
+         *     Empty `stops` is the ordinary case, not an error: a trip with nothing
+         *     scheduled today, or one whose planned places have no coordinates.
+         */
+        ExploreRouteOut: {
+            /** Stops */
+            stops: components["schemas"]["ExploreRouteStopOut"][];
+            /** Total Minutes */
+            total_minutes?: number | null;
+        };
+        /**
+         * ExploreRouteStopOut
+         * @description One stop on today's walking route, in schedule order.
+         *
+         *     Carries its own coordinates rather than a place id the client would look
+         *     up in `places`: the route must survive a category filter, and a dinner stop
+         *     is not in the list while the Workout chip is selected.
+         */
+        ExploreRouteStopOut: {
+            /** Is Anchor */
+            is_anchor: boolean;
+            /** Lat */
+            lat: number;
+            /** Lng */
+            lng: number;
+            /** Name */
+            name: string;
             /** Walk Minutes */
             walk_minutes?: number | null;
         };

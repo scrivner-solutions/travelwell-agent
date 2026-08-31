@@ -17,6 +17,8 @@ export type WellnessWindow = components['schemas']['WellnessWindowOut']
 export type Explore = components['schemas']['ExploreOut']
 export type ExplorePlace = components['schemas']['ExplorePlaceOut']
 export type ExploreAnchor = components['schemas']['ExploreAnchorOut']
+export type ExploreRoute = components['schemas']['ExploreRouteOut']
+export type ExploreRouteStop = components['schemas']['ExploreRouteStopOut']
 export type PlaceKind = components['schemas']['PlaceKind']
 
 export function meQueryOptions() {
