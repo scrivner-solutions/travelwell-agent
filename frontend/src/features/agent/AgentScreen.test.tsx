@@ -77,9 +77,10 @@ describe('AgentScreen', () => {
 
     await waitFor(() => expect(ask).toHaveBeenCalledTimes(1))
     // The trip, the words, and an idempotency key the caller minted.
-    expect(ask.mock.calls[0][0]).toBe('trip-1')
-    expect(ask.mock.calls[0][1]).toBe('I am wiped, drop the gym today')
-    expect(ask.mock.calls[0][2]).toEqual(expect.any(String))
+    const [tripId, utterance, key] = ask.mock.calls[0] ?? []
+    expect(tripId).toBe('trip-1')
+    expect(utterance).toBe('I am wiped, drop the gym today')
+    expect(key).toEqual(expect.any(String))
 
     expect(
       await screen.findByText('I am wiped, drop the gym today'),
