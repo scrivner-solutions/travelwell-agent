@@ -509,7 +509,11 @@ export function ProfileScreen() {
                     </div>
                   )
                 })}
-                {sourceRows.length === 0 && (
+                {sources.isPending && <LoadingState label="Loading your sources" />}
+                {/* Gated on the query having answered: an unresolved query and
+                    a genuinely empty one both give zero rows, and only one of
+                    them can be told the user as a fact. */}
+                {!sources.isPending && sourceRows.length === 0 && (
                   <p className="p-4 text-caption text-muted">
                     No sources can be connected in this build.
                   </p>
