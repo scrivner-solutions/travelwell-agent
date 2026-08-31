@@ -141,6 +141,7 @@ CREATE TABLE user_preferences (
     watch_schedule BOOLEAN DEFAULT true NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
     preferred_times TEXT[] DEFAULT '{}'::text[] NOT NULL,  -- {'mornings'}
+    target_sessions SMALLINT,  -- how many sessions the traveler wants across a trip, not per day
     PRIMARY KEY (user_id),
     FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE
 );

@@ -163,6 +163,7 @@ def _preferences(row: UserPreferences | None) -> ContextPreferences:
         day_pass_max_cents=row.day_pass_budget_cents,
         session_minutes=session,
         preferred_times=list(row.preferred_times or ()),
+        target_sessions=row.target_sessions,
     )
 
 

@@ -141,3 +141,36 @@ async def test_vertex_accepts_the_request_we_actually_build():
     # Not asserting on the plan itself: this is about whether the request is
     # well-formed, and a 400 raises before there is anything to assert on.
     assert response.stop_reason == "end_turn"
+
+
+def test_wire_schema_prunes_nothing_today():
+    """`_UNSERVABLE` is a backstop, and this is what makes it a loud one.
+
+    `maxItems` is the keyword Vertex refuses to compile at `PlanProposal`'s
+    nesting depth, so the bounds live in Verify now and nothing should be
+    stripped on the way out. If someone adds `max_length=` to a list field the
+    request keeps working - which is the point of the backstop - but the
+    constraint silently stops applying, and only this catches that.
+    """
+    from app.agent.gemini import wire_schema
+    from app.agent.schemas import PlanProposal
+
+    assert wire_schema(PlanProposal) == PlanProposal.model_json_schema()
+
+
+def test_enum_survives_into_the_wire_schema():
+    """`pattern` is not a documented `responseJsonSchema` keyword and `enum` is.
+
+    `state` and `kind` are `Literal` for this reason: it is the only spelling
+    of those two fields the grammar itself enforces.
+    """
+    from app.agent.gemini import wire_schema
+    from app.agent.schemas import PlanProposal
+
+    defs = wire_schema(PlanProposal)["$defs"]
+    assert defs["ProposedOption"]["properties"]["state"]["enum"] == [
+        "selected",
+        "alternative",
+        "rejected",
+    ]
+    assert defs["ProposedItem"]["properties"]["kind"]["enum"] == ["activity", "meal"]

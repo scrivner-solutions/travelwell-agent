@@ -253,6 +253,13 @@ class UserPreferences(Base):
         server_default=sa.text("'{}'::text[]"),
         doc="{'mornings'}",
     )
+    # Last to match migration 0030's ADD COLUMN. Keep new columns below this
+    # line, not grouped with related ones - ADD COLUMN appends physically and
+    # `check_schema_drift.sh` diffs pg_dump, which is order-sensitive.
+    target_sessions: Mapped[int | None] = mapped_column(
+        sa.SmallInteger,
+        doc="how many sessions the traveler wants across a trip, not per day",
+    )
 
 
 class LoginCode(Base):

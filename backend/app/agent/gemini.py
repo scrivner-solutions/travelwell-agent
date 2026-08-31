@@ -40,38 +40,39 @@ DEFAULT_MODEL = "gemini-3.5-flash"
 _GENERATION = re.compile(r"gemini-(\d+)")
 _THINKING_BUDGET = {"low": 2_048, "medium": 8_192, "high": -1}
 
-# Value matchers Vertex compiles into the constrained-decoding state machine.
-# `PlanProposal` carries enough of them together to blow its budget: the error
-# is "the specified schema produces a constraint that has too many states for
-# serving", on both 2.5 and 3.x. Measured 2026-08-31 - no single keyword is at
-# fault, removing any one still fails, removing all three passes.
+# `maxItems` is the one keyword measured to make Vertex refuse `PlanProposal`.
 #
-# Dropping them from the WIRE schema only. They stay on the Pydantic model, and
-# `verify` re-applies every one of them with `model_validate`, so a violation
-# becomes a repair turn instead of a rejected request. That trade is the reason
-# the repair loop exists; it is not a relaxation of what we accept.
-_UNSERVABLE = frozenset(
-    {
-        "pattern",
-        "format",
-        "minLength",
-        "maxLength",
-        "minItems",
-        "maxItems",
-        "minimum",
-        "maximum",
-        "exclusiveMinimum",
-        "exclusiveMaximum",
-        "multipleOf",
-    }
-)
+# What Vertex actually returns is a bare 400 INVALID_ARGUMENT, "Request contains
+# an invalid argument", with nothing in `.message`, `.details` or `.status`.
+# An earlier version of this comment quoted "too many states for serving" as if
+# measured; that string appears only in Google's issue tracker, never in our
+# response. It also claimed no single keyword was at fault. Per-keyword
+# bisection against Vertex on 2026-08-31 disproved both: dropping `format`,
+# `minItems`, `minimum` or `maximum` still failed, dropping `maxItems` alone
+# passed.
+#
+# The mechanism is counting. To honour `maxItems: N` the grammar needs a state
+# per count, and `PlanProposal` nested three of them - items, options,
+# matched_preferences - so the states multiplied. Removing it at EITHER level
+# passed, which is the signature of a product rather than a sum.
+#
+# This should now prune nothing: the bounds moved to `verify` as
+# `too_many_items` and `too_many_options`. It stays as a backstop so a future
+# `max_length=` on a list degrades into a Verify check rather than into that
+# uninformative 400 - and `test_wire_schema_prunes_nothing` fails when it does,
+# so the degradation is never silent.
+_UNSERVABLE = frozenset({"maxItems"})
 
 
 def wire_schema(model: type[BaseModel]) -> dict:
     """The model's JSON Schema with the unservable constraints removed.
 
-    `enum` and `required` are deliberately kept: they cost the state machine
-    little and they are the two that steer the shape rather than the values.
+    Keywords Vertex does not document for `responseJsonSchema` - `pattern`,
+    `minLength`, `maxLength` - are left in and appear to be ignored rather than
+    rejected: the request that passed bisection still carried all three. So they
+    are harmless, and `verify` is what actually enforces them. `enum` is the
+    opposite case: documented, cheap, and the reason `state` and `kind` are
+    `Literal` rather than regexes.
     """
 
     def prune(node):

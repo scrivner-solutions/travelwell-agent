@@ -21,8 +21,10 @@ Two tiers, failing differently on purpose:
 
 Strictness differs between the two schemas and the difference is deliberate.
 `PlanProposal` becomes the provider's `responseJsonSchema`, so it stays flat -
-no optional unions, no deep `$defs` - and every string and list is capped, which
-bounds output tokens and matches what the UI can render. `TripContext` is only
+no optional unions, no deep `$defs`. List *upper* bounds live in Verify rather
+than the schema: `maxItems` is the one keyword measured to blow Vertex's grammar
+budget here, and the bounds multiply across nesting. Lower bounds stay - they
+cost the compiler two states, not thirteen. `TripContext` is only
 ever serialized as a payload, never handed over as a schema, so it can carry the
 nullable fields the domain actually has.
 """
@@ -35,8 +37,15 @@ import unicodedata
 from dataclasses import dataclass
 from datetime import date
 from itertools import pairwise
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    ValidationError,
+)
 
 # `additionalProperties: false` on every object: required by structured-output
 # mode, and it is what stops the model adding a field we would then have to
@@ -49,6 +58,24 @@ TIME_PATTERN = r"^([01][0-9]|2[0-3]):[0-5][0-9]$"
 
 MAX_ITEMS = 12
 MAX_OPTIONS_PER_ITEM = 4
+
+
+def _casefold(value: object) -> object:
+    """Structured output does not guarantee the capitalization of enum values.
+
+    Normalizing before validation turns a documented provider quirk into
+    nothing, instead of into a repair turn that costs a second call.
+    """
+    return value.casefold() if isinstance(value, str) else value
+
+
+# `Literal` rather than a `pattern`: `enum` is on Vertex's supported
+# `responseJsonSchema` keyword list and `pattern` is not, so this is the only
+# spelling of these two fields the grammar actually enforces.
+OptionState = Annotated[
+    Literal["selected", "alternative", "rejected"], BeforeValidator(_casefold)
+]
+ItemKind = Annotated[Literal["activity", "meal"], BeforeValidator(_casefold)]
 
 
 # --------------------------------------------------------------------------
@@ -131,6 +158,9 @@ class ContextPreferences(BaseModel):
     day_pass_max_cents: int | None = None
     session_minutes: SessionMinutes | None = None
     preferred_times: list[str] = Field(default_factory=list)
+    # Windows are capacity, not demand. Absent means "no stated target", and
+    # `MAX_ITEMS` is the backstop - not a target, so the model is not told it.
+    target_sessions: int | None = None
 
 
 class Candidate(BaseModel):
@@ -244,9 +274,9 @@ class ProposedOption(BaseModel):
 
     candidate_id: str = Field(max_length=64)
     reason: str = Field(default="", max_length=280)
-    matched_preferences: list[str] = Field(default_factory=list, max_length=8)
+    matched_preferences: list[str] = Field(default_factory=list)
     rejection_reason: str = Field(default="", max_length=280)
-    state: str = Field(pattern=r"^(selected|alternative|rejected)$")
+    state: OptionState
     rank: int = Field(ge=1, le=MAX_OPTIONS_PER_ITEM)
 
 
@@ -254,10 +284,11 @@ class ProposedItem(BaseModel):
     model_config = _STRICT
 
     window_id: str = Field(max_length=64)
-    kind: str = Field(pattern=r"^(activity|meal)$")
+    kind: ItemKind
     start: str = Field(pattern=TIME_PATTERN)
     end: str = Field(pattern=TIME_PATTERN)
-    options: list[ProposedOption] = Field(min_length=1, max_length=MAX_OPTIONS_PER_ITEM)
+    # `min_length` only. The upper bound is `too_many_options` in Verify.
+    options: list[ProposedOption] = Field(min_length=1)
 
 
 class WindowNote(BaseModel):
@@ -271,8 +302,8 @@ class PlanProposal(BaseModel):
     model_config = _STRICT
 
     headline: str = Field(default="", max_length=120)
-    window_notes: list[WindowNote] = Field(default_factory=list, max_length=MAX_ITEMS)
-    items: list[ProposedItem] = Field(default_factory=list, max_length=MAX_ITEMS)
+    window_notes: list[WindowNote] = Field(default_factory=list)
+    items: list[ProposedItem] = Field(default_factory=list)
 
 
 # --------------------------------------------------------------------------
@@ -295,6 +326,11 @@ class ViolationCode(enum.StrEnum):
     duplicate_rank = "duplicate_rank"
     hard_preference_violation = "hard_preference_violation"
     unknown_preference_token = "unknown_preference_token"
+    # Both were `maxItems` in the wire schema until 2026-08-31. They moved here
+    # because that keyword is what Vertex refuses to compile at this nesting
+    # depth; Verify is now their only enforcement.
+    too_many_items = "too_many_items"
+    too_many_options = "too_many_options"
     # Not in AGENT_DESIGN.md's table, which assumes a payload that already
     # matched the schema. With structured outputs this should be unreachable;
     # if it fires, the provider ignored the schema.
@@ -413,6 +449,16 @@ def _structural_violations(
     out: list[Violation] = []
     placed: list[tuple[date, int, int, str]] = []
 
+    cap = prefs.target_sessions if prefs.target_sessions is not None else MAX_ITEMS
+    if len(proposal.items) > cap:
+        out.append(
+            Violation(
+                ViolationCode.too_many_items,
+                "items",
+                f"{len(proposal.items)} items, at most {cap}",
+            )
+        )
+
     for i, item in enumerate(proposal.items):
         path = f"items[{i}]"
         window = windows.get(item.window_id)
@@ -464,6 +510,14 @@ def _option_violations(
     vocabulary: frozenset[str],
 ) -> list[Violation]:
     out: list[Violation] = []
+    if len(item.options) > MAX_OPTIONS_PER_ITEM:
+        out.append(
+            Violation(
+                ViolationCode.too_many_options,
+                path,
+                f"{len(item.options)} options, at most {MAX_OPTIONS_PER_ITEM}",
+            )
+        )
     selected = [o for o in item.options if o.state == "selected"]
     if not selected:
         out.append(
