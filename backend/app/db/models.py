@@ -271,7 +271,8 @@ class LoginCode(Base):
 
 
 class ConnectedSource(Base):
-    """OAuth grants. Tokens live in Secret Manager; only the reference is here."""
+    """OAuth grants. The token itself is held by the token store; only its
+    reference is here, so the storage backend can change without a migration."""
 
     __tablename__ = "connected_sources"
     __table_args__ = (
@@ -294,9 +295,40 @@ class ConnectedSource(Base):
     scopes: Mapped[list[str]] = mapped_column(
         pg.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]")
     )
-    secret_ref: Mapped[str | None] = mapped_column(doc="Secret Manager resource name")
+    secret_ref: Mapped[str | None] = mapped_column(
+        doc="Opaque token-store reference; only the store that minted it may parse it"
+    )
     last_synced_at: Mapped[datetime | None]
     created_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+
+
+
+class StoredSecret(Base):
+    """Long-lived secrets, encrypted at rest, addressed only by reference.
+
+    A separate table rather than a column on `connected_sources` because the
+    reference has to stay meaningful when the backend is not this table: a
+    caller holding `secret_ref` must not care which store answers it.
+    """
+
+    __tablename__ = "stored_secrets"
+    __table_args__ = (
+        sa.UniqueConstraint("user_id", "kind", name="stored_secrets_user_id_kind_key"),
+    )
+
+    secret_id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, server_default=sa.text("gen_random_uuid()")
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("users.user_id", ondelete="CASCADE")
+    )
+    kind: Mapped[str] = mapped_column(doc="What the secret is for, e.g. google_refresh_token")
+    nonce: Mapped[bytes] = mapped_column(
+        sa.LargeBinary, doc="AES-GCM nonce, freshly generated on every write"
+    )
+    ciphertext: Mapped[bytes] = mapped_column(sa.LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
 
 
 class Trip(Base):
@@ -717,6 +749,9 @@ class CalendarEvent(Base):
     ends_at: Mapped[datetime]
     status: Mapped[str] = mapped_column(
         server_default=sa.text("'confirmed'::text"), doc="provider status"
+    )
+    busy: Mapped[bool | None] = mapped_column(
+        doc="Does this block time? NULL = not yet classified, which is not 'free'"
     )
     # Change detection on sync.
     content_hash: Mapped[str] = mapped_column(doc="change detection on sync")
