@@ -38,7 +38,16 @@
 #   done
 #   PATH="$SHIM:$PATH" PGUSER=travelwell PGPASSWORD=travelwell ./scripts/check_schema_drift.sh
 #
-# `backend-db-1` is the compose container name; adjust if yours differs.
+# `backend-db-1` is not a per-worktree name to adjust: it is the SAME container
+# for every tree. No compose.yaml sets `name:`, so Compose derives the project
+# from the compose file's parent directory, which is `backend` in all of them.
+# One server, one container, host port 5432.
+#
+# So `docker compose down -v` from ANY worktree destroys EVERY tree's databases,
+# the human's dev `travelwell` included, and plain `down` stops everyone's
+# Postgres. Neither is scoped to the tree you run it in and nothing warns you.
+# The per-tree TEST_DATABASE_URL values isolate databases inside that one
+# server; they do not isolate the server. Exec'ing in, as above, is safe.
 set -euo pipefail
 
 : "${PGHOST:=localhost}"
