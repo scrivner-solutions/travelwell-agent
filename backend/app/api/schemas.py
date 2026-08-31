@@ -697,6 +697,37 @@ class ExploreKindOut(BaseModel):
     count: int
 
 
+class ExploreRouteStopOut(BaseModel):
+    """One stop on today's walking route, in schedule order.
+
+    Carries its own coordinates rather than a place id the client would look
+    up in `places`: the route must survive a category filter, and a dinner stop
+    is not in the list while the Workout chip is selected.
+    """
+
+    name: str
+    lat: float
+    lng: float
+    # The anchor the day starts from, not a planned stop.
+    is_anchor: bool
+    # Walking minutes from the previous stop. Absent on the first, which has no
+    # previous: ApiRoute strips None from the wire, so this is optional rather
+    # than nullable, like every other omissible field on the surface.
+    walk_minutes: int | None = None
+
+
+class ExploreRouteOut(BaseModel):
+    """Today's plan as a path, for the map's line and its summary strip.
+
+    Empty `stops` is the ordinary case, not an error: a trip with nothing
+    scheduled today, or one whose planned places have no coordinates.
+    """
+
+    stops: list[ExploreRouteStopOut]
+    # Sum of the legs, absent exactly when there is no leg to add up.
+    total_minutes: int | None = None
+
+
 class ExploreOut(BaseModel):
     trip_id: uuid.UUID
     # Absent when the trip has neither hotel nor destination coordinates: the
@@ -705,6 +736,37 @@ class ExploreOut(BaseModel):
     radius_m: int
     kinds: list[ExploreKindOut]
     places: list[ExplorePlaceOut]
+    route: ExploreRouteOut
+
+
+class BasemapOut(BaseModel):
+    """The ground the Explore map is drawn on: real streets, water and parks.
+
+    Coordinates, not an image. The client projects them with the same maths it
+    already uses for pins, so the basemap rescales with the plot instead of
+    going stale the moment a category chip changes what is on screen -- and it
+    arrives in our palette because we paint it, which a rendered tile could
+    never do.
+
+    Each way is a flat `[lat, lng, lat, lng, ...]` run. Nested pairs described
+    the same thing and cost roughly a third more bytes.
+    """
+
+    # The bucket actually served, which is not necessarily the radius asked
+    # for: areas are cached at fixed sizes so that panning and filtering reuse
+    # one fetch. Echoed so a client can tell it got a coarser area than it
+    # requested rather than inferring it from the geometry.
+    radius_m: int
+    # ODbL requires the credit, so it travels with the data rather than being
+    # left for a renderer to remember.
+    attribution: str
+    roads_major: list[list[float]]
+    roads_minor: list[list[float]]
+    water: list[list[float]]
+    parks: list[list[float]]
+    # Empty above the closest buckets, where a footprint is a speck and a city
+    # of them is a haze rather than a map.
+    buildings: list[list[float]]
 
 
 def explore_place_to_out(ranked: RankedPlace) -> ExplorePlaceOut:

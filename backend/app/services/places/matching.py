@@ -230,7 +230,16 @@ def distance_from(
     ):
         return None, None
     meters = meters_between(anchor_lat, anchor_lng, place.lat, place.lng)
-    return round(meters), max(1, round(meters / _METERS_PER_MINUTE))
+    return round(meters), walk_minutes_between(anchor_lat, anchor_lng, place.lat, place.lng)
+
+
+def walk_minutes_between(lat1: float, lng1: float, lat2: float, lng2: float) -> int:
+    """Straight-line walking minutes, floored at one.
+
+    Split out so the route's leg times and a card's distance cannot end up
+    assuming different paces; the same caveat as `distance_from` applies.
+    """
+    return max(1, round(meters_between(lat1, lng1, lat2, lng2) / _METERS_PER_MINUTE))
 
 
 @dataclass(frozen=True)

@@ -11,6 +11,7 @@ a second definition on the server would eventually disagree with it.
 
 import math
 import uuid
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Query
 from sqlalchemy import select
@@ -18,17 +19,31 @@ from sqlalchemy import select
 from app.api.deps import ApiRoute, CurrentUser, SessionDep
 from app.api.problems import Problem
 from app.api.schemas import (
+    BasemapOut,
     ExploreAnchorOut,
     ExploreKindOut,
     ExploreOut,
     ExplorePlaceOut,
+    ExploreRouteOut,
+    ExploreRouteStopOut,
     ResolvedLocationOut,
     explore_place_to_out,
+    item_face,
 )
-from app.api.trips import owned_trip
-from app.db.models import Place, PlaceKind, UserPreferences
+from app.api.trips import (
+    HIDDEN_ITEM_STATUSES,
+    current_plan,
+    local_today,
+    owned_trip,
+)
+from app.db.models import Place, PlaceKind, Trip, UserPreferences
+from app.services.basemap import ATTRIBUTION, basemap_for, bucket_radius
 from app.services.places import default_provider
-from app.services.places.matching import meters_between, rank_places
+from app.services.places.matching import (
+    meters_between,
+    rank_places,
+    walk_minutes_between,
+)
 from app.services.places.ports import ProviderError, ProviderUnavailable
 
 router = APIRouter(tags=["explore"], route_class=ApiRoute)
@@ -65,6 +80,114 @@ def _matches_text(place: Place, query: str) -> bool:
     return any(needle in field.casefold() for field in haystack)
 
 
+_NO_ROUTE = ExploreRouteOut(stops=[], total_minutes=None)
+
+
+async def _todays_route(
+    session: SessionDep, trip: Trip, anchor: ExploreAnchorOut
+) -> ExploreRouteOut:
+    """Today's decided stops as a path from the anchor.
+
+    Plotted from `item_face`, the same helper the timeline titles an item with,
+    so the line cannot draw a different option than the one on the card.
+
+    Legs are anchor-to-first then stop-to-stop, which is the order the day is
+    walked; the shared straight-line pace applies, so they under-read exactly
+    where the card's own walk time does.
+    """
+    assert anchor.lat is not None and anchor.lng is not None
+    plan = await current_plan(session, trip.trip_id)
+    if plan is None:
+        return _NO_ROUTE
+
+    tz = ZoneInfo(trip.timezone)
+    today = local_today(trip.timezone)
+    faces = [
+        item_face(item)
+        for item in sorted(
+            (
+                item
+                for item in plan.items
+                if item.status not in HIDDEN_ITEM_STATUSES
+                and item.scheduled_start.astimezone(tz).date() == today
+            ),
+            key=lambda item: item.scheduled_start,
+        )
+    ]
+    wanted = {f.place_id for f in faces if f is not None and f.place_id is not None}
+    if not wanted:
+        return _NO_ROUTE
+
+    located = {
+        p.place_id: p
+        for p in (
+            await session.execute(select(Place).where(Place.place_id.in_(wanted)))
+        )
+        .scalars()
+        .all()
+        if p.lat is not None and p.lng is not None
+    }
+
+    stops = [
+        ExploreRouteStopOut(
+            name=anchor.name,
+            lat=anchor.lat,
+            lng=anchor.lng,
+            is_anchor=True,
+            walk_minutes=None,
+        )
+    ]
+    total = 0
+    for face in faces:
+        if face is None or face.place_id not in located:
+            continue
+        place = located[face.place_id]
+        previous = stops[-1]
+        minutes = walk_minutes_between(
+            previous.lat, previous.lng, place.lat, place.lng
+        )
+        total += minutes
+        stops.append(
+            ExploreRouteStopOut(
+                name=face.display_name,
+                lat=place.lat,
+                lng=place.lng,
+                is_anchor=False,
+                walk_minutes=minutes,
+            )
+        )
+
+    # The anchor on its own is a point, not a route worth a line.
+    if len(stops) == 1:
+        return _NO_ROUTE
+    return ExploreRouteOut(stops=stops, total_minutes=total)
+
+
+def trip_anchor(trip: Trip) -> ExploreAnchorOut | None:
+    """The point this trip's map is measured and drawn from.
+
+    A function rather than two copies because the basemap has to be centred on
+    whatever the pins are centred on. Two definitions of "where is this trip"
+    would eventually disagree, and the symptom would be a city drawn next to
+    its own hotel.
+    """
+    if trip.hotel_lat is not None and trip.hotel_lng is not None:
+        return ExploreAnchorOut(
+            name=trip.hotel_name or "Your hotel",
+            is_hotel=True,
+            lat=trip.hotel_lat,
+            lng=trip.hotel_lng,
+        )
+    if trip.destination_lat is not None and trip.destination_lng is not None:
+        return ExploreAnchorOut(
+            name=trip.destination_city,
+            is_hotel=False,
+            lat=trip.destination_lat,
+            lng=trip.destination_lng,
+        )
+    return None
+
+
 @router.get("/explore")
 async def explore(
     user: CurrentUser,
@@ -76,25 +199,17 @@ async def explore(
 ) -> ExploreOut:
     trip = await owned_trip(session, user, trip_id)
 
-    if trip.hotel_lat is not None and trip.hotel_lng is not None:
-        anchor = ExploreAnchorOut(
-            name=trip.hotel_name or "Your hotel",
-            is_hotel=True,
-            lat=trip.hotel_lat,
-            lng=trip.hotel_lng,
-        )
-    elif trip.destination_lat is not None and trip.destination_lng is not None:
-        anchor = ExploreAnchorOut(
-            name=trip.destination_city,
-            is_hotel=False,
-            lat=trip.destination_lat,
-            lng=trip.destination_lng,
-        )
-    else:
+    anchor = trip_anchor(trip)
+    if anchor is None:
         # No point to measure from and no city column on `places`, so there is
         # no honest way to pick which cached rows belong to this trip.
         return ExploreOut(
-            trip_id=trip.trip_id, anchor=None, radius_m=radius_m, kinds=[], places=[]
+            trip_id=trip.trip_id,
+            anchor=None,
+            radius_m=radius_m,
+            kinds=[],
+            places=[],
+            route=_NO_ROUTE,
         )
 
     assert anchor.lat is not None and anchor.lng is not None
@@ -139,6 +254,53 @@ async def explore(
         radius_m=radius_m,
         kinds=kinds,
         places=places,
+        route=await _todays_route(session, trip, anchor),
+    )
+
+
+@router.get("/explore/basemap")
+async def explore_basemap(
+    user: CurrentUser,
+    session: SessionDep,
+    trip_id: uuid.UUID,
+    radius_m: int = Query(default=2000, ge=250, le=20_000),
+) -> BasemapOut:
+    """Street geometry for the area this trip's map covers.
+
+    Its own endpoint rather than a field on `/explore` for two reasons. It
+    changes on a scale of years while the rest of that payload changes per tap,
+    so bundling them would re-send a city every time a chip is pressed. And it
+    is the one part of the surface that may legitimately arrive late or not at
+    all: the map renders on plain ground without it, exactly as it did before.
+
+    `radius_m` is the client's plot radius, which is computed from what is on
+    screen. The server buckets it, so filtering a category usually reuses the
+    area already cached rather than fetching a slightly different one.
+    """
+    trip = await owned_trip(session, user, trip_id)
+    anchor = trip_anchor(trip)
+    if anchor is None or anchor.lat is None or anchor.lng is None:
+        # Same silence as `/explore` itself: with no point to centre on there
+        # is no area to draw, and guessing one would draw the wrong city.
+        return BasemapOut(
+            radius_m=bucket_radius(radius_m),
+            attribution=ATTRIBUTION,
+            roads_major=[],
+            roads_minor=[],
+            water=[],
+            parks=[],
+            buildings=[],
+        )
+
+    drawn = await basemap_for(session, anchor.lat, anchor.lng, radius_m)
+    return BasemapOut(
+        radius_m=bucket_radius(radius_m),
+        attribution=ATTRIBUTION,
+        roads_major=drawn.roads_major,
+        roads_minor=drawn.roads_minor,
+        water=drawn.water,
+        parks=drawn.parks,
+        buildings=drawn.buildings,
     )
 
 

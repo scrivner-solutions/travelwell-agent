@@ -144,6 +144,28 @@ CREATE TABLE area_fills (
     UNIQUE (area_key)
 );
 
+-- Street, water and park geometry for one area, cached as drawn. The Explore
+-- map is a real map or it is a diagram of dots, and the difference is this
+-- table. OpenStreetMap gives the geometry away, so unlike `area_fills` the
+-- ceiling here is politeness to a community server rather than money --
+-- which is why there is no outcome enum: nothing bills, so a failed attempt
+-- costs only the retry. Geometry is stored in degrees, not pixels. The map's
+-- scale is content-dependent -- it changes the moment a category chip hides
+-- the furthest pin -- so a cached projection would be stale before the first
+-- tap.
+CREATE TABLE basemap_areas (
+    basemap_area_id UUID DEFAULT gen_random_uuid() NOT NULL,
+    area_key TEXT NOT NULL,  -- rounded lat/lng and radius
+    roads_major JSONB NOT NULL,  -- motorway/trunk/primary
+    roads_minor JSONB NOT NULL,  -- secondary/tertiary
+    water JSONB NOT NULL,  -- closed rings
+    parks JSONB NOT NULL,  -- closed rings
+    buildings JSONB NOT NULL,  -- closed rings, close zooms only
+    fetched_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    PRIMARY KEY (basemap_area_id),
+    UNIQUE (area_key)
+);
+
 -- One row per user. Drives Explore filters, plan ranking, and the "Matched
 -- from your profile" provenance chips.
 CREATE TABLE user_preferences (

@@ -247,6 +247,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/explore/basemap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Explore Basemap
+         * @description Street geometry for the area this trip's map covers.
+         *
+         *     Its own endpoint rather than a field on `/explore` for two reasons. It
+         *     changes on a scale of years while the rest of that payload changes per tap,
+         *     so bundling them would re-send a city every time a chip is pressed. And it
+         *     is the one part of the surface that may legitimately arrive late or not at
+         *     all: the map renders on plain ground without it, exactly as it did before.
+         *
+         *     `radius_m` is the client's plot radius, which is computed from what is on
+         *     screen. The server buckets it, so filtering a category usually reuses the
+         *     area already cached rather than fetching a slightly different one.
+         */
+        get: operations["explore_basemap_api_v1_explore_basemap_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/geocode": {
         parameters: {
             query?: never;
@@ -778,6 +808,35 @@ export interface components {
          * @enum {string}
          */
         AuthProvider: "google" | "apple" | "email";
+        /**
+         * BasemapOut
+         * @description The ground the Explore map is drawn on: real streets, water and parks.
+         *
+         *     Coordinates, not an image. The client projects them with the same maths it
+         *     already uses for pins, so the basemap rescales with the plot instead of
+         *     going stale the moment a category chip changes what is on screen -- and it
+         *     arrives in our palette because we paint it, which a rendered tile could
+         *     never do.
+         *
+         *     Each way is a flat `[lat, lng, lat, lng, ...]` run. Nested pairs described
+         *     the same thing and cost roughly a third more bytes.
+         */
+        BasemapOut: {
+            /** Attribution */
+            attribution: string;
+            /** Buildings */
+            buildings: number[][];
+            /** Parks */
+            parks: number[][];
+            /** Radius M */
+            radius_m: number;
+            /** Roads Major */
+            roads_major: number[][];
+            /** Roads Minor */
+            roads_minor: number[][];
+            /** Water */
+            water: number[][];
+        };
         /** CalendarEventSummaryOut */
         CalendarEventSummaryOut: {
             /**
@@ -881,6 +940,7 @@ export interface components {
             places: components["schemas"]["ExplorePlaceOut"][];
             /** Radius M */
             radius_m: number;
+            route: components["schemas"]["ExploreRouteOut"];
             /**
              * Trip Id
              * Format: uuid
@@ -933,6 +993,39 @@ export interface components {
             summary?: string | null;
             /** Unknown Notes */
             unknown_notes: string[];
+            /** Walk Minutes */
+            walk_minutes?: number | null;
+        };
+        /**
+         * ExploreRouteOut
+         * @description Today's plan as a path, for the map's line and its summary strip.
+         *
+         *     Empty `stops` is the ordinary case, not an error: a trip with nothing
+         *     scheduled today, or one whose planned places have no coordinates.
+         */
+        ExploreRouteOut: {
+            /** Stops */
+            stops: components["schemas"]["ExploreRouteStopOut"][];
+            /** Total Minutes */
+            total_minutes?: number | null;
+        };
+        /**
+         * ExploreRouteStopOut
+         * @description One stop on today's walking route, in schedule order.
+         *
+         *     Carries its own coordinates rather than a place id the client would look
+         *     up in `places`: the route must survive a category filter, and a dinner stop
+         *     is not in the list while the Workout chip is selected.
+         */
+        ExploreRouteStopOut: {
+            /** Is Anchor */
+            is_anchor: boolean;
+            /** Lat */
+            lat: number;
+            /** Lng */
+            lng: number;
+            /** Name */
+            name: string;
             /** Walk Minutes */
             walk_minutes?: number | null;
         };
@@ -1919,6 +2012,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExploreOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    explore_basemap_api_v1_explore_basemap_get: {
+        parameters: {
+            query: {
+                trip_id: string;
+                radius_m?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BasemapOut"];
                 };
             };
             /** @description Problem details (RFC 9457) */

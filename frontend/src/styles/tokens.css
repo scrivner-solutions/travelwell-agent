@@ -38,6 +38,16 @@
      token because it is a design constant, not a layout choice. */
   --map-ground: #e8eef6;
   --map-grid: rgb(4 44 83 / 0.07);
+  /* Real geography, in the prototype's own map colours. The design hand-placed
+     a river and a park in exactly these two; what changed is that the shapes
+     now come from OpenStreetMap instead of being drawn where they looked good.
+     Roads take the palette's two lightest neutrals so a street reads as carved
+     out of the ground rather than drawn on top of it. */
+  --map-water: #d3e3f5;
+  --map-park: #dde8dd;
+  --map-building: #edf1f7;
+  --map-road: #f4f7fb;
+  --map-road-major: #fafcfe;
   --map-texture: repeating-linear-gradient(
       0deg,
       var(--map-grid) 0 1px,
@@ -122,6 +132,11 @@
   --color-muted-faint: var(--muted-faint);
   --color-track-off: var(--control-track-off);
   --color-map-ground: var(--map-ground);
+  --color-map-water: var(--map-water);
+  --color-map-park: var(--map-park);
+  --color-map-building: var(--map-building);
+  --color-map-road: var(--map-road);
+  --color-map-road-major: var(--map-road-major);
 
   --color-state-suggested: var(--state-suggested);
   --color-state-suggested-soft: var(--state-suggested-soft);

@@ -174,7 +174,7 @@ _STATE_WORDS: dict[TripState, tuple[str, str | None]] = {
 
 # Timeline and Today never render these; skipped stays visible nowhere per the
 # prototype (removed is a backend tombstone).
-_HIDDEN_ITEM_STATUSES = (ItemStatus.skipped, ItemStatus.removed)
+HIDDEN_ITEM_STATUSES = (ItemStatus.skipped, ItemStatus.removed)
 
 # Overlap, not ownership. `trip_id` answers "which trip does this event BELONG
 # to" - a semantic judgement that needs inference, and detection's to make. The
@@ -236,7 +236,7 @@ async def current_plan(session, trip_id: uuid.UUID) -> Plan | None:
     return (await session.execute(stmt)).scalar_one_or_none()
 
 
-def _local_today(tz: str) -> date:
+def local_today(tz: str) -> date:
     return datetime.now(ZoneInfo(tz)).date()
 
 
@@ -265,7 +265,7 @@ async def get_trip_today(
     trip_id: uuid.UUID, user: CurrentUser, session: SessionDep
 ) -> TodayViewOut:
     trip = await owned_trip(session, user, trip_id)
-    today = _local_today(trip.timezone)
+    today = local_today(trip.timezone)
     word, detail = _STATE_WORDS[trip.state]
     if detail is None and trip.activation_at is not None and trip.state in (
         TripState.confirmed,
@@ -292,7 +292,7 @@ async def get_trip_today(
     next_up = [
         plan_item_to_out(item)
         for item in (plan.items if plan else [])
-        if item.status not in _HIDDEN_ITEM_STATUSES
+        if item.status not in HIDDEN_ITEM_STATUSES
         and item.scheduled_start.astimezone(tz).date() == today
     ]
 
@@ -350,7 +350,7 @@ async def get_trip_timeline(
             plan_item=plan_item_to_out(item),
         )
         for item in (plan.items if plan else [])
-        if item.status not in _HIDDEN_ITEM_STATUSES
+        if item.status not in HIDDEN_ITEM_STATUSES
         and (day is None or item.scheduled_start.astimezone(tz).date() == day)
     )
 

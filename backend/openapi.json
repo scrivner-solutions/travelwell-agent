@@ -183,6 +183,80 @@
         "title": "AuthProvider",
         "type": "string"
       },
+      "BasemapOut": {
+        "description": "The ground the Explore map is drawn on: real streets, water and parks.\n\nCoordinates, not an image. The client projects them with the same maths it\nalready uses for pins, so the basemap rescales with the plot instead of\ngoing stale the moment a category chip changes what is on screen -- and it\narrives in our palette because we paint it, which a rendered tile could\nnever do.\n\nEach way is a flat `[lat, lng, lat, lng, ...]` run. Nested pairs described\nthe same thing and cost roughly a third more bytes.",
+        "properties": {
+          "attribution": {
+            "title": "Attribution",
+            "type": "string"
+          },
+          "buildings": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Buildings",
+            "type": "array"
+          },
+          "parks": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Parks",
+            "type": "array"
+          },
+          "radius_m": {
+            "title": "Radius M",
+            "type": "integer"
+          },
+          "roads_major": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Roads Major",
+            "type": "array"
+          },
+          "roads_minor": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Roads Minor",
+            "type": "array"
+          },
+          "water": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Water",
+            "type": "array"
+          }
+        },
+        "required": [
+          "radius_m",
+          "attribution",
+          "roads_major",
+          "roads_minor",
+          "water",
+          "parks",
+          "buildings"
+        ],
+        "title": "BasemapOut",
+        "type": "object"
+      },
       "CalendarEventSummaryOut": {
         "properties": {
           "id": {
@@ -439,6 +513,9 @@
             "title": "Radius M",
             "type": "integer"
           },
+          "route": {
+            "$ref": "#/components/schemas/ExploreRouteOut"
+          },
           "trip_id": {
             "format": "uuid",
             "title": "Trip Id",
@@ -449,7 +526,8 @@
           "trip_id",
           "radius_m",
           "kinds",
-          "places"
+          "places",
+          "route"
         ],
         "title": "ExploreOut",
         "type": "object"
@@ -643,6 +721,74 @@
           "unknown_notes"
         ],
         "title": "ExplorePlaceOut",
+        "type": "object"
+      },
+      "ExploreRouteOut": {
+        "description": "Today's plan as a path, for the map's line and its summary strip.\n\nEmpty `stops` is the ordinary case, not an error: a trip with nothing\nscheduled today, or one whose planned places have no coordinates.",
+        "properties": {
+          "stops": {
+            "items": {
+              "$ref": "#/components/schemas/ExploreRouteStopOut"
+            },
+            "title": "Stops",
+            "type": "array"
+          },
+          "total_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Minutes"
+          }
+        },
+        "required": [
+          "stops"
+        ],
+        "title": "ExploreRouteOut",
+        "type": "object"
+      },
+      "ExploreRouteStopOut": {
+        "description": "One stop on today's walking route, in schedule order.\n\nCarries its own coordinates rather than a place id the client would look\nup in `places`: the route must survive a category filter, and a dinner stop\nis not in the list while the Workout chip is selected.",
+        "properties": {
+          "is_anchor": {
+            "title": "Is Anchor",
+            "type": "boolean"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lng": {
+            "title": "Lng",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "walk_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Walk Minutes"
+          }
+        },
+        "required": [
+          "name",
+          "lat",
+          "lng",
+          "is_anchor"
+        ],
+        "title": "ExploreRouteStopOut",
         "type": "object"
       },
       "ItemKind": {
@@ -2750,6 +2896,62 @@
           }
         },
         "summary": "Explore",
+        "tags": [
+          "explore"
+        ]
+      }
+    },
+    "/explore/basemap": {
+      "get": {
+        "description": "Street geometry for the area this trip's map covers.\n\nIts own endpoint rather than a field on `/explore` for two reasons. It\nchanges on a scale of years while the rest of that payload changes per tap,\nso bundling them would re-send a city every time a chip is pressed. And it\nis the one part of the surface that may legitimately arrive late or not at\nall: the map renders on plain ground without it, exactly as it did before.\n\n`radius_m` is the client's plot radius, which is computed from what is on\nscreen. The server buckets it, so filtering a category usually reuses the\narea already cached rather than fetching a slightly different one.",
+        "operationId": "explore_basemap_api_v1_explore_basemap_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "trip_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Trip Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "radius_m",
+            "required": false,
+            "schema": {
+              "default": 2000,
+              "maximum": 20000,
+              "minimum": 250,
+              "title": "Radius M",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BasemapOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Problem details (RFC 9457)"
+          }
+        },
+        "summary": "Explore Basemap",
         "tags": [
           "explore"
         ]
