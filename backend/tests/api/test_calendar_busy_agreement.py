@@ -23,8 +23,10 @@ async def _source(session, user):
     return (
         await session.execute(
             sa.text(
-                "insert into connected_sources (user_id, kind) "
-                "values (:u, 'google_calendar') returning source_id"
+                # revoked, so no token reference has to be invented: these
+                # tests only need a row for the events to hang off.
+                "insert into connected_sources (user_id, kind, status) "
+                "values (:u, 'google_calendar', 'revoked') returning source_id"
             ),
             {"u": user.user_id},
         )

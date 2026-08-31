@@ -1443,6 +1443,13 @@
       },
       "SourcesOut": {
         "properties": {
+          "connectable": {
+            "items": {
+              "$ref": "#/components/schemas/SourceKind"
+            },
+            "title": "Connectable",
+            "type": "array"
+          },
           "sources": {
             "items": {
               "$ref": "#/components/schemas/ConnectedSourceOut"
@@ -1452,7 +1459,8 @@
           }
         },
         "required": [
-          "sources"
+          "sources",
+          "connectable"
         ],
         "title": "SourcesOut",
         "type": "object"

@@ -294,6 +294,12 @@ class ConnectedSource(Base):
         sa.UniqueConstraint(
             "user_id", "kind", name="connected_sources_user_id_kind_key"
         ),
+        # A grant with no token reference cannot be acted on, so "connected"
+        # would be a claim nothing can honour.
+        sa.CheckConstraint(
+            "status <> 'connected'::source_status or secret_ref is not null",
+            name="connected_sources_check",
+        ),
     )
 
     source_id: Mapped[uuid.UUID] = mapped_column(
@@ -303,10 +309,9 @@ class ConnectedSource(Base):
         sa.ForeignKey("users.user_id", ondelete="CASCADE")
     )
     kind: Mapped[SourceKind] = mapped_column(_pg_enum(SourceKind, "source_kind"))
-    status: Mapped[SourceStatus] = mapped_column(
-        _pg_enum(SourceStatus, "source_status"),
-        server_default=sa.text("'connected'::source_status"),
-    )
+    # No server default: none of the three members describes a row nobody has
+    # acted on, and NOT NULL then names the column a caller forgot to set.
+    status: Mapped[SourceStatus] = mapped_column(_pg_enum(SourceStatus, "source_status"))
     scopes: Mapped[list[str]] = mapped_column(
         pg.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]")
     )

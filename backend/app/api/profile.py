@@ -21,6 +21,7 @@ from app.api.schemas import (
     preferences_to_out,
     source_to_out,
 )
+from app.api.sources import CONNECTABLE_KINDS
 from app.db.models import ConnectedSource, UserPreferences
 
 router = APIRouter(tags=["profile"], route_class=ApiRoute)
@@ -88,4 +89,9 @@ async def list_connected_sources(
         .scalars()
         .all()
     )
-    return SourcesOut(sources=[source_to_out(row) for row in rows])
+    return SourcesOut(
+        sources=[source_to_out(row) for row in rows],
+        # Sorted because a frozenset of enums iterates in hash order, which
+        # varies per process and would make the response non-deterministic.
+        connectable=sorted(CONNECTABLE_KINDS, key=lambda kind: kind.value),
+    )

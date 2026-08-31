@@ -1193,6 +1193,8 @@ export interface components {
         SourceStatus: "connected" | "error" | "revoked";
         /** SourcesOut */
         SourcesOut: {
+            /** Connectable */
+            connectable: components["schemas"]["SourceKind"][];
             /** Sources */
             sources: components["schemas"]["ConnectedSourceOut"][];
         };

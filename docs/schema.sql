@@ -171,13 +171,14 @@ CREATE TABLE connected_sources (
     source_id UUID DEFAULT gen_random_uuid() NOT NULL,
     user_id UUID NOT NULL,
     kind source_kind NOT NULL,
-    status source_status DEFAULT 'connected'::source_status NOT NULL,
+    status source_status NOT NULL,
     scopes TEXT[] DEFAULT '{}'::text[] NOT NULL,
     secret_ref TEXT,  -- Opaque token-store reference; only the store that minted it may parse it
     last_synced_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
     PRIMARY KEY (source_id),
     CONSTRAINT connected_sources_user_id_kind_key UNIQUE (user_id, kind),
+    CONSTRAINT connected_sources_check CHECK (status <> 'connected'::source_status or secret_ref is not null),
     FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE
 );
 
