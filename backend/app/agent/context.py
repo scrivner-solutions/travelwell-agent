@@ -40,6 +40,7 @@ from app.agent.schemas import (
     TripFacts,
 )
 from app.db.models import CalendarEvent, Place, Trip, UserPreferences
+from app.services.calendar import is_busy
 
 # Section budgets from AGENT_DESIGN.md section 6. Candidates is the only elastic
 # one; the rest are bounded by the trip itself.
@@ -74,19 +75,6 @@ class Gathered:
     candidate_places: dict[str, uuid.UUID] = field(default_factory=dict)
     window_intervals: dict[str, windows_mod.FreeWindow] = field(default_factory=dict)
     commitment_events: dict[str, uuid.UUID] = field(default_factory=dict)
-
-
-def is_busy(event: CalendarEvent) -> bool:
-    """Whether this event occupies the traveler.
-
-    Every row, for now, which is today's behaviour. The real predicate needs
-    `transparency` and the user's own `responseStatus`, neither of which
-    `calendar_events` carries yet; the column and the rule arrive together with
-    calendar sync (Track A) so the rule has exactly one home. Deliberately not
-    approximated here - a guess would return smaller-but-plausible windows, the
-    run would succeed, and the plan would be quietly poorer with nothing raised.
-    """
-    return True
 
 
 def clean_untrusted(text: str, limit: int = TITLE_LIMIT) -> str:

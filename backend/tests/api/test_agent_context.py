@@ -15,7 +15,10 @@ DAY_ONE = date(2026, 9, 9)
 
 
 def build_scene(user):
-    """A two-day Chicago trip with two commitments and three cached places.
+    """A two-day Chicago trip with three commitments and three cached places.
+
+    One commitment is declined (`busy=False`), which is the case that tells
+    the two `is_busy` implementations apart.
 
     A plain factory rather than the fixture itself, so another module can reuse
     the scene by declaring its own one-line fixture. Importing a fixture works
@@ -77,6 +80,17 @@ def build_scene(user):
                     starts_at=at(DAY_ONE, 19, 30),
                     ends_at=at(DAY_ONE, 21),
                     content_hash="h2",
+                ),
+                CalendarEvent(
+                    user_id=user.user_id,
+                    source_id=source.source_id,
+                    trip_id=trip.trip_id,
+                    external_id="ev-3",
+                    title="Standup they declined",
+                    starts_at=at(DAY_ONE + timedelta(days=1), 10),
+                    ends_at=at(DAY_ONE + timedelta(days=1), 11),
+                    busy=False,
+                    content_hash="h3",
                 ),
             ])
             session.add(
@@ -165,10 +179,24 @@ async def test_a_free_day_is_one_window(gather_scene):
 
 
 @pytest.mark.asyncio
+async def test_a_declined_commitment_does_not_carve_a_window(gather_scene):
+    """Gather consumes `app.services.calendar.is_busy`; it defines no rule.
+
+    The declined standup sits inside day two and the day is still one window.
+    This is the accuser for a second `is_busy` growing here again: a local rule
+    that treats every row as busy splits the day and turns this red.
+    """
+    result = await run_gather(await gather_scene())
+    day_two = [w for w in result.context.windows if w.day == DAY_ONE + timedelta(days=1)]
+    assert len(day_two) == 1
+    assert "Standup they declined" in [c.title for c in result.context.commitments]
+
+
+@pytest.mark.asyncio
 async def test_commitment_titles_are_cleaned_but_keep_their_own_voice(gather_scene):
     result = await run_gather(await gather_scene())
     titles = [c.title for c in result.context.commitments]
-    assert titles == ["Workshop day 1", "Team dinner"]
+    assert titles == ["Workshop day 1", "Team dinner", "Standup they declined"]
 
 
 @pytest.mark.asyncio
