@@ -100,6 +100,18 @@ jobs:
           echo "SHA=$SHA" >> "$GITHUB_ENV"
           echo "IMAGE=$AR_HOST/$PROJECT_ID/travelwell/backend:$SHA" >> "$GITHUB_ENV"
 
+      # Both the "attach nothing" flags below make gcloud require this API and
+      # prompt for it. A project with it off can have nothing attached, so on
+      # that path the flags are dropped rather than passed empty.
+      - name: Detect Cloud SQL API
+        run: |
+          if gcloud services list --enabled --format='value(config.name)' \
+            | grep -qx sqladmin.googleapis.com; then
+            echo "SQLADMIN_ENABLED=1" >> "$GITHUB_ENV"
+          else
+            echo "SQLADMIN_ENABLED=0" >> "$GITHUB_ENV"
+          fi
+
       - name: Build and push image
         working-directory: backend
         run: |
@@ -113,11 +125,13 @@ jobs:
         run: |
           if [[ "$DB_TARGET" == cloudsql ]]; then
             DB_FLAGS=(--set-cloudsql-instances "$CLOUDSQL_INSTANCE")
-          else
+          elif [[ "$SQLADMIN_ENABLED" == 1 ]]; then
             # Clear rather than omit: an omitted flag keeps whatever the
             # previous revision had attached. Jobs have no --clear-, so the
             # empty list is how you detach.
             DB_FLAGS=(--set-cloudsql-instances "")
+          else
+            DB_FLAGS=()
           fi
           gcloud run jobs deploy travelwell-migrate \
             --image "$IMAGE" \
@@ -155,8 +169,10 @@ jobs:
 
           if [[ "$DB_TARGET" == cloudsql ]]; then
             DB_FLAGS=(--add-cloudsql-instances "$CLOUDSQL_INSTANCE")
-          else
+          elif [[ "$SQLADMIN_ENABLED" == 1 ]]; then
             DB_FLAGS=(--clear-cloudsql-instances)
+          else
+            DB_FLAGS=()
           fi
           gcloud run deploy travelwell-backend \
             --image "$IMAGE" \
