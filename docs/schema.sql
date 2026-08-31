@@ -151,7 +151,7 @@ CREATE TABLE connected_sources (
     source_id UUID DEFAULT gen_random_uuid() NOT NULL,
     user_id UUID NOT NULL,
     kind source_kind NOT NULL,
-    status source_status DEFAULT 'connected'::source_status NOT NULL,
+    status source_status NOT NULL,
     scopes TEXT[] DEFAULT '{}'::text[] NOT NULL,
     secret_ref TEXT,  -- Opaque token-store reference; only the store that minted it may parse it
     last_synced_at TIMESTAMP WITH TIME ZONE,

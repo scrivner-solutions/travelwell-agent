@@ -28,6 +28,7 @@ def build_scene(user):
             CalendarEvent,
             ConnectedSource,
             SourceKind,
+            SourceStatus,
             Trip,
             TripOrigin,
             TripState,
@@ -54,6 +55,7 @@ def build_scene(user):
             source = ConnectedSource(
                 user_id=user.user_id,
                 kind=SourceKind.google_calendar,
+                status=SourceStatus.connected,
                 secret_ref="mem:placeholder",
             )
             session.add_all([trip, source])

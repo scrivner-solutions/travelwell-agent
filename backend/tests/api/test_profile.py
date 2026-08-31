@@ -118,6 +118,7 @@ async def test_sources_empty_and_own_only(authed_client, user, other_user, db_se
         ConnectedSource(
             user_id=other_user.user_id,
             kind=SourceKind.gmail,
+            status=SourceStatus.connected,
             secret_ref="mem:other",
         )
     )

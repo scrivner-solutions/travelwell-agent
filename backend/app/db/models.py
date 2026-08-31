@@ -294,10 +294,9 @@ class ConnectedSource(Base):
         sa.ForeignKey("users.user_id", ondelete="CASCADE")
     )
     kind: Mapped[SourceKind] = mapped_column(_pg_enum(SourceKind, "source_kind"))
-    status: Mapped[SourceStatus] = mapped_column(
-        _pg_enum(SourceStatus, "source_status"),
-        server_default=sa.text("'connected'::source_status"),
-    )
+    # No server default: none of the three members describes a row nobody has
+    # acted on, and NOT NULL then names the column a caller forgot to set.
+    status: Mapped[SourceStatus] = mapped_column(_pg_enum(SourceStatus, "source_status"))
     scopes: Mapped[list[str]] = mapped_column(
         pg.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]")
     )
