@@ -52,7 +52,9 @@ def build_scene(user):
                 hotel_lng=-87.6252,
             )
             source = ConnectedSource(
-                user_id=user.user_id, kind=SourceKind.google_calendar
+                user_id=user.user_id,
+                kind=SourceKind.google_calendar,
+                secret_ref="mem:placeholder",
             )
             session.add_all([trip, source])
             await session.flush()

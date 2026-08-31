@@ -65,19 +65,22 @@ class SourceSpec(NamedTuple):
     synced_minutes_ago: int
 
 
+# Both grants are `revoked`, not `connected`: the demo user has no OAuth token,
+# and `connected_sources_check` now refuses that combination. The row still
+# carries `last_synced_at`, which is what explains the seeded calendar_events.
 SOURCES = [
     SourceSpec(
         key="calendar",
         kind=SourceKind.google_calendar,
-        status=SourceStatus.connected,
-        scopes=["https://www.googleapis.com/auth/calendar.readonly"],
+        status=SourceStatus.revoked,
+        scopes=["https://www.googleapis.com/auth/calendar.events.readonly"],
         synced_minutes_ago=4,
     ),
     # Trip evidence cites Email as a source; this is its grant.
     SourceSpec(
         key="email",
         kind=SourceKind.gmail,
-        status=SourceStatus.connected,
+        status=SourceStatus.revoked,
         scopes=["https://www.googleapis.com/auth/gmail.readonly"],
         synced_minutes_ago=60,
     ),

@@ -279,6 +279,12 @@ class ConnectedSource(Base):
         sa.UniqueConstraint(
             "user_id", "kind", name="connected_sources_user_id_kind_key"
         ),
+        # A grant with no token reference cannot be acted on, so "connected"
+        # would be a claim nothing can honour.
+        sa.CheckConstraint(
+            "status <> 'connected'::source_status or secret_ref is not null",
+            name="connected_sources_check",
+        ),
     )
 
     source_id: Mapped[uuid.UUID] = mapped_column(

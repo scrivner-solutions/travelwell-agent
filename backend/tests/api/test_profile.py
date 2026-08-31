@@ -110,11 +110,16 @@ async def test_sources_empty_and_own_only(authed_client, user, other_user, db_se
             user_id=user.user_id,
             kind=SourceKind.google_calendar,
             status=SourceStatus.connected,
+            secret_ref="mem:placeholder",
             last_synced_at=datetime.now(UTC),
         )
     )
     db_session.add(
-        ConnectedSource(user_id=other_user.user_id, kind=SourceKind.gmail)
+        ConnectedSource(
+            user_id=other_user.user_id,
+            kind=SourceKind.gmail,
+            secret_ref="mem:other",
+        )
     )
     await db_session.commit()
 

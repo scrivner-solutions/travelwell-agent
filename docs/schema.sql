@@ -158,6 +158,7 @@ CREATE TABLE connected_sources (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
     PRIMARY KEY (source_id),
     CONSTRAINT connected_sources_user_id_kind_key UNIQUE (user_id, kind),
+    CONSTRAINT connected_sources_check CHECK (status <> 'connected'::source_status or secret_ref is not null),
     FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE
 );
 

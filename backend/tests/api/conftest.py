@@ -419,8 +419,8 @@ async def scene(user):
             await session.execute(
                 sa.text(
                     """
-                    insert into connected_sources (user_id, kind, status)
-                    values (:uid, 'google_calendar', 'connected')
+                    insert into connected_sources (user_id, kind, status, secret_ref)
+                    values (:uid, 'google_calendar', 'connected', 'mem:placeholder')
                     returning source_id
                     """
                 ),
