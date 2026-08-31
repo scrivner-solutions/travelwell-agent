@@ -60,6 +60,8 @@ _PRICE_LEVELS = {
     "PRICE_LEVEL_VERY_EXPENSIVE": 4,
 }
 
+# editorialSummary prices the whole request at the top tier; trimming it is a
+# three-file change, not one. See ARCHITECTURE.md, "Places provider".
 _FIELD_MASK = ",".join((
     "places.id",
     "places.displayName",

@@ -133,3 +133,47 @@ event spine, notifications) is designed but not yet implemented; the
 database tables it will drive (`agent_events`, `agent_runs`,
 `pending_actions`, `notifications`) ship with the schema above so the
 reactive app is already built against the final shapes.
+
+## Places provider (Google Maps Platform)
+
+`app/services/places/google.py` is the only code that talks to Google Maps
+Platform. Two decisions there are worth stating, because both are easy to
+undo by accident.
+
+**Credentials are ADC, not an API key** (decided 2026-08-31). The provider
+authenticates with Application Default Credentials and sends a bearer token,
+so no Maps API key exists to leak, scope or rotate. Two consequences:
+
+- **A development machine needs `gcloud auth application-default login`**
+  before any Places call works. There is nothing to paste into `.env`, and
+  the first symptom otherwise is a 503 from `GET /api/v1/geocode`.
+- Free text resolves through **Places text search**, not the Geocoding API.
+  Geocoding v3 (`maps.googleapis.com/maps/api/geocode/json`) accepts an API
+  key and nothing else; v4 lives on a different host and is a separate
+  service to enable, so text search on the host we already call keeps this to
+  one credential and one service.
+
+The prototype layer (`app/services/google_maps.py`) still reads
+`GOOGLE_MAPS_API_KEY` and dies with the rest of it.
+
+**The field mask keeps `editorialSummary`, deferred 2026-08-31** for the
+hackathon demo, to revisit after. Requesting that one field prices *every*
+Nearby Search at the Enterprise+Atmosphere tier: 1,000 free calls a month
+instead of Pro's 5,000. The per-area cache TTL (14 days) should keep real
+volume well under that in the meantime.
+
+Removing it is not a free five-fold increase, and anyone attempting the trim
+should know it costs three changes, not one:
+
+1. Drop the field from `_FIELD_MASK`.
+2. Drop the hardcoded summaries from the demo fixture
+   (`app/services/demo_user/data.py`). Otherwise seeded places keep rich
+   summaries while live ones come back blank in the same table, and the
+   planner reads provenance as quality - the summary is an *input to the
+   model* at `app/agent/context.py`'s candidate build, not decoration.
+3. Rework `PlaceCard.tsx`, where the price badge renders only when the
+   summary is absent.
+
+**Revisit when** the hackathon is over, or Places usage approaches 1,000
+calls a month - whichever comes first. Nothing fires automatically.
+
