@@ -365,8 +365,10 @@ async def scene(user):
             OptionState.alternative,
             OptionState.rejected,
         )
+        # `awaiting_user`, not `suggested`: this plan is `proposed`, and an item
+        # is only `suggested` while its plan is a draft, which no read returns.
         workout = item(
-            w_open, ItemKind.activity, ItemStatus.suggested,
+            w_open, ItemKind.activity, ItemStatus.awaiting_user,
             at(today, 17, 30), at(today, 18, 45),
             [
                 (sel, {
@@ -402,7 +404,7 @@ async def scene(user):
             needs_res=True,
         )
         run = item(
-            None, ItemKind.activity, ItemStatus.suggested,
+            None, ItemKind.activity, ItemStatus.awaiting_user,
             at(tomorrow, 6, 45), at(tomorrow, 7, 30),
             [(sel, {"display_name": "Lakefront Trail", "distance_minutes": 12})],
         )

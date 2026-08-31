@@ -112,7 +112,9 @@ async def test_one_undecided_item_blocks_planned(
     from app.db.models import TripState
 
     trip = await make_trip(user, state=TripState.confirmed)
-    await make_plan(trip, "planned", "suggested")
+    # `awaiting_user`, not `suggested`: this plan is `proposed`, and an item is
+    # only `suggested` while its plan is a draft, which no read returns.
+    await make_plan(trip, "planned", "awaiting_user")
 
     # "Planned" means the whole plan is settled; a partially accepted plan is
     # not a weaker version of that, it is a different thing.
@@ -256,8 +258,8 @@ async def test_detection_counts_without_naming_a_kind(authed_client, user, make_
 async def test_scene_reports_an_unfinished_plan(authed_client, scene):
     body = await _row(authed_client, scene.trip_id)
 
-    # Chicago has two suggested items and one awaiting_user, so it is neither
-    # planned nor silent.
+    # Three open items, so it is neither planned nor silent. The count was 1
+    # when `suggested` was a second, quieter gate; one gate means all three ask.
     assert body["plan_progress"] == "none"
-    assert body["needs_you_count"] == 1
+    assert body["needs_you_count"] == 3
     assert body["needs_you_kind"] == "plan"

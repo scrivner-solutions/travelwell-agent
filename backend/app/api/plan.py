@@ -47,8 +47,10 @@ _OPEN_TO_DECISION = frozenset({
     ItemStatus.planned,
     ItemStatus.changed,
 })
-# Accepting means answering the suggestion gate, so only the two undecided
-# states reach it; `planned` is handled as an already-satisfied postcondition.
+# Accepting means answering the one keep/skip gate, which is `awaiting_user`.
+# `suggested` is unreachable here - it is the state of an item inside a draft
+# plan, and every read excludes drafts - and is kept only so an item that
+# somehow arrives unpublished is accepted rather than rejected with a 409.
 _ACCEPTABLE = frozenset({ItemStatus.suggested, ItemStatus.awaiting_user})
 # The plan rollup only moves between these; draft and superseded belong to the
 # agent that wrote the version, and nothing a user does should produce them.
