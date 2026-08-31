@@ -7,6 +7,20 @@ import pytest
 pytestmark = pytest.mark.asyncio
 
 
+@pytest.fixture(autouse=True)
+def _fetching_allowed(monkeypatch):
+    """This module is about the fetch policy, so it states the policy.
+
+    tests/conftest.py pins `PLACES_FETCH_ENABLED` off for the whole suite so
+    that no test can bill without asking. Everything here drives a counting
+    fake, so it turns fetching back on deliberately rather than inheriting a
+    default that only held on a machine where the variable happened to be
+    unset. The tests that veto fetching set it to "0" in the test body, which
+    runs after this fixture and wins.
+    """
+    monkeypatch.setenv("PLACES_FETCH_ENABLED", "1")
+
+
 def a_place(ref: str, name: str, amenities=(), **kw):
     from app.db.models import PlaceKind
     from app.services.places.ports import ProviderPlace
