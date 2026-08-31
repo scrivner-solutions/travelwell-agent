@@ -58,8 +58,9 @@ SECRET_KIND = "google_calendar_refresh_token"
 _CLIENT_NAME = "google_calendar"
 
 # The other three SourceKind values are vocabulary the schema already has, not
-# integrations that exist.
-_SUPPORTED = frozenset({SourceKind.google_calendar})
+# integrations that exist. Public because /me/sources serves it: a client that
+# hardcoded the same set would drift the first time a provider lands here.
+CONNECTABLE_KINDS = frozenset({SourceKind.google_calendar})
 
 # How much calendar a sync pulls. Yesterday, because a trip in progress has a
 # timeline that started before now; ninety days, because that is past the
@@ -70,7 +71,7 @@ SYNC_FUTURE = timedelta(days=90)
 
 
 def _kind_or_404(kind: SourceKind) -> None:
-    if kind not in _SUPPORTED:
+    if kind not in CONNECTABLE_KINDS:
         raise Problem(404, "That source cannot be connected yet", "not_found")
 
 

@@ -22,7 +22,7 @@ from zoneinfo import ZoneInfo
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.context import Gathered, gather
+from app.agent.context import AreaCoverage, Gathered, gather
 from app.agent.llm import LlmClient, LlmRequest, LlmResponse
 from app.agent.prompts import PRETRIP_V1, PROMPT_VERSION
 from app.agent.schemas import (
@@ -274,15 +274,29 @@ def _bounds(window: ContextWindow) -> list[dict]:
     ]
 
 
-def provenance_summary(ctx: TripContext) -> str:
-    """Code-generated from what was actually read, not from what the model said."""
+def provenance_summary(ctx: TripContext, coverage: AreaCoverage) -> str:
+    """Code-generated from what was actually read, not from what the model said.
+
+    The places clause is the one that can lie. "N places nearby" reads as a
+    considered shortlist, and it read identically whether we searched the area,
+    could not reach the provider, declined to spend, or never looked - three of
+    which make it a claim of diligence we did not do. `coverage` is the only
+    thing that separates them, so it is required rather than defaulted: a caller
+    that has not established coverage cannot accidentally assert it.
+    """
     parts = []
     if ctx.commitments:
         parts.append("your calendar")
     if ctx.trip.hotel is not None:
         parts.append("your hotel")
     if ctx.candidates:
-        parts.append(f"{len(ctx.candidates)} places nearby")
+        count = len(ctx.candidates)
+        noun = "place" if count == 1 else "places"
+        parts.append(
+            f"{count} {noun} nearby"
+            if coverage.authoritative
+            else f"{count} {noun} on file nearby"
+        )
     return "From " + ", ".join(parts) if parts else "From your trip dates"
 
 
@@ -332,7 +346,7 @@ async def bind(
         version=version + 1,
         status=PlanStatus.draft,
         headline=proposal.headline or None,
-        provenance_summary=provenance_summary(ctx),
+        provenance_summary=provenance_summary(ctx, gathered.coverage),
         generated_by_run_id=run.run_id,
     )
     session.add(plan)

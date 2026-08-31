@@ -15,23 +15,26 @@ export interface CategoryChipsProps {
   onSelect: (kind: PlaceKind | undefined) => void
 }
 
+/* These sit on the map rather than above it, which is what makes the band read
+ * as the screen's surface instead of one more card in a list. They carry the
+ * only shadow on the screen for the same reason: they are floating over ground. */
 export function CategoryChips({ kinds, selected, onSelect }: CategoryChipsProps) {
   const total = kinds.reduce((sum, k) => sum + k.count, 0)
 
   const chip = (active: boolean) =>
-    `rounded-control px-3 py-1.5 text-body-sm font-medium ${
-      active ? 'bg-ink text-card' : 'bg-surface text-muted hover:bg-state-neutral-soft'
+    `flex h-9 flex-none items-center rounded-full border px-[15px] text-caption font-semibold shadow-[var(--shadow-chip)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-55 disabled:shadow-none ${
+      active ? 'border-ink bg-ink text-card' : 'border-border bg-card/95 text-ink'
     }`
 
   return (
-    <ul className="flex flex-wrap gap-2">
-      <li>
+    <ul className="flex gap-[7px] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <li className="flex-none">
         <button type="button" className={chip(selected === undefined)} onClick={() => onSelect(undefined)}>
           All {total}
         </button>
       </li>
       {kinds.map(({ kind, count }) => (
-        <li key={kind}>
+        <li key={kind} className="flex-none">
           <button
             type="button"
             className={chip(selected === kind)}

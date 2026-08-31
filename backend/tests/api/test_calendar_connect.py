@@ -17,9 +17,10 @@ import pytest
 import pytest_asyncio
 import sqlalchemy as sa
 from authlib.integrations.starlette_client import OAuthError, StarletteOAuth2App
+from sqlalchemy.exc import IntegrityError
 
 from app.api.sources import CALENDAR_SCOPE, SECRET_KIND
-from app.db.models import ConnectedSource, SourceStatus
+from app.db.models import ConnectedSource, SourceKind, SourceStatus
 from app.services.tokens import SecretNotFound, token_store
 
 pytestmark = pytest.mark.asyncio
@@ -291,3 +292,22 @@ async def test_the_secret_kind_is_stable(authed_client, user, db_session, grante
         (await db_session.execute(sa.select(ConnectedSource))).scalars().all()
     )
     assert ref == source.secret_ref
+
+
+async def test_a_connected_grant_cannot_exist_without_a_token(db_session, user):
+    """The database refuses the row, not just the code paths that build it.
+
+    Every writer here already sets status and secret_ref together, so this is
+    about the writer that does not exist yet: a `connected` row with nothing
+    behind it reads as a working calendar everywhere and fails only at sync.
+    """
+    db_session.add(
+        ConnectedSource(
+            user_id=user.user_id,
+            kind=SourceKind.google_calendar,
+            status=SourceStatus.connected,
+        )
+    )
+    with pytest.raises(IntegrityError, match="connected_sources_check"):
+        await db_session.commit()
+    await db_session.rollback()

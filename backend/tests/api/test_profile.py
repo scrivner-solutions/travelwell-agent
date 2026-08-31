@@ -97,7 +97,9 @@ async def test_patch_rejects_min_over_stored_max(authed_client):
 async def test_sources_empty_and_own_only(authed_client, user, other_user, db_session):
     r = await authed_client.get("/api/v1/me/sources")
     assert r.status_code == 200
-    assert r.json() == {"sources": []}
+    # Spelled out rather than derived from CONNECTABLE_KINDS: a test that
+    # computes its expectation from the constant under test asserts nothing.
+    assert r.json() == {"sources": [], "connectable": ["google_calendar"]}
 
     from datetime import UTC, datetime
 
@@ -108,11 +110,17 @@ async def test_sources_empty_and_own_only(authed_client, user, other_user, db_se
             user_id=user.user_id,
             kind=SourceKind.google_calendar,
             status=SourceStatus.connected,
+            secret_ref="mem:placeholder",
             last_synced_at=datetime.now(UTC),
         )
     )
     db_session.add(
-        ConnectedSource(user_id=other_user.user_id, kind=SourceKind.gmail)
+        ConnectedSource(
+            user_id=other_user.user_id,
+            kind=SourceKind.gmail,
+            status=SourceStatus.connected,
+            secret_ref="mem:other",
+        )
     )
     await db_session.commit()
 
@@ -123,3 +131,6 @@ async def test_sources_empty_and_own_only(authed_client, user, other_user, db_se
     assert src["status"] == "connected"
     assert src["connected_at"]
     assert src["last_synced_at"]
+    # Independent of the rows: a kind stays offerable while a grant exists, and
+    # the other user's gmail row does not make gmail connectable.
+    assert body["connectable"] == ["google_calendar"]

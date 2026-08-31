@@ -435,6 +435,23 @@
             ],
             "title": "Distance Meters"
           },
+          "hours": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -1499,6 +1516,13 @@
       },
       "SourcesOut": {
         "properties": {
+          "connectable": {
+            "items": {
+              "$ref": "#/components/schemas/SourceKind"
+            },
+            "title": "Connectable",
+            "type": "array"
+          },
           "sources": {
             "items": {
               "$ref": "#/components/schemas/ConnectedSourceOut"
@@ -1508,7 +1532,8 @@
           }
         },
         "required": [
-          "sources"
+          "sources",
+          "connectable"
         ],
         "title": "SourcesOut",
         "type": "object"

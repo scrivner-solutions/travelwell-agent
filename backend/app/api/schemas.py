@@ -341,6 +341,9 @@ class ConnectedSourceOut(BaseModel):
 
 class SourcesOut(BaseModel):
     sources: list[ConnectedSourceOut]
+    # Which kinds this build can actually put through an OAuth handshake, so the
+    # client can offer Connect for a kind the user has no row for yet.
+    connectable: list[SourceKind]
 
 
 class SyncOut(BaseModel):
@@ -656,6 +659,10 @@ class ExplorePlaceOut(BaseModel):
     # default is load-bearing rather than dead: `ApiRoute` omits None, so
     # without it the schema would declare a field the response drops.
     amenities: list[str] | None = None
+    # Day name -> [open, close] in minutes past midnight; close may be 1440.
+    # Null like `amenities`: absent means the provider never told us, and the
+    # default is what keeps the field in the schema the frontend types from.
+    hours: dict[str, list[int]] | None = None
     photo_url: str | None = None
     reservable_via: ReservationProvider | None = None
     matched_preferences: list[str]
@@ -713,6 +720,7 @@ def explore_place_to_out(ranked: RankedPlace) -> ExplorePlaceOut:
         price_level=place.price_level,
         day_pass_cents=place.day_pass_cents,
         amenities=None if place.amenities is None else list(place.amenities),
+        hours=None if place.hours is None else dict(place.hours),
         photo_url=place.photo_url,
         reservable_via=place.reservable_via,
         matched_preferences=ranked.matched_preferences,

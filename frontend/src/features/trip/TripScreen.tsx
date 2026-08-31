@@ -454,7 +454,7 @@ export function TripScreen() {
                 screen made you tap to answer. */}
             <TripFactsCard
               rows={evidenceRows(trip.evidence ?? [])}
-              sources={sources.data}
+              sources={sources.data?.sources}
             />
 
             {/* Gate 2, above the days it would fill: the offer has to be read

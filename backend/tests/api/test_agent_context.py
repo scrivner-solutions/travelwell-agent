@@ -31,6 +31,7 @@ def build_scene(user):
             CalendarEvent,
             ConnectedSource,
             SourceKind,
+            SourceStatus,
             Trip,
             TripOrigin,
             TripState,
@@ -55,7 +56,10 @@ def build_scene(user):
                 hotel_lng=-87.6252,
             )
             source = ConnectedSource(
-                user_id=user.user_id, kind=SourceKind.google_calendar
+                user_id=user.user_id,
+                kind=SourceKind.google_calendar,
+                status=SourceStatus.connected,
+                secret_ref="mem:placeholder",
             )
             session.add_all([trip, source])
             await session.flush()
@@ -142,7 +146,7 @@ def gather_scene(user):
     return build_scene(user)
 
 
-async def run_gather(trip_id):
+async def run_gather(trip_id, *, provider=None, run_kind="pretrip_plan"):
     import app.db.engine as db
     from app.agent.context import gather
 
@@ -150,9 +154,10 @@ async def run_gather(trip_id):
         return await gather(
             session,
             trip_id,
-            run_kind="pretrip_plan",
+            run_kind=run_kind,
             prompt_version="pretrip-v1",
             now=datetime(2026, 9, 2, 14, tzinfo=TZ),
+            provider=provider,
         )
 
 
@@ -236,3 +241,124 @@ async def test_the_context_is_serializable_as_a_snapshot(gather_scene):
     result = await run_gather(await gather_scene())
     dumped = json.dumps(result.context.model_dump(mode="json"), sort_keys=True)
     assert json.loads(dumped)["meta"]["run_kind"] == "pretrip_plan"
+
+
+# ---------------------------------------------------------------------------
+# Coverage: whether anybody actually looked around the traveler
+# ---------------------------------------------------------------------------
+
+
+class CountingProvider:
+    """Counts calls, because "did this bill?" is the property under test."""
+
+    name = "counting"
+
+    def __init__(self, result=()):
+        self.result = list(result)
+        self.calls = 0
+
+    async def search_nearby(self, query):
+        self.calls += 1
+        return list(self.result)
+
+    async def geocode(self, query):
+        return None
+
+
+def a_provider_place(ref: str, name: str, lat: float, lng: float):
+    from app.db.models import PlaceKind
+    from app.services.places.ports import ProviderPlace
+
+    return ProviderPlace(
+        provider_ref=ref, kind=PlaceKind.food, name=name, lat=lat, lng=lng
+    )
+
+
+@pytest.fixture
+def fetching_allowed(monkeypatch):
+    """tests/conftest.py pins fetching off; these tests drive a counting fake."""
+    monkeypatch.setenv("PLACES_FETCH_ENABLED", "1")
+
+
+@pytest.mark.asyncio
+async def test_gather_looks_at_the_area_and_reports_that_it_looked(
+    gather_scene, fetching_allowed
+):
+    provider = CountingProvider()
+    result = await run_gather(await gather_scene(), provider=provider)
+    assert provider.calls == 1, "one call covering the radius, not one per kind"
+    assert result.coverage.authoritative is True
+    assert result.coverage.reasons() == []
+
+
+@pytest.mark.asyncio
+async def test_what_the_provider_returns_reaches_the_candidates(
+    gather_scene, fetching_allowed
+):
+    """The fill has to feed the read, not just the bookkeeping table."""
+    provider = CountingProvider(
+        [a_provider_place("new-1", "Fetched Cafe", 41.8925, -87.6250)]
+    )
+    result = await run_gather(await gather_scene(), provider=provider)
+    assert "Fetched Cafe" in [c.name for c in result.context.candidates]
+
+
+@pytest.mark.asyncio
+async def test_gather_does_not_bill_when_the_deployment_says_no(gather_scene):
+    """The suite-wide default. `PLACES_FETCH_ENABLED` is off and outranks us."""
+    provider = CountingProvider()
+    result = await run_gather(await gather_scene(), provider=provider)
+    assert provider.calls == 0
+    assert result.coverage.authoritative is False
+    assert result.coverage.reasons() == ["places_coverage:policy_declined"]
+
+
+@pytest.mark.asyncio
+async def test_the_daily_checkin_reads_what_the_planner_already_paid_for(
+    gather_scene, fetching_allowed
+):
+    """Fetching is enabled and it still does not fetch: the run kind decides."""
+    provider = CountingProvider()
+    result = await run_gather(
+        await gather_scene(), provider=provider, run_kind="daily_checkin"
+    )
+    assert provider.calls == 0
+    assert result.coverage.authoritative is False
+
+
+@pytest.mark.asyncio
+async def test_a_trip_with_nowhere_to_be_near_never_claims_a_search(
+    gather_scene, fetching_allowed
+):
+    import sqlalchemy as sa
+
+    import app.db.engine as db
+    from app.db.models import Trip
+
+    trip_id = await gather_scene()
+    async with db.SessionFactory() as session:
+        await session.execute(
+            sa.update(Trip)
+            .where(Trip.trip_id == trip_id)
+            .values(
+                hotel_lat=None,
+                hotel_lng=None,
+                destination_lat=None,
+                destination_lng=None,
+            )
+        )
+        await session.commit()
+
+    provider = CountingProvider()
+    result = await run_gather(trip_id, provider=provider)
+    assert provider.calls == 0, "no origin means no query to make"
+    assert result.coverage.authoritative is False
+    assert result.coverage.reasons() == ["places_coverage:not_attempted"]
+
+
+@pytest.mark.asyncio
+async def test_the_reason_travels_into_the_context_snapshot(gather_scene):
+    """`degraded` is what the replay and the model see; it has to carry this."""
+    result = await run_gather(await gather_scene(), provider=CountingProvider())
+    assert "places_coverage:policy_declined" in result.context.meta.degraded
+

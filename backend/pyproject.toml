@@ -25,6 +25,9 @@ dependencies = [
     # Direct: AES-GCM for stored secrets (app/services/tokens/crypto.py).
     # Arrives transitively via authlib, which is not a promise it will stay.
     "cryptography>=43,<50",
+    # Direct: ADC for Maps Platform (app/services/places/google.py). Arrives
+    # transitively via google-adk[gcp], which is not a promise it will stay.
+    "google-auth>=2.35,<3.0",
 ]
 requires-python = ">=3.11,<3.14"
 

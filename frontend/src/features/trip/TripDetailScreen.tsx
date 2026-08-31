@@ -174,7 +174,7 @@ export function TripDetailScreen() {
         <TripFactsCard
           label="What this is based on"
           rows={[...evidenceRows(current.evidence ?? []), ...preferenceFacts]}
-          sources={sources.data}
+          sources={sources.data?.sources}
         />
       </div>
 

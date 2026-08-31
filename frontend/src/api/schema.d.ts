@@ -842,6 +842,10 @@ export interface components {
             day_pass_cents?: number | null;
             /** Distance Meters */
             distance_meters?: number | null;
+            /** Hours */
+            hours?: {
+                [key: string]: number[];
+            } | null;
             /**
              * Id
              * Format: uuid
@@ -1245,6 +1249,8 @@ export interface components {
         SourceStatus: "connected" | "error" | "revoked";
         /** SourcesOut */
         SourcesOut: {
+            /** Connectable */
+            connectable: components["schemas"]["SourceKind"][];
             /** Sources */
             sources: components["schemas"]["ConnectedSourceOut"][];
         };

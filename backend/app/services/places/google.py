@@ -1,4 +1,4 @@
-"""Google as a places provider: Places API (New) plus the Geocoding API.
+"""Google as a places provider: Places API (New), authenticated with ADC.
 
 Async httpx throughout, because the app is async and the prototype's
 synchronous `requests` calls blocked the event loop for the length of a Google
@@ -17,9 +17,12 @@ rather than discovered later:
 
 from __future__ import annotations
 
-import os
+import asyncio
 
+import google.auth
+import google.auth.transport.requests
 import httpx
+from google.auth.exceptions import DefaultCredentialsError, GoogleAuthError
 
 from app.db.models import PlaceKind
 from app.services.places.ports import (
@@ -31,7 +34,9 @@ from app.services.places.ports import (
 )
 
 _PLACES_URL = "https://places.googleapis.com/v1/places:searchNearby"
-_GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
+# Geocoding v3 accepts an API key and nothing else, and v4 is a different host
+# and a different service to enable, so free text resolves through Places.
+_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
 _TIMEOUT = httpx.Timeout(8.0)
 
 # Only what we map. Sending a narrow list is also what keeps the bill down:
@@ -55,6 +60,8 @@ _PRICE_LEVELS = {
     "PRICE_LEVEL_VERY_EXPENSIVE": 4,
 }
 
+# editorialSummary prices the whole request at the top tier; trimming it is a
+# three-file change, not one. See ARCHITECTURE.md, "Places provider".
 _FIELD_MASK = ",".join((
     "places.id",
     "places.displayName",
@@ -66,11 +73,50 @@ _FIELD_MASK = ",".join((
     "places.editorialSummary",
 ))
 
+# Two fields only, which keeps text search in the cheapest SKU tier.
+_GEOCODE_FIELD_MASK = "places.formattedAddress,places.location"
 
-def api_key() -> str:
-    """One name only. The prototype fell back to GOOGLE_API_KEY, which made a
-    missing Maps key look like a working Vertex key."""
-    return os.getenv("GOOGLE_MAPS_API_KEY", "")
+
+# Application Default Credentials, not an API key. Resolved once per process
+# and refreshed in place; google-auth is synchronous, so both the lookup and the
+# refresh go through a thread to keep them off the event loop.
+_SCOPES = ("https://www.googleapis.com/auth/cloud-platform",)
+_credentials = None
+_credentials_lock = asyncio.Lock()
+
+
+async def auth_headers() -> dict[str, str]:
+    """Bearer token for Maps Platform, plus the quota project when ADC has one.
+
+    A laptop needs `gcloud auth application-default login` first; there is no
+    key to paste into .env any more.
+    """
+    global _credentials
+    async with _credentials_lock:
+        try:
+            if _credentials is None:
+                _credentials, _ = await asyncio.to_thread(
+                    google.auth.default, scopes=_SCOPES
+                )
+            if not _credentials.valid:
+                await asyncio.to_thread(
+                    _credentials.refresh, google.auth.transport.requests.Request()
+                )
+        except DefaultCredentialsError as exc:
+            raise ProviderUnavailable(
+                "No Google credentials: run `gcloud auth application-default login`"
+            ) from exc
+        except GoogleAuthError as exc:
+            # Credentials exist but would not mint a token. That is an outage,
+            # not an unconfigured install, and the two must not read alike.
+            raise ProviderError(f"Google credentials would not refresh: {exc}") from exc
+
+        headers = {"Authorization": f"Bearer {_credentials.token}"}
+        # Only user ADC carries a quota project. On Cloud Run it is None and the
+        # header must stay off, because sending it needs serviceusage.services.use.
+        if project := getattr(_credentials, "quota_project_id", None):
+            headers["X-Goog-User-Project"] = project
+        return headers
 
 
 def _opening_hours(payload: dict) -> dict[str, list[int]] | None:
@@ -130,15 +176,17 @@ class GooglePlaces:
         self._client = client
 
     async def _request(self, method: str, url: str, **kw) -> dict:
-        key = api_key()
-        if not key:
-            raise ProviderUnavailable("GOOGLE_MAPS_API_KEY is not set")
+        headers = {**(kw.pop("headers", None) or {}), **await auth_headers()}
         try:
             if self._client is not None:
-                response = await self._client.request(method, url, **kw)
+                response = await self._client.request(
+                    method, url, headers=headers, **kw
+                )
             else:
                 async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-                    response = await client.request(method, url, **kw)
+                    response = await client.request(
+                        method, url, headers=headers, **kw
+                    )
             response.raise_for_status()
             return response.json()
         except httpx.HTTPError as exc:
@@ -147,28 +195,34 @@ class GooglePlaces:
             raise ProviderError("Google returned a body we cannot parse") from exc
 
     async def geocode(self, query: str) -> GeocodeResult | None:
+        """Free text to a point, via Places text search.
+
+        An outage still cannot read as absence: it arrives as a non-2xx and
+        becomes a ProviderError before this sees a body. Only a 200 carrying no
+        place means no such place.
+        """
         payload = await self._request(
-            "GET", _GEOCODE_URL, params={"address": query, "key": api_key()}
+            "POST",
+            _TEXT_SEARCH_URL,
+            headers={
+                "X-Goog-FieldMask": _GEOCODE_FIELD_MASK,
+                "Content-Type": "application/json",
+            },
+            # We read the first result regardless, so the cap is a courtesy.
+            json={"textQuery": query, "maxResultCount": 1},
         )
-        status = payload.get("status")
-        if status == "ZERO_RESULTS":
-            return None
-        if status != "OK":
-            # A non-OK status is the provider telling us the call failed;
-            # treating it as "no such place" would cache an outage as absence.
-            raise ProviderError(f"Geocoding returned {status!r}")
-        results = payload.get("results") or []
+        results = payload.get("places") or []
         if not results:
             return None
         best = results[0]
-        point = (best.get("geometry") or {}).get("location") or {}
-        if "lat" not in point or "lng" not in point:
+        point = best.get("location") or {}
+        if "latitude" not in point or "longitude" not in point:
             raise ProviderError("Geocoding result carried no location")
         return GeocodeResult(
             query=query,
-            name=best.get("formatted_address") or query,
-            lat=point["lat"],
-            lng=point["lng"],
+            name=best.get("formattedAddress") or query,
+            lat=point["latitude"],
+            lng=point["longitude"],
         )
 
     async def search_nearby(self, query: NearbyQuery) -> list[ProviderPlace]:
@@ -178,7 +232,6 @@ class GooglePlaces:
             "POST",
             _PLACES_URL,
             headers={
-                "X-Goog-Api-Key": api_key(),
                 "X-Goog-FieldMask": _FIELD_MASK,
                 "Content-Type": "application/json",
             },
