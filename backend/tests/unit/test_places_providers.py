@@ -5,10 +5,15 @@ seam's are. Adding a real provider means adding it to PROVIDERS and running
 this, not writing a fresh suite for it.
 """
 
+from types import SimpleNamespace
+
+import google.auth
 import httpx
 import pytest
+from google.auth.exceptions import DefaultCredentialsError, RefreshError
 
 from app.db.models import PlaceKind
+from app.services.places import google as google_provider
 from app.services.places.fake import FakePlaces
 from app.services.places.google import GooglePlaces
 from app.services.places.ports import (
@@ -34,6 +39,41 @@ def a_place(name: str, kind: PlaceKind, dlat: float = 0.0, dlng: float = 0.0):
         lat=ANCHOR[0] + dlat,
         lng=ANCHOR[1] + dlng,
     )
+
+
+@pytest.fixture(autouse=True)
+def adc(monkeypatch):
+    """Stand in for Application Default Credentials.
+
+    Autouse because every Google call now authenticates, and it resets the
+    provider's cached credential: that global outlives a test, so without this
+    whichever test ran first would decide for all the rest.
+    """
+
+    def install(credentials=None, raises: Exception | None = None):
+        monkeypatch.setattr(google_provider, "_credentials", None)
+
+        def default(**kw):
+            if raises is not None:
+                raise raises
+            return credentials, "a-project"
+
+        monkeypatch.setattr(google.auth, "default", default)
+
+    install(SimpleNamespace(valid=True, token="t0k", quota_project_id=None))
+    return install
+
+
+def captured_google(payload: dict, status: int = 200):
+    """A provider plus the list its outgoing requests land in."""
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(status, json=payload)
+
+    transport = httpx.MockTransport(handler)
+    return GooglePlaces(client=httpx.AsyncClient(transport=transport)), seen
 
 
 def google_returning(payload: dict, status: int = 200) -> GooglePlaces:
@@ -104,28 +144,55 @@ def test_a_registered_provider_comes_back_by_name():
 # --- Google's own parsing ----------------------------------------------------
 
 
-async def test_no_key_is_unavailable_rather_than_empty(monkeypatch):
-    """A missing key must not read as a destination with nothing in it."""
-    monkeypatch.delenv("GOOGLE_MAPS_API_KEY", raising=False)
+async def test_no_credentials_is_unavailable_rather_than_empty(adc):
+    """Unconfigured must not read as a destination with nothing in it."""
+    adc(raises=DefaultCredentialsError("nothing configured"))
     with pytest.raises(ProviderUnavailable):
         await GooglePlaces().geocode("Chicago")
 
 
-async def test_zero_results_is_none_but_a_bad_status_is_an_error(monkeypatch):
-    monkeypatch.setenv("GOOGLE_MAPS_API_KEY", "k")
-    assert await google_returning({"status": "ZERO_RESULTS"}).geocode("Atlantis") is None
+async def test_a_credential_that_will_not_refresh_is_an_outage_not_a_misconfig(adc):
+    """ProviderUnavailable is 503 "not configured"; a dead token is 502 instead."""
+    adc(raises=RefreshError("token endpoint down"))
+    with pytest.raises(ProviderError) as caught:
+        await GooglePlaces().geocode("Chicago")
+    assert not isinstance(caught.value, ProviderUnavailable)
+
+
+async def test_calls_carry_a_bearer_token_and_no_api_key(adc):
+    provider, seen = captured_google({"places": []})
+    await provider.geocode("Chicago")
+    assert seen[0].headers["authorization"] == "Bearer t0k"
+    assert "x-goog-api-key" not in seen[0].headers
+    assert "key=" not in str(seen[0].url)
+
+
+async def test_the_quota_project_header_rides_only_on_user_adc(adc):
+    """Cloud Run's credential carries no quota project, and sending the header
+    without one needs a permission the runtime SA may not have."""
+    provider, seen = captured_google({"places": []})
+    await provider.geocode("Chicago")
+    assert "x-goog-user-project" not in seen[0].headers
+
+    adc(SimpleNamespace(valid=True, token="t0k", quota_project_id="dev-box"))
+    provider, seen = captured_google({"places": []})
+    await provider.geocode("Chicago")
+    assert seen[0].headers["x-goog-user-project"] == "dev-box"
+
+
+async def test_no_place_is_none_but_a_refused_call_is_an_error():
+    """The distinction the whole seam turns on: absence is not an outage."""
+    assert await google_returning({"places": []}).geocode("Atlantis") is None
     with pytest.raises(ProviderError):
-        await google_returning({"status": "REQUEST_DENIED"}).geocode("Chicago")
+        await google_returning({"error": {}}, status=403).geocode("Chicago")
 
 
-async def test_geocode_reads_the_first_result(monkeypatch):
-    monkeypatch.setenv("GOOGLE_MAPS_API_KEY", "k")
+async def test_geocode_reads_the_first_result():
     provider = google_returning({
-        "status": "OK",
-        "results": [
+        "places": [
             {
-                "formatted_address": "Chicago, IL, USA",
-                "geometry": {"location": {"lat": 41.88, "lng": -87.62}},
+                "formattedAddress": "Chicago, IL, USA",
+                "location": {"latitude": 41.88, "longitude": -87.62},
             }
         ],
     })
@@ -133,14 +200,12 @@ async def test_geocode_reads_the_first_result(monkeypatch):
     assert (got.name, got.lat, got.lng) == ("Chicago, IL, USA", 41.88, -87.62)
 
 
-async def test_a_transport_failure_is_a_provider_error(monkeypatch):
-    monkeypatch.setenv("GOOGLE_MAPS_API_KEY", "k")
+async def test_a_transport_failure_is_a_provider_error():
     with pytest.raises(ProviderError):
         await google_returning({}, status=500).geocode("Chicago")
 
 
-async def test_types_become_our_kinds_and_price_levels_become_numbers(monkeypatch):
-    monkeypatch.setenv("GOOGLE_MAPS_API_KEY", "k")
+async def test_types_become_our_kinds_and_price_levels_become_numbers():
     provider = google_returning({
         "places": [
             {
@@ -167,9 +232,8 @@ async def test_types_become_our_kinds_and_price_levels_become_numbers(monkeypatc
     ]
 
 
-async def test_a_place_we_cannot_place_is_dropped_rather_than_guessed(monkeypatch):
+async def test_a_place_we_cannot_place_is_dropped_rather_than_guessed():
     """No coordinates, or no type we map: both mean we cannot pin it."""
-    monkeypatch.setenv("GOOGLE_MAPS_API_KEY", "k")
     provider = google_returning({
         "places": [
             {"id": "a", "displayName": {"text": "No location"}, "types": ["gym"]},
@@ -184,9 +248,8 @@ async def test_a_place_we_cannot_place_is_dropped_rather_than_guessed(monkeypatc
     assert await provider.search_nearby(NearbyQuery(41.9, -87.6, 1000)) == []
 
 
-async def test_opening_hours_become_the_shape_the_planner_reads(monkeypatch):
+async def test_opening_hours_become_the_shape_the_planner_reads():
     """{"mon": [open, close]} in minutes from midnight -- the seed's shape."""
-    monkeypatch.setenv("GOOGLE_MAPS_API_KEY", "k")
     provider = google_returning({
         "places": [
             {
@@ -213,9 +276,8 @@ async def test_opening_hours_become_the_shape_the_planner_reads(monkeypatch):
     assert found[0].hours == {"mon": [360, 1320], "sun": [450, 1200]}
 
 
-async def test_a_venue_open_past_midnight_closes_at_the_days_end(monkeypatch):
+async def test_a_venue_open_past_midnight_closes_at_the_days_end():
     """Rather than wrapping to a negative-length day, which reads as closed."""
-    monkeypatch.setenv("GOOGLE_MAPS_API_KEY", "k")
     provider = google_returning({
         "places": [
             {

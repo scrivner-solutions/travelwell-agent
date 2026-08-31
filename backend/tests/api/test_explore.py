@@ -300,10 +300,19 @@ async def test_an_unknown_place_is_404_not_a_guess(authed_client, monkeypatch):
     assert r.json()["code"] == "location_not_found"
 
 
-async def test_a_missing_key_is_503_and_says_so(authed_client, monkeypatch):
+async def test_missing_credentials_is_503_and_says_so(authed_client, monkeypatch):
+    import google.auth
+    from google.auth.exceptions import DefaultCredentialsError
+
+    from app.services.places import google as google_provider
     from app.services.places.google import GooglePlaces
 
-    monkeypatch.delenv("GOOGLE_MAPS_API_KEY", raising=False)
+    monkeypatch.setattr(google_provider, "_credentials", None)
+    monkeypatch.setattr(
+        google.auth,
+        "default",
+        lambda **kw: (_ for _ in ()).throw(DefaultCredentialsError("none")),
+    )
     _swap_provider(monkeypatch, GooglePlaces())
     r = await authed_client.get("/api/v1/geocode", params={"query": "Chicago"})
     assert r.status_code == 503
