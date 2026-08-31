@@ -322,6 +322,15 @@ export async function disconnectSource(kind: SourceKind): Promise<void> {
   )
 }
 
+/** Pulls a window of the calendar into our cache now. The endpoint has existed
+ * since connect shipped; until this, nothing called it. */
+export async function syncSource(kind: SourceKind): Promise<SyncResult> {
+  const client = await api()
+  return throwOnError<SyncResult>(
+    await client.POST('/me/sources/{kind}/sync', { params: { path: { kind } } }),
+  )
+}
+
 export async function logout(): Promise<void> {
   const client = await api()
   throwOnError(await client.POST('/auth/logout'))
@@ -331,6 +340,7 @@ export type Preferences = components['schemas']['PreferencesOut']
 export type PreferencesUpdate = components['schemas']['PreferencesUpdateIn']
 export type ConnectedSource = components['schemas']['ConnectedSourceOut']
 export type SourceKind = ConnectedSource['kind']
+export type SyncResult = components['schemas']['SyncOut']
 
 export function preferencesQueryOptions() {
   return queryOptions({
