@@ -261,6 +261,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/sources/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Disconnect Source
+         * @description Forget the token and mark the grant revoked, keeping the row.
+         *
+         *     The row is the record that a connection existed, which is what lets
+         *     /me/sources say "disconnected" instead of silently showing nothing, and what
+         *     explains the calendar_events still in the cache.
+         *
+         *     Revoking at Google's end is deliberately not done here. It is an outbound
+         *     HTTP call, and the seam that owns outbound calls to Google is the calendar
+         *     client, which does not exist yet. Until then the local token is destroyed,
+         *     so the grant is unusable by us whether or not Google still lists it.
+         */
+        delete: operations["disconnect_source_api_v1_me_sources__kind__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/sources/{kind}/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Connect Callback */
+        get: operations["connect_callback_api_v1_me_sources__kind__callback_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/sources/{kind}/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Connect Source */
+        get: operations["connect_source_api_v1_me_sources__kind__connect_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/sources/{kind}/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync Connected Source
+         * @description Pull a window of the calendar into the cache, now.
+         *
+         *     Explicit rather than scheduled, because there is no scheduler yet and a
+         *     feature nobody can trigger cannot be shown to work. Whatever runs this on a
+         *     timer later calls the same service.
+         */
+        post: operations["sync_connected_source_api_v1_me_sources__kind__sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/plan-items/{item_id}/accept": {
         parameters: {
             query?: never;
@@ -955,6 +1042,25 @@ export interface components {
             /** Sources */
             sources: components["schemas"]["ConnectedSourceOut"][];
         };
+        /**
+         * SyncOut
+         * @description What one sync run did. Counts rather than a bare ok, because "nothing
+         *     changed" and "nothing was returned" are different answers and only one of
+         *     them is a problem.
+         */
+        SyncOut: {
+            /** Created */
+            created: number;
+            /**
+             * Last Synced At
+             * Format: date-time
+             */
+            last_synced_at: string;
+            /** Unchanged */
+            unchanged: number;
+            /** Updated */
+            updated: number;
+        };
         /** TimelineEntryOut */
         TimelineEntryOut: {
             calendar_event?: components["schemas"]["CalendarEventSummaryOut"] | null;
@@ -1623,6 +1729,128 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SourcesOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    disconnect_source_api_v1_me_sources__kind__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: components["schemas"]["SourceKind"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    connect_callback_api_v1_me_sources__kind__callback_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: components["schemas"]["SourceKind"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    connect_source_api_v1_me_sources__kind__connect_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: components["schemas"]["SourceKind"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    sync_connected_source_api_v1_me_sources__kind__sync_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: components["schemas"]["SourceKind"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncOut"];
                 };
             };
             /** @description Problem details (RFC 9457) */

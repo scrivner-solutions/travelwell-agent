@@ -44,6 +44,7 @@ from app.db.models import (
     WellnessWindow,
     WindowStatus,
 )
+from app.services.calendar import LIVE_SQL
 
 router = APIRouter(tags=["trips"], route_class=ApiRoute)
 
@@ -178,10 +179,11 @@ _STATE_WORDS: dict[TripState, tuple[str, str | None]] = {
 _HIDDEN_ITEM_STATUSES = (ItemStatus.skipped, ItemStatus.removed)
 
 CALENDAR_EVENTS_SQL = text(
-    """
+    f"""
     select cal_event_id, title, location, starts_at, ends_at
     from calendar_events
     where trip_id = :trip_id
+      and {LIVE_SQL}
       and (cast(:day as date) is null
            or (starts_at at time zone :tz)::date = cast(:day as date))
     order by starts_at
