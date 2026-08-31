@@ -36,7 +36,7 @@ from dataclasses import dataclass
 from datetime import date
 from itertools import pairwise
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 # `additionalProperties: false` on every object: required by structured-output
 # mode, and it is what stops the model adding a field we would then have to
@@ -301,6 +301,12 @@ class ViolationCode(enum.StrEnum):
     schema_mismatch = "schema_mismatch"
 
 
+# A response that ignored the schema entirely produces one error per field, and
+# a repair turn listing all of them is mostly noise. The first few name the
+# problem; the rest repeat it.
+MAX_SCHEMA_VIOLATIONS = 12
+
+
 @dataclass(frozen=True)
 class Violation:
     code: ViolationCode
@@ -371,7 +377,22 @@ def verify(payload: dict, ctx: TripContext) -> PlanProposal | list[Violation]:
     """
     try:
         proposal = PlanProposal.model_validate(payload)
-    except Exception as exc:  # pydantic ValidationError, or a non-dict payload
+    except ValidationError as exc:
+        # One violation per field, carrying Pydantic's own path and message.
+        # `str(exc).splitlines()[0]` is a COUNT - "3 validation errors for
+        # PlanProposal" - which tells a repair turn nothing it can act on. That
+        # was survivable while constrained decoding made these near-impossible;
+        # it is not, now that `gemini.wire_schema` strips the value matchers and
+        # this is the only place they are enforced.
+        return [
+            Violation(
+                ViolationCode.schema_mismatch,
+                ".".join(str(part) for part in error["loc"]) or "$",
+                f"{error['msg']} (got {error.get('input')!r})",
+            )
+            for error in exc.errors()[:MAX_SCHEMA_VIOLATIONS]
+        ]
+    except Exception as exc:  # a non-dict payload, or anything not pydantic's
         return [
             Violation(ViolationCode.schema_mismatch, "$", str(exc).splitlines()[0])
         ]

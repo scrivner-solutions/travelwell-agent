@@ -15,10 +15,12 @@ a local success proves nothing about staging.
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Sequence
 
 from google import genai
 from google.genai import types
+from pydantic import BaseModel
 
 from app.agent.llm import LlmRequest, LlmResponse
 
@@ -28,7 +30,71 @@ MAX_OUTPUT_TOKENS = 16_000
 
 # Configuration, not a code decision - ADR-003 records the provider as
 # provisional, and the run row stores whatever was actually used.
-DEFAULT_MODEL = "gemini-2.5-pro"
+DEFAULT_MODEL = "gemini-3.5-flash"
+
+# Gemini spells reasoning effort differently by generation, and each rejects the
+# other's spelling outright: 3.x takes `thinking_level` (a string), 2.5 takes
+# `thinking_budget` (an int, -1 for dynamic). Sending 2.5 a `thinking_level` is
+# a 400 before any generation, which is how this was found - the default model
+# was 2.5 and no call had ever been made.
+_GENERATION = re.compile(r"gemini-(\d+)")
+_THINKING_BUDGET = {"low": 2_048, "medium": 8_192, "high": -1}
+
+# Value matchers Vertex compiles into the constrained-decoding state machine.
+# `PlanProposal` carries enough of them together to blow its budget: the error
+# is "the specified schema produces a constraint that has too many states for
+# serving", on both 2.5 and 3.x. Measured 2026-08-31 - no single keyword is at
+# fault, removing any one still fails, removing all three passes.
+#
+# Dropping them from the WIRE schema only. They stay on the Pydantic model, and
+# `verify` re-applies every one of them with `model_validate`, so a violation
+# becomes a repair turn instead of a rejected request. That trade is the reason
+# the repair loop exists; it is not a relaxation of what we accept.
+_UNSERVABLE = frozenset(
+    {
+        "pattern",
+        "format",
+        "minLength",
+        "maxLength",
+        "minItems",
+        "maxItems",
+        "minimum",
+        "maximum",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "multipleOf",
+    }
+)
+
+
+def wire_schema(model: type[BaseModel]) -> dict:
+    """The model's JSON Schema with the unservable constraints removed.
+
+    `enum` and `required` are deliberately kept: they cost the state machine
+    little and they are the two that steer the shape rather than the values.
+    """
+
+    def prune(node):
+        if isinstance(node, dict):
+            return {k: prune(v) for k, v in node.items() if k not in _UNSERVABLE}
+        if isinstance(node, list):
+            return [prune(v) for v in node]
+        return node
+
+    return prune(model.model_json_schema())
+
+
+def thinking_config(model: str, effort: str) -> types.ThinkingConfig:
+    """Effort, in whichever spelling this model's generation accepts."""
+    match = _GENERATION.match(model)
+    # An unrecognised name is assumed to be newer, not older: every model added
+    # from 3.x on takes `thinking_level`, so that is the forward-compatible
+    # guess, and the preflight names the failure if it is wrong.
+    if match and int(match.group(1)) < 3:
+        return types.ThinkingConfig(
+            thinking_budget=_THINKING_BUDGET.get(effort, -1)
+        )
+    return types.ThinkingConfig(thinking_level=effort)
 
 # Anything not listed is either a refusal or a malformed generation, and both
 # are decode failures rather than something a repair turn could fix.
@@ -71,11 +137,11 @@ class GeminiClient:
             response_mime_type="application/json",
             # The full JSON Schema path, not `response_schema`: `$defs` and
             # `$ref` survive it, which is what a nested Pydantic model emits.
-            response_json_schema=request.output_schema.model_json_schema(),
+            response_json_schema=wire_schema(request.output_schema),
             max_output_tokens=MAX_OUTPUT_TOKENS,
-            # Gemini spells effort as a thinking level. The mapping lives here
-            # rather than in `LlmRequest` so the request stays provider-neutral.
-            thinking_config=types.ThinkingConfig(thinking_level=request.effort),
+            # The effort spelling lives here rather than in `LlmRequest` so the
+            # request stays provider-neutral.
+            thinking_config=thinking_config(request.model, request.effort),
             # No sampling parameters, deliberately. The pipeline does not rely
             # on them and a partial rollback would be worse than none.
         )
