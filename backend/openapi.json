@@ -389,6 +389,23 @@
             ],
             "title": "Distance Meters"
           },
+          "hours": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",

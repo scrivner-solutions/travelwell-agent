@@ -1574,6 +1574,18 @@ components:
             every live row assert that its venue has none.
           items:
             type: string
+        hours:
+          type: object
+          description: >
+            Day name (`mon`..`sun`) to `[open, close]` in minutes past
+            midnight; a venue open past midnight closes at 1440 rather than
+            wrapping. A day absent from a map that is itself present means
+            shut that day, which is not the same as an absent map: that means
+            the provider never told us, and the card shows no hours at all.
+          additionalProperties:
+            type: array
+            items:
+              type: integer
         photo_url:
           type: string
           format: uri

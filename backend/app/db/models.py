@@ -64,6 +64,21 @@ class PlaceKind(enum.StrEnum):
     lodging = "lodging"
 
 
+class AreaFillOutcome(enum.StrEnum):
+    """What happened on one *attempted* fetch of an area.
+
+    Not a copy of the exception hierarchy for its own sake: the three values
+    earn different retry windows. `ok` reached the provider, and zero results
+    means the area is genuinely thin. `error` is an outage and must not consume
+    the freshness window a good fetch earns. `unavailable` means we never got as
+    far as a request.
+    """
+
+    ok = "ok"
+    error = "error"
+    unavailable = "unavailable"
+
+
 class WindowStatus(enum.StrEnum):
     open = "open"
     filled = "filled"
@@ -806,6 +821,37 @@ class Place(Base):
     reservable_via: Mapped[ReservationProvider | None] = mapped_column(
         _pg_enum(ReservationProvider, "reservation_provider")
     )
+    fetched_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+
+
+class AreaFillRecord(Base):
+    """One area, and the last attempt to fill it from the provider.
+
+    `places.fetched_at` makes staleness a property of a ROW, which cannot answer
+    the question that costs money: has anyone ever looked here? An area with no
+    rows and an area that is genuinely empty are the same absence, so the cheap
+    proxy "is there a fresh row near this point" refetches an empty
+    neighbourhood on every planning run forever.
+
+    Written only when a fetch was actually attempted. A declined fetch leaves no
+    row, because a row here is a claim about the provider, not about us.
+    """
+
+    __tablename__ = "area_fills"
+
+    area_fill_id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, server_default=sa.text("gen_random_uuid()")
+    )
+    # Rounded coordinates, radius and kinds. Rounding is what makes two nearby
+    # requests one area; see `area_key()` in the places layer, which owns the
+    # format and is the only thing that may construct it.
+    area_key: Mapped[str] = mapped_column(unique=True, doc="rounded lat/lng, radius, kinds")
+    outcome: Mapped[AreaFillOutcome] = mapped_column(
+        _pg_enum(AreaFillOutcome, "area_fill_outcome")
+    )
+    # Meaningful only when outcome is `ok`; a failed attempt found nothing
+    # because it never asked, which is not the same as an empty area.
+    result_count: Mapped[int] = mapped_column(sa.SmallInteger, server_default=sa.text("0"))
     fetched_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
 
 

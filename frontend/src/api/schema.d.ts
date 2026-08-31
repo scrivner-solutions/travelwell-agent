@@ -799,6 +799,10 @@ export interface components {
             day_pass_cents?: number | null;
             /** Distance Meters */
             distance_meters?: number | null;
+            /** Hours */
+            hours?: {
+                [key: string]: number[];
+            } | null;
             /**
              * Id
              * Format: uuid

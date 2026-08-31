@@ -33,6 +33,24 @@
   /* Dashed borders and spent dots. Never a solid border. */
   --border-faint: #d9dfe8;
 
+  /* Explore map. The band is ground, not paper: one step cooler than --surface
+     so the cards below it read as sitting on top of a place. The texture is a
+     token because it is a design constant, not a layout choice. */
+  --map-ground: #e8eef6;
+  --map-grid: rgb(4 44 83 / 0.07);
+  --map-texture: repeating-linear-gradient(
+      0deg,
+      var(--map-grid) 0 1px,
+      transparent 1px 46px
+    ),
+    repeating-linear-gradient(90deg, var(--map-grid) 0 1px, transparent 1px 52px);
+  /* Elevation for the things that float over the map. Nothing in the page flow
+     gets a shadow; these are the exception the "no shadows" rule is not about,
+     and the prototype's own Explore markup carries them. */
+  --shadow-pin: 0 6px 16px -6px rgb(4 44 83 / 0.45);
+  --shadow-chip: 0 4px 12px -8px rgb(4 44 83 / 0.5);
+  --shadow-callout: 0 14px 30px -14px rgb(4 44 83 / 0.55);
+
   /* State colors (StatusBadge, ProgressState) */
   /* Design-prototype palette: one hue per meaning, no green, no red.
      Blue = settled, periwinkle = the agent thinking, navy = needs you. */
@@ -103,6 +121,7 @@
   --color-muted-soft: var(--muted-soft);
   --color-muted-faint: var(--muted-faint);
   --color-track-off: var(--control-track-off);
+  --color-map-ground: var(--map-ground);
 
   --color-state-suggested: var(--state-suggested);
   --color-state-suggested-soft: var(--state-suggested-soft);

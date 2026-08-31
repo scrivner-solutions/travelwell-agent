@@ -19,11 +19,11 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "0013"
-# Parented on the head that existed when this was written, not on 0012 where
-# the 0010-0019 range would suggest. Per-track number ranges keep filenames
-# disjoint and say nothing about down_revision. Re-point if another track's
-# migration lands first; two heads fail `alembic upgrade head`.
-down_revision: str | None = "0020"
+# Re-pointed 0020 -> 0021 when area_fills landed first. Per-track number ranges
+# keep filenames disjoint and say nothing about down_revision, so the parent is
+# whichever head exists at merge time, never what the 0010-0019 range suggests.
+# Re-point again if another track lands ahead; two heads fail ci.yml's count.
+down_revision: str | None = "0021"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
