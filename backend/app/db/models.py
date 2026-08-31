@@ -727,7 +727,12 @@ class CalendarEvent(Base):
             "external_id",
             name="calendar_events_source_id_external_id_key",
         ),
+        # Two readers, two orders. Detection filters by trip; the timeline
+        # filters by owner and date overlap, because which trip an event
+        # BELONGS to is a judgement and whether it CONSTRAINS the traveler is
+        # arithmetic. Neither index replaces the other.
         sa.Index("calendar_events_trip_time_idx", "trip_id", "starts_at"),
+        sa.Index("calendar_events_user_time_idx", "user_id", "starts_at"),
     )
 
     cal_event_id: Mapped[uuid.UUID] = mapped_column(

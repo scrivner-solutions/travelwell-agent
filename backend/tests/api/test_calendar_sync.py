@@ -11,6 +11,7 @@ the answer on a later run.
 """
 
 from datetime import UTC, datetime, timedelta
+from datetime import time as dt_time
 
 import pytest
 import pytest_asyncio
@@ -393,6 +394,30 @@ async def test_sync_requires_a_signed_in_user(client):
 # --- the timeline filter this made live -----------------------------------
 
 
+async def _place_on_trip(db_session, trip, *, days_from_start=0, hour=16, **over):
+    """Put one synced event inside (or near) a trip's dates, in the trip's zone."""
+    from zoneinfo import ZoneInfo
+
+    zone = ZoneInfo(trip.timezone)
+    day = trip.start_date + timedelta(days=days_from_start)
+    start = datetime.combine(day, dt_time(hour), tzinfo=zone)
+    return remote(
+        starts_at=start.astimezone(UTC),
+        ends_at=(start + timedelta(hours=1)).astimezone(UTC),
+        **over,
+    )
+
+
+async def _timeline_titles(client, trip):
+    r = await client.get(f"/api/v1/trips/{trip.trip_id}/timeline")
+    assert r.status_code == 200
+    return [
+        e["calendar_event"]["title"]
+        for e in r.json()["entries"]
+        if e["entry_type"] == "calendar_event"
+    ]
+
+
 async def test_a_cancelled_event_does_not_reach_the_timeline(
     connected, stub_client, db_session, user, make_trip
 ):
@@ -406,28 +431,129 @@ async def test_a_cancelled_event_does_not_reach_the_timeline(
     trip = await make_trip(user)
     stub_client(
         FakeCalendarClient(
-            [remote(external_id="live"), remote(external_id="gone", status="cancelled")]
+            [
+                await _place_on_trip(db_session, trip, external_id="live"),
+                await _place_on_trip(
+                    db_session, trip, external_id="gone", status="cancelled"
+                ),
+            ]
         )
     )
     await connected.post("/api/v1/me/sources/google_calendar/sync")
 
-    # Detection's job, done by hand here: both rows belong to the trip.
-    await db_session.execute(
-        sa.update(CalendarEvent).values(trip_id=trip.trip_id)
-    )
-    await db_session.commit()
-
-    r = await connected.get(f"/api/v1/trips/{trip.trip_id}/timeline")
-
-    assert r.status_code == 200
-    titles = [
-        e["calendar_event"]["title"]
-        for e in r.json()["entries"]
-        if e["entry_type"] == "calendar_event"
-    ]
-    assert titles == ["Standup"]
+    assert await _timeline_titles(connected, trip) == ["Standup"]
 
     stored = (await db_session.execute(sa.select(CalendarEvent))).scalars().all()
     # Both rows are stored; only one of them is a commitment.
     assert len(stored) == 2
     assert len([e for e in stored if e.status == "cancelled"]) == 1
+
+
+# --- the timeline asks about overlap, not membership ----------------------
+
+
+async def test_an_event_with_no_trip_reaches_the_timeline(
+    connected, stub_client, db_session, user, make_trip
+):
+    """The whole point of the overlap filter.
+
+    Sync never sets trip_id, so under the old `where trip_id = :trip_id` every
+    synced event was invisible. Worse, the events that matter most to a planner
+    are exactly the ones no detector would ever call part of the trip - the
+    standing meeting back home that still eats the morning.
+    """
+    trip = await make_trip(user)
+    stub_client(FakeCalendarClient([await _place_on_trip(db_session, trip)]))
+    await connected.post("/api/v1/me/sources/google_calendar/sync")
+
+    (stored,) = (await db_session.execute(sa.select(CalendarEvent))).scalars().all()
+    assert stored.trip_id is None
+    assert await _timeline_titles(connected, trip) == ["Standup"]
+
+
+async def test_an_event_outside_the_trip_dates_is_not_on_the_timeline(
+    connected, stub_client, db_session, user, make_trip
+):
+    trip = await make_trip(user)
+    stub_client(
+        FakeCalendarClient(
+            [
+                await _place_on_trip(db_session, trip, external_id="during"),
+                await _place_on_trip(
+                    db_session, trip, days_from_start=90, external_id="after"
+                ),
+            ]
+        )
+    )
+    await connected.post("/api/v1/me/sources/google_calendar/sync")
+
+    assert await _timeline_titles(connected, trip) == ["Standup"]
+
+
+async def test_the_last_day_of_the_trip_is_included(
+    connected, stub_client, db_session, user, make_trip
+):
+    trip = await make_trip(user, nights=3)
+    days = (trip.end_date - trip.start_date).days
+    stub_client(
+        FakeCalendarClient(
+            [await _place_on_trip(db_session, trip, days_from_start=days, hour=20)]
+        )
+    )
+    await connected.post("/api/v1/me/sources/google_calendar/sync")
+
+    # end_date is inclusive, so the window has to run to the following midnight.
+    assert await _timeline_titles(connected, trip) == ["Standup"]
+
+
+async def test_two_overlapping_trips_both_show_the_event(
+    connected, stub_client, db_session, user, make_trip
+):
+    trip = await make_trip(user)
+    other = await make_trip(user, city="Austin", region="TX", tz="America/Chicago")
+    stub_client(FakeCalendarClient([await _place_on_trip(db_session, trip)]))
+    await connected.post("/api/v1/me/sources/google_calendar/sync")
+
+    # Accepted deliberately: the event constrains the traveler during both.
+    assert await _timeline_titles(connected, trip) == ["Standup"]
+    assert await _timeline_titles(connected, other) == ["Standup"]
+
+
+async def test_another_travelers_event_never_appears(
+    connected, stub_client, db_session, user, other_user, make_trip
+):
+    """The scope that came with trip_id and had to be replaced explicitly.
+
+    trip_id implied one trip and therefore one owner. An overlap on dates alone
+    matches every traveler's calendar, so user_id is load-bearing, not tidiness.
+    """
+    trip = await make_trip(user)
+    stub_client(FakeCalendarClient([await _place_on_trip(db_session, trip)]))
+    await connected.post("/api/v1/me/sources/google_calendar/sync")
+
+    intruder = ConnectedSource(
+        user_id=other_user.user_id,
+        kind=SourceKind.google_calendar,
+        status=SourceStatus.connected,
+        scopes=[],
+        secret_ref="mem:other",
+    )
+    db_session.add(intruder)
+    await db_session.flush()
+    theirs = await _place_on_trip(db_session, trip, external_id="theirs")
+    db_session.add(
+        CalendarEvent(
+            user_id=other_user.user_id,
+            source_id=intruder.source_id,
+            external_id=theirs.external_id,
+            title="Their private thing",
+            starts_at=theirs.starts_at,
+            ends_at=theirs.ends_at,
+            status="confirmed",
+            busy=True,
+            content_hash="x",
+        )
+    )
+    await db_session.commit()
+
+    assert await _timeline_titles(connected, trip) == ["Standup"]

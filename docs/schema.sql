@@ -274,6 +274,8 @@ CREATE TABLE calendar_events (
 
 CREATE INDEX calendar_events_trip_time_idx ON calendar_events (trip_id, starts_at);
 
+CREATE INDEX calendar_events_user_time_idx ON calendar_events (user_id, starts_at);
+
 -- Trace root: every inbound trigger lands here before anything runs.
 CREATE TABLE agent_events (
     event_id UUID DEFAULT gen_random_uuid() NOT NULL,
