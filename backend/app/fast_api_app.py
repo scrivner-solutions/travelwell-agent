@@ -80,10 +80,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # still watching the screen, so the executor runs here rather than off the
     # back of a request. Safe on more than one instance: it claims rows with
     # FOR UPDATE SKIP LOCKED.
+    from app.agent import worker as agent_worker
     from app.db.engine import SessionFactory
     from app.services.actions import runner as actions_runner
 
-    async with actions_runner.running(SessionFactory):
+    # The agent worker is off unless AGENT_WORKER says otherwise: it calls a
+    # model, and a loop that spends should not be acquired by deploying.
+    async with actions_runner.running(SessionFactory), agent_worker.running(
+        SessionFactory
+    ):
         yield
     from app.db.engine import engine as db_engine
     await db_engine.dispose()

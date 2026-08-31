@@ -76,7 +76,6 @@ HTTP_METHODS = ("get", "put", "post", "delete", "patch", "options", "head", "tra
 UNIMPLEMENTED: dict[tuple[str, str], str] = {
     ("/runs/{}", "get"): "Slice 2: agent runs",
     ("/runs/{}/events", "get"): "Slice 2: agent runs",
-    ("/events", "post"): "Slice 5: calendar/event ingestion",
     ("/notifications", "get"): "not started; no slice claims it yet",
     ("/notifications/{}/opened", "post"): "not started; no slice claims it yet",
     ("/config", "get"): (

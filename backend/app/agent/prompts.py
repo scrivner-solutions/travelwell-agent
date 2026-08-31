@@ -9,7 +9,7 @@ unchanged version makes every stored `context_snapshot` a lie about what was
 sent, which is the one thing replay depends on.
 """
 
-PROMPT_VERSION = "pretrip.v1"
+PROMPT_VERSION = "pretrip.v2"
 
 # Written to the narrow waist rather than to the product: every rule below is
 # one the Verify stage can check, and nothing is asked for that Bind would then
@@ -61,13 +61,17 @@ RULES, ALL OF WHICH ARE CHECKED
 - `matched_preferences` may only contain strings that appear in
   `preferences` - a dietary tag, a workout kind, a facility, a membership, a
   preferred time, or the session-length token written as "45-90 min".
+- Place no more than `preferences.target_sessions` items in total when that
+  number is given. It counts the whole trip, not each day.
+- An item carries at most four options.
 
 FEWER, BETTER
 An empty window is a real answer. Filling every window produces a schedule the
 traveler will not keep, and a plan of three things they will do beats a plan of
-seven they will not. Two or three items across a trip is normal. If nothing in
-the candidate list genuinely fits a window, leave it out and say why in
-`window_notes`.
+seven they will not. `preferences.target_sessions` is a ceiling and not a quota:
+placing fewer is right whenever fewer genuinely fit. Where it is absent, two or
+three items across a trip is normal. If nothing in the candidate list genuinely
+fits a window, leave it out and say why in `window_notes`.
 
 HOW TO WRITE
 - Write about the traveler and the place, never about yourself. Do not write

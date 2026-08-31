@@ -205,6 +205,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit a user event (voice, text, or UI intent) to the agent event spine
+         * @description 202, not 201: the row exists, and whether it becomes a run is the
+         *     worker's decision, not this request's.
+         *
+         *     A repeated Idempotency-Key returns the event that already exists rather
+         *     than a second one, which for `scheduled_activation` is the difference
+         *     between a retry and a second paid run.
+         */
+        post: operations["submitEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/explore": {
         parameters: {
             query?: never;
@@ -743,6 +768,24 @@ export interface components {
              */
             email: string;
         };
+        /** EventCreate */
+        EventCreate: {
+            kind: components["schemas"]["EventKind"];
+            /**
+             * Payload
+             * @description Kind-specific payload (transcript text, UI intent name, etc.).
+             */
+            payload: {
+                [key: string]: unknown;
+            };
+            /** Trip Id */
+            trip_id?: string | null;
+        };
+        /**
+         * EventKind
+         * @enum {string}
+         */
+        EventKind: "scheduled_activation" | "scheduled_daily" | "user_text" | "user_voice" | "ui_action" | "calendar_changed" | "trip_changed" | "reservation_changed" | "external_context";
         /**
          * ExploreAnchorOut
          * @description Where the map opens and what distances are measured from.
@@ -1154,6 +1197,19 @@ export interface components {
             query: string;
             /** Timezone */
             timezone?: string | null;
+        };
+        /** RunRef */
+        RunRef: {
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /**
+             * Run Id
+             * @description Present when the event started (or joined) an agent run.
+             */
+            run_id?: string | null;
         };
         /** SelectOptionIn */
         SelectOptionIn: {
@@ -1732,6 +1788,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    submitEvent: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EventCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunRef"];
                 };
             };
             /** @description Problem details (RFC 9457) */

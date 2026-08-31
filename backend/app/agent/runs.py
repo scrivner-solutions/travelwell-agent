@@ -71,6 +71,44 @@ class RunFailed(Exception):
         self.code = code
         self.violations = tuple(violations)
         self.detail = detail
+        # Set by invoke_verified on the way out. A failure spends real tokens,
+        # and the most expensive outcome is a run that repaired and still lost.
+        self.spend: Spend | None = None
+
+
+@dataclass(frozen=True)
+class Spend:
+    """What an invoke actually cost, repair turn included.
+
+    Accumulated across attempts rather than read off the last response: a
+    repair means two calls, so taking the final one undercounts exactly the
+    runs that cost double.
+    """
+
+    calls: int = 0
+    usage: dict[str, int] = field(default_factory=dict)
+
+    @property
+    def repairs(self) -> int:
+        """The first call is the invoke; everything after it is a repair."""
+        return max(self.calls - 1, 0)
+
+    def plus(self, response: LlmResponse) -> Spend:
+        totals = dict(self.usage)
+        for key, value in response.usage.items():
+            totals[key] = totals.get(key, 0) + value
+        return Spend(calls=self.calls + 1, usage=totals)
+
+    def as_result(self) -> dict:
+        return {"calls": self.calls, "repairs": self.repairs, "usage": self.usage}
+
+
+@dataclass(frozen=True)
+class Invocation:
+    """A verified proposal and what it cost to get one."""
+
+    proposal: PlanProposal
+    spend: Spend
 
 
 @dataclass
@@ -165,21 +203,31 @@ async def invoke_verified(
     ctx: TripContext,
     *,
     max_repairs: int = 1,
-) -> PlanProposal:
+) -> Invocation:
     """One invoke, and at most one repair turn, for structural violations only.
 
     Exactly one repair on purpose. It fixes the common case cheaply, and an
     unbounded loop would hide the signal that matters - the repair rate is how
-    a wrong prompt or schema announces itself.
+    a wrong prompt or schema announces itself. Which is only true if the repair
+    count survives the call, hence `Invocation` rather than a bare proposal.
     """
     turns: list[str] = []
+    spend = Spend()
     for attempt in range(max_repairs + 1):
         response = await client.complete(request, turns=tuple(turns))
-        result = verify_response(response, ctx)
+        spend = spend.plus(response)
+        try:
+            result = verify_response(response, ctx)
+        except RunFailed as failed:
+            # decode failures raise from in here, after the tokens are gone.
+            failed.spend = spend
+            raise
         if isinstance(result, PlanProposal):
-            return result
+            return Invocation(proposal=result, spend=spend)
         if attempt == max_repairs:
-            raise RunFailed("verify:invalid", violations=result)
+            failure = RunFailed("verify:invalid", violations=result)
+            failure.spend = spend
+            raise failure
         turns += [response.text, render_violations(result)]
     raise AssertionError("unreachable")  # pragma: no cover
 
@@ -444,6 +492,7 @@ async def run_pretrip_plan(
     model: str,
     now: datetime,
     trigger_event_id: uuid.UUID | None = None,
+    run: AgentRun | None = None,
 ) -> RunOutcome:
     """Admit-to-Emit for one `pretrip_plan` run.
 
@@ -452,19 +501,28 @@ async def run_pretrip_plan(
     committed *before* the model is called, and the failure path writes
     `status='failed'` in its own transaction, so the spend stays auditable and
     the run replayable while the plan tables stay clean.
+
+    `run` is the row `app.agent.admit` already committed alongside the event's
+    disposition; passing it is what keeps "never accepted without a run" true.
+    Without one this creates its own, which is the path scripts/run_agent.py
+    takes.
     """
     trip = (
         await session.execute(sa.select(Trip).where(Trip.trip_id == trip_id))
     ).scalar_one()
 
-    run = AgentRun(
-        trip_id=trip_id,
-        trigger_event_id=trigger_event_id,
-        kind=RunKind.pretrip_plan,
-        status=RunStatus.running,
-        model=model,
-    )
-    session.add(run)
+    if run is None:
+        run = AgentRun(
+            trip_id=trip_id,
+            trigger_event_id=trigger_event_id,
+            kind=RunKind.pretrip_plan,
+            status=RunStatus.running,
+            model=model,
+            started_at=now,
+        )
+        session.add(run)
+    else:
+        run.model = model
     await session.commit()
     await session.refresh(run)
 
@@ -481,13 +539,16 @@ async def run_pretrip_plan(
         await session.commit()
 
         ctx = gathered.context
+        spend = Spend()
         if ctx.is_empty_decision_space():
             # Stages 3 through 7 skipped entirely. A model call with nothing to
             # choose from buys nothing and adds a hallucination opportunity.
             proposal = PlanProposal(headline=EMPTY_HEADLINE)
         else:
             invoked = True
-            proposal = await invoke_verified(client, frame(ctx, model=model), ctx)
+            invocation = await invoke_verified(client, frame(ctx, model=model), ctx)
+            proposal = invocation.proposal
+            spend = invocation.spend
 
         await supersede_previous(session, trip_id)
         plan = await bind(session, gathered, proposal, trip=trip, run=run)
@@ -502,6 +563,9 @@ async def run_pretrip_plan(
             "version": plan.version,
             "items": item_count,
             "invoked": invoked,
+            # Recorded even when zero: "we did not call the model" and "nobody
+            # wrote down what the call cost" have to look different.
+            "spend": spend.as_result(),
         }
         await session.commit()
         return RunOutcome(
@@ -520,12 +584,14 @@ async def run_pretrip_plan(
         run.status = RunStatus.failed
         run.finished_at = now
         run.error = str(exc)[:500]
+        spent = exc.spend if isinstance(exc, RunFailed) else None
         run.result = {
             "code": code,
             "violations": [
                 {"code": str(v.code), "path": v.path, "detail": v.detail}
                 for v in violations
             ],
+            "spend": (spent or Spend()).as_result(),
         }
         await session.commit()
         return RunOutcome(

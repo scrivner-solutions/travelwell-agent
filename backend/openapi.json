@@ -235,6 +235,52 @@
         "title": "EmailCodeVerify",
         "type": "object"
       },
+      "EventCreate": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/EventKind"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "description": "Kind-specific payload (transcript text, UI intent name, etc.).",
+            "title": "Payload",
+            "type": "object"
+          },
+          "trip_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Id"
+          }
+        },
+        "required": [
+          "kind",
+          "payload"
+        ],
+        "title": "EventCreate",
+        "type": "object"
+      },
+      "EventKind": {
+        "enum": [
+          "scheduled_activation",
+          "scheduled_daily",
+          "user_text",
+          "user_voice",
+          "ui_action",
+          "calendar_changed",
+          "trip_changed",
+          "reservation_changed",
+          "external_context"
+        ],
+        "title": "EventKind",
+        "type": "string"
+      },
       "ExploreAnchorOut": {
         "description": "Where the map opens and what distances are measured from.",
         "properties": {
@@ -1383,6 +1429,33 @@
         "title": "ResolvedLocationOut",
         "type": "object"
       },
+      "RunRef": {
+        "properties": {
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Present when the event started (or joined) an agent run.",
+            "title": "Run Id"
+          }
+        },
+        "required": [
+          "event_id"
+        ],
+        "title": "RunRef",
+        "type": "object"
+      },
       "SelectOptionIn": {
         "properties": {
           "option_id": {
@@ -2468,6 +2541,60 @@
         "summary": "Start Oauth",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/events": {
+      "post": {
+        "description": "202, not 201: the row exists, and whether it becomes a run is the\nworker's decision, not this request's.\n\nA repeated Idempotency-Key returns the event that already exists rather\nthan a second one, which for `scheduled_activation` is the difference\nbetween a retry and a second paid run.",
+        "operationId": "submitEvent",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunRef"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Problem details (RFC 9457)"
+          }
+        },
+        "summary": "Submit a user event (voice, text, or UI intent) to the agent event spine",
+        "tags": [
+          "agent"
         ]
       }
     },

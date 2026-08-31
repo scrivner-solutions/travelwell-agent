@@ -9,7 +9,10 @@
           "type": "string"
         },
         "kind": {
-          "pattern": "^(activity|meal)$",
+          "enum": [
+            "activity",
+            "meal"
+          ],
           "title": "Kind",
           "type": "string"
         },
@@ -17,7 +20,6 @@
           "items": {
             "$ref": "#/$defs/ProposedOption"
           },
-          "maxItems": 4,
           "minItems": 1,
           "title": "Options",
           "type": "array"
@@ -56,7 +58,6 @@
           "items": {
             "type": "string"
           },
-          "maxItems": 8,
           "title": "Matched Preferences",
           "type": "array"
         },
@@ -79,7 +80,11 @@
           "type": "string"
         },
         "state": {
-          "pattern": "^(selected|alternative|rejected)$",
+          "enum": [
+            "selected",
+            "alternative",
+            "rejected"
+          ],
           "title": "State",
           "type": "string"
         }
@@ -126,7 +131,6 @@
       "items": {
         "$ref": "#/$defs/ProposedItem"
       },
-      "maxItems": 12,
       "title": "Items",
       "type": "array"
     },
@@ -134,7 +138,6 @@
       "items": {
         "$ref": "#/$defs/WindowNote"
       },
-      "maxItems": 12,
       "title": "Window Notes",
       "type": "array"
     }

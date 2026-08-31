@@ -161,6 +161,7 @@ CREATE TABLE user_preferences (
     watch_schedule BOOLEAN DEFAULT true NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
     preferred_times TEXT[] DEFAULT '{}'::text[] NOT NULL,  -- {'mornings'}
+    target_sessions SMALLINT,  -- how many sessions the traveler wants across a trip, not per day
     PRIMARY KEY (user_id),
     FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE
 );
@@ -307,7 +308,9 @@ CREATE TABLE agent_events (
     disposition event_disposition DEFAULT 'pending'::event_disposition NOT NULL,
     occurred_at TIMESTAMP WITH TIME ZONE NOT NULL,
     received_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    idempotency_key UUID,  -- client-generated; a retry lands on the event that already exists
     PRIMARY KEY (event_id),
+    CONSTRAINT agent_events_idempotency_uq UNIQUE (user_id, idempotency_key),
     FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE,
     FOREIGN KEY(trip_id) REFERENCES trips (trip_id) ON DELETE CASCADE
 );

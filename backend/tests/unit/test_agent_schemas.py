@@ -323,7 +323,84 @@ def test_every_object_forbids_extra_properties(definition):
     assert definition.get("additionalProperties") is False
 
 
-def test_output_size_is_capped():
-    schema = PlanProposal.model_json_schema()
-    assert schema["properties"]["items"]["maxItems"] == 12
-    assert schema["$defs"]["ProposedItem"]["properties"]["options"]["maxItems"] == 4
+def _prefs(**overrides) -> ContextPreferences:
+    """The default preferences with one field changed.
+
+    Building a bare `ContextPreferences` instead empties the vocabulary that
+    `matched_preferences` resolve against, so the proposal fails on a code the
+    test was not about.
+    """
+    return make_context().preferences.model_copy(update=overrides)
+
+
+def _second_item() -> dict:
+    """A legal second item: different window, no overlap, in-range duration."""
+    return {
+        "window_id": "w2",
+        "kind": "activity",
+        "start": "20:10",
+        "end": "21:15",
+        "options": [
+            {"candidate_id": "c1", "matched_preferences": [], "state": "selected", "rank": 1}
+        ],
+    }
+
+
+def test_output_size_is_capped_by_verify_not_by_the_schema():
+    """The cap moved out of `maxItems`, so this asserts the ceiling holds.
+
+    Asserting the keyword's presence was testing the proxy: it passed for a
+    year while the wire schema stripped the keyword before it was ever sent.
+    """
+    assert "maxItems" not in json.dumps(PlanProposal.model_json_schema())
+
+    payload = proposal()
+    payload["items"].append(_second_item())
+    ctx = make_context(preferences=_prefs(target_sessions=1))
+    assert ViolationCode.too_many_items in codes(verify(payload, ctx))
+
+
+def test_target_sessions_absent_allows_more_than_one_item():
+    """Demonstration two: it stays quiet, and for the right reason.
+
+    Without this, a check that rejected every multi-item plan would look
+    identical to a working one on the test above.
+    """
+    payload = proposal()
+    payload["items"].append(_second_item())
+    result = verify(payload, make_context())
+    assert isinstance(result, PlanProposal)
+    assert len(result.items) == 2
+
+
+def test_too_many_items_falls_back_to_max_items():
+    payload = proposal(items=[proposal()["items"][0] for _ in range(13)])
+    assert ViolationCode.too_many_items in codes(verify(payload, make_context()))
+
+
+def test_too_many_options():
+    """Co-fires with `duplicate_rank`, and is kept for the repair message.
+
+    Five options cannot have unique ranks while `rank` is bounded at 4, so
+    `duplicate_rank` fires too - but it sends a repair turn to renumber when
+    the real instruction is to drop one.
+    """
+    payload = proposal()
+    option = payload["items"][0]["options"][0]
+    payload["items"][0]["options"] = [
+        {**option, "rank": r} for r in (1, 2, 3, 4, 4)
+    ]
+    assert ViolationCode.too_many_options in codes(verify(payload, make_context()))
+
+
+def test_enum_values_are_matched_case_insensitively():
+    """Structured output does not guarantee enum capitalization."""
+    payload = proposal()
+    payload["items"][0]["kind"] = "Activity"
+    payload["items"][0]["options"][0]["state"] = "SELECTED"
+    result = verify(payload, make_context())
+    assert isinstance(result, PlanProposal)
+    assert (result.items[0].kind, result.items[0].options[0].state) == (
+        "activity",
+        "selected",
+    )

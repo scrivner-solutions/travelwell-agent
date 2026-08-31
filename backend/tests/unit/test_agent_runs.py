@@ -108,8 +108,10 @@ def test_render_violations_emits_codes_and_paths_not_prose():
 async def test_a_valid_first_answer_costs_one_call():
     client = FakeLLM([json.dumps(proposal())])
     result = await invoke_verified(client, frame(make_context(), model=MODEL), make_context())
-    assert isinstance(result, PlanProposal)
+    assert isinstance(result.proposal, PlanProposal)
     assert client.call_count == 1
+    assert result.spend.calls == 1
+    assert result.spend.repairs == 0
 
 
 @pytest.mark.asyncio
@@ -121,11 +123,15 @@ async def test_a_repair_turn_shows_the_model_its_own_output():
 
     result = await invoke_verified(client, frame(make_context(), model=MODEL), make_context())
 
-    assert isinstance(result, PlanProposal)
+    assert isinstance(result.proposal, PlanProposal)
     assert client.call_count == 2
     _, turns = client.calls[1]
     assert turns[0] == bad
     assert "unknown_window" in turns[1]
+    # The repair rate is how a wrong prompt or schema announces itself, so it
+    # has to survive the call rather than being visible only to FakeLLM.
+    assert result.spend.calls == 2
+    assert result.spend.repairs == 1
 
 
 @pytest.mark.asyncio
@@ -141,6 +147,30 @@ async def test_the_second_failure_fails_the_run_rather_than_repairing_again():
     assert caught.value.code == "verify:invalid"
     assert ViolationCode.unknown_window in {v.code for v in caught.value.violations}
     assert client.call_count == 2
+    # A run that repaired and still failed is the most expensive outcome there
+    # is; recording nothing for it would hide exactly the wrong runs.
+    assert caught.value.spend.calls == 2
+    assert caught.value.spend.repairs == 1
+
+
+@pytest.mark.asyncio
+async def test_tokens_are_summed_across_the_repair_turn():
+    """The undercount this exists to stop: reading usage off the final response
+    reports half the cost of exactly the runs that cost double."""
+    bad = json.dumps(proposal(items=[{**proposal()["items"][0], "window_id": "w9"}]))
+    client = FakeLLM(
+        [
+            LlmResponse(text=bad, usage={"input_tokens": 100, "output_tokens": 20}),
+            LlmResponse(
+                text=json.dumps(proposal()),
+                usage={"input_tokens": 140, "output_tokens": 30},
+            ),
+        ]
+    )
+
+    result = await invoke_verified(client, frame(make_context(), model=MODEL), make_context())
+
+    assert result.spend.usage == {"input_tokens": 240, "output_tokens": 50}
 
 
 @pytest.mark.asyncio
@@ -152,6 +182,7 @@ async def test_a_decode_failure_is_not_repaired():
         await invoke_verified(client, frame(make_context(), model=MODEL), make_context())
     assert caught.value.code == "decode:refusal"
     assert client.call_count == 1
+    assert caught.value.spend.calls == 1
 
 
 # ---------------------------------------------------------------------------

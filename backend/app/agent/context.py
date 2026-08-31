@@ -40,6 +40,7 @@ from app.agent.schemas import (
     TripFacts,
 )
 from app.db.models import CalendarEvent, Place, RunKind, Trip, UserPreferences
+from app.services.calendar import is_busy
 from app.services.places import default_provider
 from app.services.places.cache import AreaFill, ensure_area_fresh
 from app.services.places.ports import NearbyQuery, PlacesProvider
@@ -131,19 +132,6 @@ class Gathered:
     commitment_events: dict[str, uuid.UUID] = field(default_factory=dict)
 
 
-def is_busy(event: CalendarEvent) -> bool:
-    """Whether this event occupies the traveler.
-
-    Every row, for now, which is today's behaviour. The real predicate needs
-    `transparency` and the user's own `responseStatus`, neither of which
-    `calendar_events` carries yet; the column and the rule arrive together with
-    calendar sync (Track A) so the rule has exactly one home. Deliberately not
-    approximated here - a guess would return smaller-but-plausible windows, the
-    run would succeed, and the plan would be quietly poorer with nothing raised.
-    """
-    return True
-
-
 def clean_untrusted(text: str, limit: int = TITLE_LIMIT) -> str:
     """Strip control characters and cap length. Nothing else.
 
@@ -230,6 +218,7 @@ def _preferences(row: UserPreferences | None) -> ContextPreferences:
         day_pass_max_cents=row.day_pass_budget_cents,
         session_minutes=session,
         preferred_times=list(row.preferred_times or ()),
+        target_sessions=row.target_sessions,
     )
 
 
