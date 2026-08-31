@@ -94,6 +94,7 @@ Repository variables, under Settings > Secrets and variables > Actions:
 | `GCP_WIF_PROVIDER` | yes | Full resource name of the Workload Identity provider |
 | `GCP_DEPLOYER_SA` | yes | Deployer service account email |
 | `DB_TARGET` | no | `cloudsql` or `external`; defaults to `external` |
+| `GCP_SQL_CONNECTION_NAME` | when `DB_TARGET` is `cloudsql` | Instance connection name, `project:region:instance` |
 
 No secrets are stored. Authentication is Workload Identity Federation, so the
 runner exchanges its own OIDC token for short-lived credentials and there is no
@@ -101,9 +102,15 @@ service account key to leak or rotate.
 
 `DB_TARGET` exists because `DATABASE_URL` alone selects the database
 (`app/db/engine.py`) but only Cloud SQL also needs its instance attached to the
-revision. Staging currently runs against hosted Postgres over TCP, hence the
-default. The workflow clears the attachment rather than omitting the flag, since
+revision. The workflow clears the attachment rather than omitting the flag, since
 an omitted flag would keep whatever the previous revision had.
+
+That makes the default the destructive direction: deploying `external` over a
+service that has an instance attached detaches it, and the app only fails later,
+at runtime. So the deploy reads the current attachment first and refuses rather
+than clearing one it was not told about. A deploy that cannot read the current
+attachment also refuses, because an unreadable one and an absent one look
+identical.
 
 ### Setup still required
 

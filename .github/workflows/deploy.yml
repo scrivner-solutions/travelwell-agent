@@ -61,7 +61,10 @@ jobs:
               echo "### Deploy skipped, gates still ran"
               echo
               echo "Set the repository variables \`GCP_PROJECT_ID\`, \`GCP_WIF_PROVIDER\`"
-              echo "and \`GCP_DEPLOYER_SA\` to turn deploys on. See docs/GITHUB_ACTIONS_DEPLOYMENT.md."
+              echo "and \`GCP_DEPLOYER_SA\` to turn deploys on. Against Cloud SQL, set"
+              echo "\`DB_TARGET\` and \`GCP_SQL_CONNECTION_NAME\` in the same pass: the"
+              echo "default target refuses rather than detaching a live instance."
+              echo "See docs/GITHUB_ACTIONS_DEPLOYMENT.md."
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
@@ -110,15 +113,26 @@ jobs:
               echo "DB_TARGET is cloudsql but GCP_SQL_CONNECTION_NAME is unset" >&2
               exit 1
             fi
-          else
-            ATTACHED=$(gcloud run services describe travelwell-backend --region "$REGION" \
-              --format='value(spec.template.metadata.annotations["run.googleapis.com/cloudsql-instances"])' \
-              2>/dev/null || true)
-            if [[ -n "$ATTACHED" ]]; then
-              echo "DB_TARGET is external but $ATTACHED is attached." >&2
-              echo "This deploy would detach it. Set DB_TARGET=cloudsql, or detach on purpose first." >&2
-              exit 1
+            exit 0
+          fi
+          # A failed describe and a service with nothing attached both read as
+          # the empty string, and only one of them is safe to deploy over. So an
+          # unreadable attachment refuses; only a service that does not exist yet
+          # goes through, because it has nothing to detach.
+          if ! ATTACHED=$(gcloud run services describe travelwell-backend --region "$REGION" \
+              --format='value(spec.template.metadata.annotations["run.googleapis.com/cloudsql-instances"])' 2>&1); then
+            if [[ "$ATTACHED" == *"Cannot find service"* ]]; then
+              echo "No travelwell-backend service yet, so nothing to detach."
+              exit 0
             fi
+            echo "Could not read the current Cloud SQL attachment, so a detach cannot be ruled out:" >&2
+            echo "$ATTACHED" >&2
+            exit 1
+          fi
+          if [[ -n "$ATTACHED" ]]; then
+            echo "DB_TARGET is external but $ATTACHED is attached." >&2
+            echo "This deploy would detach it. Set DB_TARGET=cloudsql, or detach on purpose first." >&2
+            exit 1
           fi
 
       # Both the "attach nothing" flags below make gcloud require this API and
