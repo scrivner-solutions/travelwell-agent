@@ -176,10 +176,29 @@ else
   echo "NOTE: GOOGLE_CLIENT_ID unset; leaving whatever the service has." >&2
 fi
 
+# The worker that calls the model is off unless asked for (worker.py), so an
+# environment that wants the real agent running has to say so here. Off stays
+# the right default for an environment that only serves the UI.
+AGENT_WORKER="${AGENT_WORKER:-on}"
+# An argumentless genai.Client() (gemini.py) reads these three to pick Vertex
+# over the public Gemini API and resolves credentials through ADC, which on
+# Cloud Run is the runtime service account. Location is global because a wrong
+# one surfaces as a model 404, not as a location error (backend/GEMINI.md).
+VERTEX_LOCATION="${GOOGLE_CLOUD_LOCATION:-global}"
+AGENT_ENV="@AGENT_WORKER=$AGENT_WORKER"
+AGENT_ENV="$AGENT_ENV@GOOGLE_GENAI_USE_VERTEXAI=true"
+AGENT_ENV="$AGENT_ENV@GOOGLE_CLOUD_PROJECT=$PROJECT_ID"
+AGENT_ENV="$AGENT_ENV@GOOGLE_CLOUD_LOCATION=$VERTEX_LOCATION"
+# AGENT_MODEL is deliberately unset: the default is gemini-3.5-flash
+# (gemini.py), the model the Vertex response-schema work was settled against.
+
 echo "== Deploy (public base: $PUBLIC_BASE_URL) =="
 # update- rather than set-: set- replaces the whole set, so anything the service
 # carries that is not listed here is deleted. TOKEN_ENCRYPTION_KEY is exactly
 # that, and losing it fails silently until the first calendar operation.
+# --no-cpu-throttling and a warm instance are what let the agent worker run:
+# Cloud Run otherwise throttles CPU outside requests and reclaims idle
+# instances, which stalls an in-process polling loop between clicks.
 gcloud run deploy "$SERVICE" \
   --image "$IMAGE" \
   --region "$REGION" \
@@ -187,9 +206,10 @@ gcloud run deploy "$SERVICE" \
   --service-account "$RUNTIME_SA" \
   "${RUN_DB_FLAGS[@]}" \
   --update-secrets "$SECRETS" \
-  --update-env-vars "^@^APP_ENV=staging@SESSION_COOKIE_SECURE=1@DEMO_LOGIN_ENABLED=1@PUBLIC_BASE_URL=$PUBLIC_BASE_URL@CORS_ALLOWED_ORIGINS=$ALLOWED_ORIGINS$OAUTH_ENV" \
+  --update-env-vars "^@^APP_ENV=staging@SESSION_COOKIE_SECURE=1@DEMO_LOGIN_ENABLED=1@PUBLIC_BASE_URL=$PUBLIC_BASE_URL@CORS_ALLOWED_ORIGINS=$ALLOWED_ORIGINS$OAUTH_ENV$AGENT_ENV" \
   --cpu-boost \
-  --min-instances 0 \
+  --no-cpu-throttling \
+  --min-instances "$BACKEND_MIN_INSTANCES" \
   --max-instances "$MAX_INSTANCES" \
   --memory "$BACKEND_MEMORY" \
   --cpu 1

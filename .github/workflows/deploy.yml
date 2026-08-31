@@ -1,5 +1,18 @@
 name: Deploy (staging)
 
+# NOT THE LIVE DEPLOY PATH. Staging is deployed by hand with infra/*.sh, and
+# always has been. This workflow has never run: it stays dormant until the
+# three GCP_* repository variables exist, and OWNER.md #50 says do not create
+# them. Unmaintained pending OWNER.md #39, which asks which of the two deploy
+# paths survives and is still open. The deferral did not answer it.
+#
+# It is also KNOWN-INCOMPLETE for OAuth. It neither passes GOOGLE_CLIENT_ID
+# and GOOGLE_CLIENT_SECRET nor declares TOKEN_ENCRYPTION_KEY, so a NEW
+# environment brought up through it would have sign-in and calendar broken
+# while /readyz still returned 200, because crypto.py reads the key at call
+# time rather than at import. The existing services survive this only because
+# --update-env-vars merges rather than replaces. Fix it before enabling.
+
 # Fires on every merge to main. The PR's own CI proved the branch; `gates`
 # below re-runs it against the merge commit, which with merge-commit merges is
 # a tree no pull_request run has ever seen.
