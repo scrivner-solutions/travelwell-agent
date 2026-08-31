@@ -7,6 +7,7 @@ import {
   meQueryOptions,
   preferencesQueryOptions,
   sourcesQueryOptions,
+  syncSource,
   tripsQueryOptions,
   updatePreferences,
   type Preferences,
@@ -24,6 +25,8 @@ import {
   canGoBackInApp,
   sourceAction,
   sourceName,
+  syncFailureMessage,
+  syncOutcomeMessage,
 } from '@/lib/sources'
 import { travelStats } from '@/lib/trips'
 
@@ -245,6 +248,18 @@ export function ProfileScreen() {
     },
   })
 
+  // One mutation serves every row, so an outcome is keyed to `variables` - the
+  // kind of the last run - and never paints onto a row that did not ask.
+  const sync = useMutation({
+    mutationFn: syncSource,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['me', 'sources'] })
+      // A sync that created events changes what the trips read, not just the
+      // freshness line above the button.
+      void queryClient.invalidateQueries({ queryKey: ['trips'] })
+    },
+  })
+
   // The connect route answers with a 302 to Google, which fetch can neither
   // follow (cross-origin) nor read (opaque), so this is a navigation.
   const startConnect = async (kind: string) => {
@@ -437,6 +452,7 @@ export function ProfileScreen() {
                     source?.last_synced_at != null
                       ? `synced ${formatAgo(source.last_synced_at)}`
                       : meta.sub
+                  const ranHere = sync.variables === kind
                   return (
                     <div key={kind} className="border-b border-border-soft last:border-b-0">
                       <div className="flex items-center gap-3 p-4">
@@ -478,6 +494,34 @@ export function ProfileScreen() {
                           </Button>
                         )}
                       </div>
+                      {/* Hidden while the disconnect confirmation is open: that
+                          panel is a decision, and a second button under it is
+                          noise. */}
+                      {source?.status === 'connected' && confirming !== kind && (
+                        <div className="flex items-center gap-3 border-t border-border-soft px-4 py-3">
+                          <Button
+                            variant="secondary"
+                            className="h-9 flex-none px-3 text-body-sm"
+                            /* Every row's button, not just this one: the
+                               mutation is singular, so a second run in flight
+                               would silently retarget the first one's state. */
+                            disabled={sync.isPending}
+                            onClick={() => sync.mutate(kind)}
+                          >
+                            {ranHere && sync.isPending ? 'Syncing…' : 'Sync now'}
+                          </Button>
+                          {ranHere && sync.isError && (
+                            <p role="alert" className="text-caption text-state-failed">
+                              {syncFailureMessage(sync.error)}
+                            </p>
+                          )}
+                          {ranHere && sync.isSuccess && (
+                            <p role="status" className="text-caption text-muted">
+                              {syncOutcomeMessage(sync.data)}
+                            </p>
+                          )}
+                        </div>
+                      )}
                       {confirming === kind && (
                         <div className="border-t border-border-soft bg-state-neutral-soft px-4 py-3">
                           <p className="text-caption text-muted">

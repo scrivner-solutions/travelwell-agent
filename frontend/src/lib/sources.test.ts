@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { SOURCE_ACTION_LABEL, SOURCE_STATE, canGoBackInApp, sourceAction } from './sources'
+import { ApiError } from '@/api/client'
+import {
+  SOURCE_ACTION_LABEL,
+  SOURCE_STATE,
+  canGoBackInApp,
+  sourceAction,
+  syncFailureMessage,
+  syncOutcomeMessage,
+} from './sources'
 
 /**
  * What this pins: a row only offers what the backend will accept. /me/sources
@@ -57,5 +65,69 @@ describe('canGoBackInApp', () => {
 
   it('refuses back when this is the only entry, as before', () => {
     expect(canGoBackInApp(false, 1)).toBe(false)
+  })
+})
+
+/**
+ * What this pins: a sync says what it did. The endpoint returns counts because
+ * "nothing changed" and "nothing came back" are different answers, and a
+ * button that renders both as a checkmark throws that distinction away.
+ */
+describe('syncOutcomeMessage', () => {
+  const run = (created: number, updated: number, unchanged: number) => ({
+    created,
+    updated,
+    unchanged,
+    last_synced_at: '2026-08-31T10:00:00Z',
+  })
+
+  it('names both kinds of change', () => {
+    expect(syncOutcomeMessage(run(2, 1, 7))).toBe('2 added and 1 updated')
+  })
+
+  it('names only the kind that happened', () => {
+    expect(syncOutcomeMessage(run(3, 0, 0))).toBe('3 added')
+    expect(syncOutcomeMessage(run(0, 4, 0))).toBe('4 updated')
+  })
+
+  it('says up to date rather than nothing when a run changed nothing', () => {
+    expect(syncOutcomeMessage(run(0, 0, 12))).toBe('Already up to date')
+    expect(syncOutcomeMessage(run(0, 0, 0))).toBe('Already up to date')
+  })
+})
+
+/**
+ * What this pins: a failure is visible and, where the server named the fix,
+ * says it. The 409s here are the ones a user can act on.
+ */
+describe('syncFailureMessage', () => {
+  const problem = (title: string, detail: string | null) => ({
+    code: 'source_disconnected',
+    detail,
+    status: 409,
+    title,
+    type: 'about:blank',
+  })
+
+  it('joins the server title and its actionable detail', () => {
+    const error = new ApiError(409, problem('That source is disconnected', 'Connect it again before syncing.'))
+    expect(syncFailureMessage(error)).toBe(
+      'That source is disconnected. Connect it again before syncing.',
+    )
+  })
+
+  it('uses the title alone when there is no detail', () => {
+    expect(syncFailureMessage(new ApiError(409, problem('That source is disconnected', null)))).toBe(
+      'That source is disconnected',
+    )
+  })
+
+  it('falls back for a failure that carried no problem body', () => {
+    expect(syncFailureMessage(new ApiError(502))).toBe(
+      'Sync failed. Check your connection and retry.',
+    )
+    expect(syncFailureMessage(new TypeError('Failed to fetch'))).toBe(
+      'Sync failed. Check your connection and retry.',
+    )
   })
 })

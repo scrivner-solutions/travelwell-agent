@@ -1,4 +1,5 @@
-import type { ConnectedSource } from '@/api/queries'
+import { ApiError } from '@/api/client'
+import type { ConnectedSource, SyncResult } from '@/api/queries'
 import { formatAgo } from '@/lib/time'
 import { joinNaturally, sourceLabel } from '@/lib/trips'
 
@@ -95,4 +96,27 @@ export function connectedSourceLine(sources: ConnectedSource[]): string | null {
  */
 export function canGoBackInApp(arrivedFromOAuth: boolean, historyLength: number): boolean {
   return !arrivedFromOAuth && historyLength > 1
+}
+
+/**
+ * What a finished sync says. Counts, not a checkmark: the endpoint separates
+ * "nothing changed" from "nothing came back", and only one of those is fine.
+ */
+export function syncOutcomeMessage(result: SyncResult): string {
+  const changes = [
+    result.created > 0 ? `${result.created} added` : null,
+    result.updated > 0 ? `${result.updated} updated` : null,
+  ].filter((part): part is string => part !== null)
+  return changes.length === 0 ? 'Already up to date' : joinNaturally(changes)
+}
+
+/**
+ * Why a sync failed, in the server's own words where it has them. Swallowing
+ * this is the one thing the button must not do: the 409s are the actionable
+ * cases, and they name the fix ("Connect it again before syncing.").
+ */
+export function syncFailureMessage(error: unknown): string {
+  const problem = error instanceof ApiError ? error.problem : undefined
+  if (problem === undefined) return 'Sync failed. Check your connection and retry.'
+  return problem.detail == null ? problem.title : `${problem.title}. ${problem.detail}`
 }
