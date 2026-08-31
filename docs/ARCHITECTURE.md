@@ -182,3 +182,39 @@ should know it costs three changes, not one:
 **Revisit when** the hackathon is over, or Places usage approaches 1,000
 calls a month - whichever comes first. Nothing fires automatically.
 
+
+## Calendar sync has no caller (known gap)
+
+Connecting a Google Calendar stores the grant and nothing else. `sync_source`
+(`app/services/calendar/sync.py`) is built, tested and correct, and
+`POST /me/sources/{kind}/sync` (`app/api/sources.py`) exposes it. Neither is
+reached in normal use:
+
+- `connect_callback` does not sync. Authorising leaves `last_synced_at` NULL.
+- There is no scheduler, which the endpoint's own docstring states as the reason
+  it is explicit rather than scheduled.
+- No frontend code calls the endpoint. Its only occurrence under `frontend/src`
+  is in `api/schema.d.ts`, which is generated from the contract, so a grep for
+  the path looks satisfied while nothing invokes it.
+
+Measured on staging 2026-08-31: a real account connected `google_calendar` with
+`calendar.events.readonly`, status `connected`, and had `last_synced_at` NULL
+and zero `calendar_events` rows. Every piece works; there is no caller.
+
+**Decision: the first sync belongs in the connect flow**, immediately after the
+OAuth callback succeeds, so that authorising produces visible calendar data
+without a second user action. That is the moment the user has just expressed
+intent and is waiting for a result.
+
+Two things it needs, and neither is settled here:
+
+1. The callback is a redirect, so a synchronous sync would hold the browser on
+   Google's return leg. Either accept that for a first small window, or hand the
+   work to the agent worker, which now runs warm and polls.
+2. Keeping the cache fresh afterwards is a separate problem. This section is
+   about the FIRST sync only. A design with no cursor or syncToken cannot stay
+   current, so "connected" must not be rendered as "up to date" until that is
+   solved.
+
+**Revisit when** calendar-derived busy windows are needed by any user-facing
+surface, since until then the empty cache is invisible rather than wrong.
