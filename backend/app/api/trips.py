@@ -61,7 +61,6 @@ TRIP_PROGRESS_SQL = text(
            case when t.state = 'detected' then 1 else 0 end as detection_n,
            coalesce(pi.awaiting_n, 0) as awaiting_n,
            coalesce(pi.working_n, 0) as working_n,
-           coalesce(pi.undecided_n, 0) as undecided_n,
            coalesce(pi.live_n, 0) as live_n,
            coalesce(pa.n, 0) as approval_n
     from trips t
@@ -69,9 +68,6 @@ TRIP_PROGRESS_SQL = text(
         select pi.trip_id,
                count(*) filter (where pi.status = 'awaiting_user') as awaiting_n,
                count(*) filter (where pi.status = 'working') as working_n,
-               count(*) filter (
-                   where pi.status in ('suggested', 'awaiting_user')
-               ) as undecided_n,
                count(*) as live_n
         from plan_items pi
         join plans p on p.plan_id = pi.plan_id
@@ -102,7 +98,9 @@ def _plan_progress(row) -> PlanProgress:
     if row.working_n:
         return PlanProgress.booking
     # An empty plan is not an accepted plan, so live_n has to be positive.
-    if row.live_n and not row.undecided_n:
+    # `awaiting_n` was `undecided_n` until `suggested` became pre-surfacing: this
+    # query already excludes drafts, so the two counts were the same number.
+    if row.live_n and not row.awaiting_n:
         return PlanProgress.planned
     return PlanProgress.none
 

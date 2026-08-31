@@ -35,7 +35,7 @@ async def test_today_assembly(authed_client, scene):
     assert [i["title"] for i in t["next_up"]] == scene.visible_items_today
 
     workout = t["next_up"][0]
-    assert workout["status"] == "suggested"
+    assert workout["status"] == "awaiting_user"
     # The workout fills today's window; the design nests it inside the
     # window card, so the payload must carry the link both ways.
     assert workout["window_id"] == window["id"]

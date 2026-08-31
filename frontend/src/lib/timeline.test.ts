@@ -194,18 +194,22 @@ describe('rowChromeFor', () => {
     }
   })
 
-  it('dashes only the suggestion, which is the one thing not yet real', () => {
+  it('dashes nothing: the state it marked never reaches a client', () => {
     const dashed = ALL_STATUSES.filter((s) => rowChromeFor(s).frame.includes('dashed'))
-    expect(dashed).toEqual(['suggested'])
+    expect(dashed).toEqual([])
   })
 
   it('marks the row that needs you with full ink, its only marker now', () => {
     expect(rowChromeFor('awaiting_user').frame).toContain('border-ink')
   })
 
-  it('shares the card border once settled and keeps one darker token for suggestions', () => {
+  it('shares the card border once settled and keeps the darker token for changed', () => {
     expect(rowChromeFor('planned').frame).toContain('border-border-confirmed')
-    expect(rowChromeFor('suggested').frame).toContain('border-border-row-suggested')
+    expect(rowChromeFor('changed').frame).toContain('border-border-row-suggested')
+  })
+
+  it('renders the unreachable suggested state exactly as awaiting_user', () => {
+    expect(rowChromeFor('suggested')).toEqual(rowChromeFor('awaiting_user'))
   })
 
   // Blink floors fractional border widths, so a declared 1.5px paints as 1px

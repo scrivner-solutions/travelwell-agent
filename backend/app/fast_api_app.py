@@ -58,8 +58,8 @@ AGENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    from app.agent import app as adk_app
-    from app.agent import root_agent
+    from app.legacy_agent import app as adk_app
+    from app.legacy_agent import root_agent
 
     runner = Runner(
         app=adk_app,
