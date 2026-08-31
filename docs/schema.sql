@@ -262,9 +262,9 @@ CREATE TABLE calendar_events (
     starts_at TIMESTAMP WITH TIME ZONE NOT NULL,
     ends_at TIMESTAMP WITH TIME ZONE NOT NULL,
     status TEXT DEFAULT 'confirmed'::text NOT NULL,  -- provider status
-    busy BOOLEAN,  -- Does this block time? NULL = not yet classified, which is not 'free'
     content_hash TEXT NOT NULL,  -- change detection on sync
     last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    busy BOOLEAN,  -- Does this block time? NULL = not yet classified, which is not 'free'
     PRIMARY KEY (cal_event_id),
     CONSTRAINT calendar_events_source_id_external_id_key UNIQUE (source_id, external_id),
     FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE,

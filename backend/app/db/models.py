@@ -755,12 +755,17 @@ class CalendarEvent(Base):
     status: Mapped[str] = mapped_column(
         server_default=sa.text("'confirmed'::text"), doc="provider status"
     )
-    busy: Mapped[bool | None] = mapped_column(
-        doc="Does this block time? NULL = not yet classified, which is not 'free'"
-    )
     # Change detection on sync.
     content_hash: Mapped[str] = mapped_column(doc="change detection on sync")
     last_seen_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+    # Declared last because migration 0011 adds it with ALTER TABLE ADD COLUMN,
+    # which appends. docs/schema.sql is generated from this class and diffed
+    # against the migrated database column-for-column, so declaration order
+    # here is physical order there. `alembic check` cannot see this: it
+    # compares presence and type, not position.
+    busy: Mapped[bool | None] = mapped_column(
+        doc="Does this block time? NULL = not yet classified, which is not 'free'"
+    )
 
 
 class Place(Base):
