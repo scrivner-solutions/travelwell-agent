@@ -8,6 +8,9 @@ authors = [
 
 dependencies = [
     "google-adk[gcp]>=2.0.0,<3.0.0",
+    # Direct: app/agent/gemini.py builds the Vertex client on it.
+    # Arrives transitively via google-adk, which is not a promise it will stay.
+    "google-genai>=2.10,<3.0",
     "a2a-sdk[http-server]~=0.3.22",
     "aiohttp>=3.13.4",
     "gcsfs>=2024.11.0",
