@@ -170,14 +170,6 @@ def collect_feedback(feedback: Feedback, _user: CurrentUser) -> dict[str, str]:
     return {"status": "success"}
 
 
-@app.get("/api/config")
-def get_config(_user: CurrentUser):
-    """Returns dynamic runtime configuration including Google Maps API Key."""
-    return {
-        "mapsApiKey": os.getenv("GOOGLE_MAPS_API_KEY", "")
-    }
-
-
 @app.get("/resolve_location")
 def resolve_location(address: str, _user: CurrentUser) -> dict:
     """Resolves a landmark, neighborhood, venue or partial address using Geocoding."""

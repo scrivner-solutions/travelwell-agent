@@ -38,9 +38,8 @@ graph TB
     end
 ```
 
-The legacy concierge endpoints (`/api/recommend`, `/resolve_location`,
-`/api/config`) remain mounted for reference and retire as the v1 surface
-replaces them.
+The legacy concierge endpoints (`/api/recommend`, `/resolve_location`) remain
+mounted for reference and retire as the v1 surface replaces them.
 
 ## Contract-first workflow
 
