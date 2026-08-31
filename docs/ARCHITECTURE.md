@@ -153,8 +153,13 @@ so no Maps API key exists to leak, scope or rotate. Two consequences:
   service to enable, so text search on the host we already call keeps this to
   one credential and one service.
 
-The prototype layer (`app/services/google_maps.py`) still reads
-`GOOGLE_MAPS_API_KEY` and dies with the rest of it.
+Three places still call Geocoding v3 with `GOOGLE_MAPS_API_KEY`, all of them
+prototype surface that dies with the rest of that layer:
+`app/services/google_maps.py`, `app/tools/facility_tools.py`, and the two
+prototype routes in `app/fast_api_app.py`. None has had a key since the GCP
+migration, so all three were already failing before the seam moved; the seam's
+move did not break them and does not fix them. Do not "tidy up" that env var
+while they still exist.
 
 **The field mask keeps `editorialSummary`, deferred 2026-08-31** for the
 hackathon demo, to revisit after. Requesting that one field prices *every*
