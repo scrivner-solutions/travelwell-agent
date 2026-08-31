@@ -115,7 +115,7 @@ CREATE TABLE places (
     lng DOUBLE PRECISION,
     price_level SMALLINT,  -- $..$$$$ for food
     day_pass_cents INTEGER,  -- 0 = free / membership
-    amenities TEXT[] DEFAULT '{}'::text[] NOT NULL,
+    amenities TEXT[],
     hours JSONB,  -- per-weekday open/close minutes
     photo_url TEXT,
     reservable_via reservation_provider,

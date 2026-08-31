@@ -786,11 +786,14 @@ class Place(Base):
     price_level: Mapped[int | None] = mapped_column(
         sa.SmallInteger, doc="$..$$$$ for food"
     )
-    # 0 = free or membership-included.
+    # Three values, same rule as `amenities`: a number is the price, 0 is free
+    # or membership-included, NULL is unpriced by the provider. NULL must not
+    # be read as "cheap" -- it is the value a budget filter cannot judge.
     day_pass_cents: Mapped[int | None] = mapped_column(doc="0 = free / membership")
-    amenities: Mapped[list[str]] = mapped_column(
-        pg.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]")
-    )
+    # NULL is a third value and is load-bearing: the provider never told us.
+    # `{}` means we asked and the venue has none. Google supplies no amenities
+    # field at all, so every row it writes is NULL rather than empty.
+    amenities: Mapped[list[str] | None] = mapped_column(pg.ARRAY(sa.Text()))
     hours: Mapped[dict | None] = mapped_column(
         pg.JSONB, doc="per-weekday open/close minutes"
     )

@@ -713,6 +713,10 @@ paths:
       tags: [explore]
       operationId: explore
       summary: Place candidates for the Explore map, filtered by category and preferences
+      description: >
+        Served from the places cache; no provider call happens inline, so the
+        map does not pan at a third party's latency. trip_id is required rather
+        than inferred: the client already decides which trip is in focus.
       parameters:
         - name: trip_id
           in: query
@@ -728,8 +732,19 @@ paths:
         - name: query
           in: query
           required: false
+          description: Free text over name, summary and address -- the fields the card shows.
           schema:
             type: string
+            maxLength: 120
+        - name: radius_m
+          in: query
+          required: false
+          description: Straight-line radius from the anchor.
+          schema:
+            type: integer
+            default: 8000
+            minimum: 250
+            maximum: 50000
       responses:
         "200":
           description: Surfaced candidates (cached server-side in places)
@@ -737,8 +752,23 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [places]
+                required: [trip_id, radius_m, kinds, places]
                 properties:
+                  trip_id:
+                    type: string
+                    format: uuid
+                  anchor:
+                    $ref: "#/components/schemas/ExploreAnchor"
+                  radius_m:
+                    type: integer
+                  kinds:
+                    type: array
+                    description: >
+                      Category chips. Counted over the whole radius rather than
+                      the current filter, so selecting one chip never moves the
+                      other chips' numbers.
+                    items:
+                      $ref: "#/components/schemas/ExploreKind"
                   places:
                     type: array
                     items:
@@ -746,20 +776,28 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /resolve_location:
+  /geocode:
     get:
       tags: [explore]
-      operationId: resolveLocation
-      summary: Resolve a free-text location to coordinates (kept from the prototype)
+      operationId: geocode
+      summary: Resolve free text to a point
+      description: >
+        Replaces the prototype's /resolve_location, which is not ported: it ran
+        synchronously and answered with hardcoded coordinates when no key was
+        configured, so a caller could not tell a real result from a fallback.
+        Here the outcomes stay distinct -- 404 no such place, 503 no provider
+        configured, 502 provider failure.
       parameters:
         - name: query
           in: query
           required: true
           schema:
             type: string
+            minLength: 1
+            maxLength: 200
       responses:
         "200":
-          description: Best-effort geocoding result
+          description: The best match
           content:
             application/json:
               schema:
@@ -1488,7 +1526,12 @@ components:
 
     Place:
       type: object
-      required: [id, kind, name]
+      description: >
+        A cached venue plus the four fields derived per request. `rating` and
+        `external_url` were designed here and are not served: no column backs a
+        rating, and "book it yourself" is Reservation.external_url, which means
+        something more precise than a link on a discovery card.
+      required: [id, kind, name, matched_preferences, unknown_notes]
       properties:
         id:
           type: string
@@ -1497,24 +1540,93 @@ components:
           $ref: "#/components/schemas/PlaceKind"
         name:
           type: string
-        rating:
-          type: number
-        distance_meters:
-          type: integer
-        walk_minutes:
-          type: integer
-        price_level:
-          type: integer
+        summary:
+          type: string
+        address:
+          type: string
         lat:
           type: number
         lng:
           type: number
+        price_level:
+          type: integer
+        day_pass_cents:
+          type: integer
+          description: >
+            0 means free or included with a membership. Absent means the
+            provider did not price it, which is not the same as cheap: it is
+            the value a budget filter is not allowed to judge.
+        amenities:
+          type: array
+          description: >
+            Absent means the provider has no amenities field or did not answer;
+            `[]` means it answered "none". Not required, and that is the point:
+            Google supplies no amenities at all, so a required array would make
+            every live row assert that its venue has none.
+          items:
+            type: string
         photo_url:
           type: string
           format: uri
-        external_url:
+        reservable_via:
+          $ref: "#/components/schemas/ReservationProvider"
+        matched_preferences:
+          type: array
+          description: >
+            Display labels, not slugs -- ProvenanceSheet renders them verbatim.
+            Derived per request from the caller's own preferences row.
+          items:
+            type: string
+        unknown_notes:
+          type: array
+          description: >
+            What could not be judged about this place, phrased for the user and
+            only for fields their preferences make relevant. Always present,
+            usually empty. Read next to matched_preferences: two chips out of
+            four preferences means something different when the other two were
+            unanswerable rather than unmet. The strings come from the shared
+            matcher so this surface and the plan describe the same missing
+            field with the same words.
+          items:
+            type: string
+        over_budget_reason:
           type: string
-          format: uri
+          description: >
+            Why this sits outside what the user said. Returned instead of
+            filtering the place away: a candidate that vanishes silently cannot
+            be argued with.
+        distance_meters:
+          type: integer
+          description: Straight-line from the anchor. Measured, not routed.
+        walk_minutes:
+          type: integer
+          description: A walking-pace estimate over that straight line.
+
+    ExploreAnchor:
+      type: object
+      description: >
+        Where the map opens and what distances are measured from. Absent when
+        the trip has neither hotel nor destination coordinates.
+      required: [name, is_hotel]
+      properties:
+        name:
+          type: string
+        is_hotel:
+          type: boolean
+          description: False when falling back to the destination centre.
+        lat:
+          type: number
+        lng:
+          type: number
+
+    ExploreKind:
+      type: object
+      required: [kind, count]
+      properties:
+        kind:
+          $ref: "#/components/schemas/PlaceKind"
+        count:
+          type: integer
 
     ResolvedLocation:
       type: object

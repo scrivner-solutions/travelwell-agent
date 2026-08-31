@@ -14,6 +14,10 @@ export type ItemStatus = components['schemas']['ItemStatus']
 export type TimelineEntry = components['schemas']['TimelineEntryOut']
 export type CalendarEventSummary = components['schemas']['CalendarEventSummaryOut']
 export type WellnessWindow = components['schemas']['WellnessWindowOut']
+export type Explore = components['schemas']['ExploreOut']
+export type ExplorePlace = components['schemas']['ExplorePlaceOut']
+export type ExploreAnchor = components['schemas']['ExploreAnchorOut']
+export type PlaceKind = components['schemas']['PlaceKind']
 
 export function meQueryOptions() {
   return queryOptions({
@@ -345,4 +349,34 @@ export async function updatePreferences(
   return throwOnError<Preferences>(
     await client.PATCH('/me/preferences', { body: patch }),
   )
+}
+
+export interface ExploreFilters {
+  category?: PlaceKind
+  query?: string
+  radiusM?: number
+}
+
+/** Explore for one trip. The filters are in the key, so switching a category
+ *  chip reads from cache on the way back rather than re-fetching. */
+export function exploreQueryOptions(tripId: string, filters: ExploreFilters = {}) {
+  const { category, query, radiusM } = filters
+  return queryOptions({
+    queryKey: ['trips', tripId, 'explore', category ?? 'all', query ?? '', radiusM ?? 0],
+    queryFn: async () => {
+      const client = await api()
+      return throwOnError<Explore>(
+        await client.GET('/explore', {
+          params: {
+            query: {
+              trip_id: tripId,
+              ...(category ? { category } : {}),
+              ...(query ? { query } : {}),
+              ...(radiusM ? { radius_m: radiusM } : {}),
+            },
+          },
+        }),
+      )
+    },
+  })
 }

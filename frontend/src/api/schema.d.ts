@@ -205,6 +205,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/explore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Explore */
+        get: operations["explore_api_v1_explore_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/geocode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Geocode
+         * @description Resolve free text to a point.
+         *
+         *     Written fresh rather than ported: the prototype's /resolve_location is
+         *     synchronous and answers with hardcoded Skokie coordinates when no key is
+         *     configured, which is worse than an error because the caller cannot tell.
+         *     Here the three outcomes stay distinct -- no such place is 404, no key is
+         *     503, and a provider failure is 502 -- so nobody plans a trip around a
+         *     fallback.
+         */
+        get: operations["geocode_api_v1_geocode_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me": {
         parameters: {
             query?: never;
@@ -700,6 +744,90 @@ export interface components {
             email: string;
         };
         /**
+         * ExploreAnchorOut
+         * @description Where the map opens and what distances are measured from.
+         */
+        ExploreAnchorOut: {
+            /** Is Hotel */
+            is_hotel: boolean;
+            /** Lat */
+            lat?: number | null;
+            /** Lng */
+            lng?: number | null;
+            /** Name */
+            name: string;
+        };
+        /**
+         * ExploreKindOut
+         * @description A category chip. The count is over the whole radius, not the filter, so
+         *     switching chips never changes the other chips' numbers.
+         */
+        ExploreKindOut: {
+            /** Count */
+            count: number;
+            kind: components["schemas"]["PlaceKind"];
+        };
+        /** ExploreOut */
+        ExploreOut: {
+            anchor?: components["schemas"]["ExploreAnchorOut"] | null;
+            /** Kinds */
+            kinds: components["schemas"]["ExploreKindOut"][];
+            /** Places */
+            places: components["schemas"]["ExplorePlaceOut"][];
+            /** Radius M */
+            radius_m: number;
+            /**
+             * Trip Id
+             * Format: uuid
+             */
+            trip_id: string;
+        };
+        /**
+         * ExplorePlaceOut
+         * @description One card and one pin: the list and the map read the same row.
+         *
+         *     The first four derived fields are computed per request against this user's
+         *     preferences and this trip's anchor, so two users looking at the same cached
+         *     place see different reasons for it.
+         */
+        ExplorePlaceOut: {
+            /** Address */
+            address?: string | null;
+            /** Amenities */
+            amenities?: string[] | null;
+            /** Day Pass Cents */
+            day_pass_cents?: number | null;
+            /** Distance Meters */
+            distance_meters?: number | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kind: components["schemas"]["PlaceKind"];
+            /** Lat */
+            lat?: number | null;
+            /** Lng */
+            lng?: number | null;
+            /** Matched Preferences */
+            matched_preferences: string[];
+            /** Name */
+            name: string;
+            /** Over Budget Reason */
+            over_budget_reason?: string | null;
+            /** Photo Url */
+            photo_url?: string | null;
+            /** Price Level */
+            price_level?: number | null;
+            reservable_via?: components["schemas"]["ReservationProvider"] | null;
+            /** Summary */
+            summary?: string | null;
+            /** Unknown Notes */
+            unknown_notes: string[];
+            /** Walk Minutes */
+            walk_minutes?: number | null;
+        };
+        /**
          * ItemKind
          * @enum {string}
          */
@@ -756,6 +884,11 @@ export interface components {
              */
             updated_at: string;
         };
+        /**
+         * PlaceKind
+         * @enum {string}
+         */
+        PlaceKind: "workout" | "food" | "outdoor" | "recovery" | "lodging";
         /** PlanItemOptionOut */
         PlanItemOptionOut: {
             /** Display Name */
@@ -1001,6 +1134,23 @@ export interface components {
          * @enum {string}
          */
         ReservationStatus: "pending" | "holding" | "confirmed" | "failed" | "canceled";
+        /**
+         * ResolvedLocationOut
+         * @description Free text resolved to a point. `query` is echoed so a client that fired
+         *     several lookups can tell the answers apart.
+         */
+        ResolvedLocationOut: {
+            /** Lat */
+            lat: number;
+            /** Lng */
+            lng: number;
+            /** Name */
+            name: string;
+            /** Query */
+            query: string;
+            /** Timezone */
+            timezone?: string | null;
+        };
         /** SelectOptionIn */
         SelectOptionIn: {
             /**
@@ -1576,6 +1726,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    explore_api_v1_explore_get: {
+        parameters: {
+            query: {
+                trip_id: string;
+                category?: components["schemas"]["PlaceKind"] | null;
+                query?: string | null;
+                radius_m?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExploreOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    geocode_api_v1_geocode_get: {
+        parameters: {
+            query: {
+                query: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedLocationOut"];
                 };
             };
             /** @description Problem details (RFC 9457) */

@@ -7,7 +7,7 @@ slice by slice.
 
 from fastapi import APIRouter
 
-from app.api import actions, auth, plan, profile, sources, trips
+from app.api import actions, auth, explore, plan, profile, sources, trips
 from app.api.problems import ProblemOut
 
 # Every error on this surface is an RFC 9457 problem document, but the handler
@@ -27,3 +27,4 @@ api_router.include_router(sources.router)
 api_router.include_router(trips.router)
 api_router.include_router(plan.router)
 api_router.include_router(actions.router)
+api_router.include_router(explore.router)
