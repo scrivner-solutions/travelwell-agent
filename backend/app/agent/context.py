@@ -39,7 +39,10 @@ from app.agent.schemas import (
     TripContext,
     TripFacts,
 )
-from app.db.models import CalendarEvent, Place, Trip, UserPreferences
+from app.db.models import CalendarEvent, Place, RunKind, Trip, UserPreferences
+from app.services.places import default_provider
+from app.services.places.cache import AreaFill, ensure_area_fresh
+from app.services.places.ports import NearbyQuery, PlacesProvider
 
 # Section budgets from AGENT_DESIGN.md section 6. Candidates is the only elastic
 # one; the rest are bounded by the trip itself.
@@ -49,6 +52,11 @@ CONTEXT_TOKEN_CEILING = 8000
 # A place we cannot show as near the traveler is a place we cannot describe the
 # only way that matters ("12 min walk"), so distance is a filter, not a column.
 MAX_CANDIDATE_METRES = 8_000.0
+
+# Which runs may spend on filling an area. `daily_checkin` fires once per trip
+# per day and is deliberately absent: it reads whatever the planner already
+# paid for, and an area it finds stale is one the planner will refill.
+FETCHING_RUN_KINDS = frozenset({RunKind.pretrip_plan.value})
 
 TITLE_LIMIT = 120
 
@@ -63,6 +71,52 @@ class ContextTooLarge(RuntimeError):
 
 
 @dataclass(frozen=True)
+class AreaCoverage:
+    """Whether the candidate set rests on an actual look at the provider.
+
+    `AreaFill.authoritative` is per area and the candidate radius spans as many
+    areas as we chose to ask about, so the combination is an AND: one area we
+    could not reach, have never looked at, or declined to fetch makes the whole
+    count dishonest, however good the others were.
+
+    An empty set of fills is NOT authoritative, which is the one case worth
+    stating out loud: `all(())` is True, so the vacuous reading of "every area
+    we looked at was fine" is exactly backwards for the trip where we looked at
+    no areas at all.
+    """
+
+    authoritative: bool
+    fills: tuple[AreaFill, ...] = ()
+
+    @classmethod
+    def over(cls, fills: Sequence[AreaFill]) -> AreaCoverage:
+        fills = tuple(fills)
+        return cls(
+            authoritative=bool(fills) and all(f.authoritative for f in fills),
+            fills=fills,
+        )
+
+    def reasons(self) -> list[str]:
+        """`degraded` tokens naming why coverage is not authoritative.
+
+        Empty when it is, so a caller can extend `degraded` unconditionally.
+        """
+        if self.authoritative:
+            return []
+        if not self.fills:
+            return ["places_coverage:not_attempted"]
+        return sorted(
+            {
+                # `policy_declined` carries no outcome because nothing was
+                # attempted, and that absence is itself the reason.
+                f"places_coverage:{(f.outcome or f.source).value}"
+                for f in self.fills
+                if not f.authoritative
+            }
+        )
+
+
+@dataclass(frozen=True)
 class Gathered:
     """The context, plus the maps Bind needs to turn ids back into rows.
 
@@ -71,6 +125,7 @@ class Gathered:
     """
 
     context: TripContext
+    coverage: AreaCoverage
     candidate_places: dict[str, uuid.UUID] = field(default_factory=dict)
     window_intervals: dict[str, windows_mod.FreeWindow] = field(default_factory=dict)
     commitment_events: dict[str, uuid.UUID] = field(default_factory=dict)
@@ -199,6 +254,7 @@ async def gather(
     prompt_version: str,
     now: datetime,
     degraded: list[str] | None = None,
+    provider: PlacesProvider | None = None,
 ) -> Gathered:
     """Read everything the run needs and project it into a `TripContext`."""
     trip = (
@@ -267,9 +323,13 @@ async def gather(
             )
         )
 
-    places = await _nearby_places(session, _origin(trip))
+    origin = _origin(trip)
+    coverage = await _ensure_coverage(
+        session, origin, provider=provider, run_kind=run_kind, now=now
+    )
+    places = await _nearby_places(session, origin)
     candidates, candidate_places = build_candidates(
-        places, context_windows, preferences, _origin(trip)
+        places, context_windows, preferences, origin
     )
     candidates = _fit_candidates(candidates)
     kept = {c.id for c in candidates}
@@ -280,7 +340,11 @@ async def gather(
             prompt_version=prompt_version,
             generated_at=now.isoformat(),
             run_kind=run_kind,
-            degraded=[*(degraded or ()), *degraded_counts(candidates)],
+            degraded=[
+                *(degraded or ()),
+                *coverage.reasons(),
+                *degraded_counts(candidates),
+            ],
         ),
         trip=_trip_facts(trip),
         commitments=commitments,
@@ -299,6 +363,7 @@ async def gather(
 
     return Gathered(
         context=context,
+        coverage=coverage,
         candidate_places=candidate_places,
         window_intervals=window_intervals,
         commitment_events=commitment_events,
@@ -321,6 +386,42 @@ def _trip_facts(trip: Trip) -> TripFacts:
         timezone=trip.timezone,
         hotel=hotel,
     )
+
+
+async def _ensure_coverage(
+    session: AsyncSession,
+    origin: tuple[float, float] | None,
+    *,
+    provider: PlacesProvider | None,
+    run_kind: str,
+    now: datetime,
+) -> AreaCoverage:
+    """Make sure somebody has actually looked around the traveler, and say so.
+
+    One query covering the whole candidate radius, for every kind at once:
+    `area_key` folds an empty `kinds` into all of them and `search_nearby` sends
+    the union in one request, so this is a single billed call per area per TTL
+    rather than one per kind. It buys coverage of the area, not depth in it -
+    the provider caps a nearby search at 20 results however wide the radius.
+
+    No origin means no query and no fill, which `AreaCoverage.over` reports as
+    non-authoritative: a trip with no hotel has nothing to be near, and saying
+    "we looked" about a search we never ran is the exact claim this exists to
+    prevent.
+    """
+    if origin is None:
+        return AreaCoverage.over(())
+    query = NearbyQuery(
+        lat=origin[0], lng=origin[1], radius_m=int(MAX_CANDIDATE_METRES)
+    )
+    fill = await ensure_area_fresh(
+        session,
+        provider or default_provider(),
+        query,
+        allow_fetch=run_kind in FETCHING_RUN_KINDS,
+        now=now,
+    )
+    return AreaCoverage.over((fill,))
 
 
 async def _nearby_places(

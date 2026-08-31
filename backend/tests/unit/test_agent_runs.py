@@ -9,6 +9,7 @@ import json
 
 import pytest
 
+from app.agent.context import AreaCoverage
 from app.agent.llm import FakeLLM, LlmResponse
 from app.agent.prompts import PRETRIP_V1
 from app.agent.runs import (
@@ -21,6 +22,8 @@ from app.agent.runs import (
     window_label,
 )
 from app.agent.schemas import Hotel, PlanProposal, ViolationCode
+from app.db.models import AreaFillOutcome
+from app.services.places.cache import AreaFill, FillSource
 from tests.unit.test_agent_schemas import make_context, proposal
 
 MODEL = "gemini-test"
@@ -160,14 +163,64 @@ def test_window_label_is_ours():
     assert window_label(90) == "90 minutes free"
 
 
+def a_fill(authoritative: bool, *, source=FillSource.fetched, outcome=None) -> AreaFill:
+    return AreaFill(
+        area_key="41.89,-87.63,8000,food",
+        source=source,
+        outcome=outcome,
+        result_count=3,
+        authoritative=authoritative,
+    )
+
+
+LOOKED = AreaCoverage.over((a_fill(True, outcome=AreaFillOutcome.ok),))
+UNLOOKED = AreaCoverage.over((a_fill(False, source=FillSource.policy_declined),))
+
+
 def test_provenance_describes_what_was_read_not_what_the_model_claimed():
     ctx = make_context()
     ctx.trip.hotel = Hotel(name="The Gwen")
-    summary = provenance_summary(ctx)
+    summary = provenance_summary(ctx, LOOKED)
     assert "your hotel" in summary
     assert f"{len(ctx.candidates)} places nearby" in summary
 
 
 def test_provenance_never_names_a_source_that_was_not_read():
     ctx = make_context(commitments=[], candidates=[])
-    assert provenance_summary(ctx) == "From your trip dates"
+    assert provenance_summary(ctx, UNLOOKED) == "From your trip dates"
+
+
+def test_provenance_stops_claiming_a_search_nobody_ran():
+    """The defect: the string read identically whether we looked or not."""
+    ctx = make_context()
+    looked = provenance_summary(ctx, LOOKED)
+    unlooked = provenance_summary(ctx, UNLOOKED)
+    assert looked != unlooked, "the dishonest string is the one that never changed"
+    assert f"{len(ctx.candidates)} places nearby" in looked
+    assert f"{len(ctx.candidates)} places nearby" not in unlooked
+    assert "on file" in unlooked
+
+
+def test_provenance_counts_one_place_as_one_place():
+    """The shipped string said "1 places nearby"."""
+    ctx = make_context(candidates=make_context().candidates[:1])
+    assert "1 place nearby" in provenance_summary(ctx, LOOKED)
+
+
+def test_one_unlooked_area_makes_the_whole_count_dishonest():
+    """AND, not OR: coverage is only as good as its worst area."""
+    mixed = AreaCoverage.over((a_fill(True, outcome=AreaFillOutcome.ok), a_fill(False)))
+    assert mixed.authoritative is False
+
+
+def test_coverage_over_no_areas_at_all_is_not_authoritative():
+    """`all(())` is True, so the vacuous reading of this is exactly backwards."""
+    assert AreaCoverage.over(()).authoritative is False
+    assert AreaCoverage.over(()).reasons() == ["places_coverage:not_attempted"]
+
+
+def test_coverage_reasons_name_the_cause_and_are_empty_when_there_is_none():
+    assert LOOKED.reasons() == []
+    assert UNLOOKED.reasons() == ["places_coverage:policy_declined"]
+    outage = AreaCoverage.over((a_fill(False, outcome=AreaFillOutcome.error),))
+    assert outage.reasons() == ["places_coverage:error"]
