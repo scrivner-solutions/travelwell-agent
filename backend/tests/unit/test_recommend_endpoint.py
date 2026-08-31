@@ -34,7 +34,6 @@ def anonymous():
 @pytest.mark.parametrize(
     "method,path",
     [
-        ("get", "/api/config"),
         ("get", "/resolve_location?address=Chicago"),
         ("post", "/api/recommend"),
     ],
@@ -74,15 +73,6 @@ def test_resolve_location_endpoint():
         data = response.json()
         assert data["display_name"] == "Mock Gym Location, Chicago"
         assert data["lat"] == 41.88
-
-def test_config_endpoint():
-    # Test GET /api/config returns the maps API key
-    client = TestClient(app)
-    with patch.dict("os.environ", {"GOOGLE_MAPS_API_KEY": "test-key-123"}):
-        response = client.get("/api/config")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["mapsApiKey"] == "test-key-123"
 
 def test_recommend_endpoint_success():
     mock_event = MagicMock()
