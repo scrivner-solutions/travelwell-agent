@@ -27,11 +27,11 @@ env:
   AR_HOST: us-central1-docker.pkg.dev
   PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
   RUNTIME_SA: travelwell-runtime@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
-  # DATABASE_URL alone selects the target (app/db/engine.py); only Cloud SQL
-  # also needs its instance attached to the revision. Staging currently runs
-  # against hosted Postgres over TCP, so external is the default.
+  # DATABASE_URL alone selects the target (app/db/engine.py); Cloud SQL also
+  # needs its instance attached to the revision. Both come from repo config so
+  # that no environment is named here.
   DB_TARGET: ${{ vars.DB_TARGET || 'external' }}
-  CLOUDSQL_INSTANCE: ${{ vars.GCP_PROJECT_ID }}:us-central1:travelwell-staging
+  CLOUDSQL_INSTANCE: ${{ vars.GCP_SQL_CONNECTION_NAME }}
 
 jobs:
   gates:
@@ -61,7 +61,10 @@ jobs:
               echo "### Deploy skipped, gates still ran"
               echo
               echo "Set the repository variables \`GCP_PROJECT_ID\`, \`GCP_WIF_PROVIDER\`"
-              echo "and \`GCP_DEPLOYER_SA\` to turn deploys on. See docs/GITHUB_ACTIONS_DEPLOYMENT.md."
+              echo "and \`GCP_DEPLOYER_SA\` to turn deploys on. Against Cloud SQL, set"
+              echo "\`DB_TARGET\` and \`GCP_SQL_CONNECTION_NAME\` in the same pass: the"
+              echo "default target refuses rather than detaching a live instance."
+              echo "See docs/GITHUB_ACTIONS_DEPLOYMENT.md."
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
@@ -99,6 +102,38 @@ jobs:
           SHA=${GITHUB_SHA::7}
           echo "SHA=$SHA" >> "$GITHUB_ENV"
           echo "IMAGE=$AR_HOST/$PROJECT_ID/travelwell/backend:$SHA" >> "$GITHUB_ENV"
+
+      # DB_TARGET is the one input with a default, and its default detaches
+      # whatever the service has attached. Both halves fail silently at runtime,
+      # so refuse before the build rather than after the revision serves.
+      - name: Check database config
+        run: |
+          if [[ "$DB_TARGET" == cloudsql ]]; then
+            if [[ -z "$CLOUDSQL_INSTANCE" ]]; then
+              echo "DB_TARGET is cloudsql but GCP_SQL_CONNECTION_NAME is unset" >&2
+              exit 1
+            fi
+            exit 0
+          fi
+          # A failed describe and a service with nothing attached both read as
+          # the empty string, and only one of them is safe to deploy over. So an
+          # unreadable attachment refuses; only a service that does not exist yet
+          # goes through, because it has nothing to detach.
+          if ! ATTACHED=$(gcloud run services describe travelwell-backend --region "$REGION" \
+              --format='value(spec.template.metadata.annotations["run.googleapis.com/cloudsql-instances"])' 2>&1); then
+            if [[ "$ATTACHED" == *"Cannot find service"* ]]; then
+              echo "No travelwell-backend service yet, so nothing to detach."
+              exit 0
+            fi
+            echo "Could not read the current Cloud SQL attachment, so a detach cannot be ruled out:" >&2
+            echo "$ATTACHED" >&2
+            exit 1
+          fi
+          if [[ -n "$ATTACHED" ]]; then
+            echo "DB_TARGET is external but $ATTACHED is attached." >&2
+            echo "This deploy would detach it. Set DB_TARGET=cloudsql, or detach on purpose first." >&2
+            exit 1
+          fi
 
       # Both the "attach nothing" flags below make gcloud require this API and
       # prompt for it. A project with it off can have nothing attached, so on
@@ -138,7 +173,7 @@ jobs:
             --region "$REGION" \
             --service-account "$RUNTIME_SA" \
             "${DB_FLAGS[@]}" \
-            --set-secrets DATABASE_URL=travelwell-database-url:latest \
+            --update-secrets DATABASE_URL=travelwell-database-url:latest \
             --command uv \
             --args run,--no-sync,alembic,upgrade,head \
             --max-retries 0
@@ -174,13 +209,17 @@ jobs:
           else
             DB_FLAGS=()
           fi
+          # update- rather than set-: set- replaces the whole set, so anything
+          # the service carries that is not listed here is deleted.
+          # TOKEN_ENCRYPTION_KEY is exactly that, and losing it fails silently
+          # until the first calendar operation.
           gcloud run deploy travelwell-backend \
             --image "$IMAGE" \
             --region "$REGION" \
             --service-account "$RUNTIME_SA" \
             "${DB_FLAGS[@]}" \
-            --set-secrets DATABASE_URL=travelwell-database-url:latest,SESSION_SECRET=travelwell-session-secret:latest \
-            --set-env-vars "^@^APP_ENV=staging@SESSION_COOKIE_SECURE=1@DEMO_LOGIN_ENABLED=1@PUBLIC_BASE_URL=$PUBLIC_BASE_URL@CORS_ALLOWED_ORIGINS=$ALLOWED_ORIGINS" \
+            --update-secrets DATABASE_URL=travelwell-database-url:latest,SESSION_SECRET=travelwell-session-secret:latest \
+            --update-env-vars "^@^APP_ENV=staging@SESSION_COOKIE_SECURE=1@DEMO_LOGIN_ENABLED=1@PUBLIC_BASE_URL=$PUBLIC_BASE_URL@CORS_ALLOWED_ORIGINS=$ALLOWED_ORIGINS" \
             --cpu-boost \
             --min-instances 0 \
             --max-instances 2 \
@@ -250,7 +289,7 @@ jobs:
             --image "$IMAGE" \
             --region "$REGION" \
             --service-account "$RUNTIME_SA" \
-            --set-env-vars "BACKEND_URL=${{ needs.backend.outputs.url }}" \
+            --update-env-vars "BACKEND_URL=${{ needs.backend.outputs.url }}" \
             --cpu-boost \
             --min-instances 0 \
             --max-instances 2 \
