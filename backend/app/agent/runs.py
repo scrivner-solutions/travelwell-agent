@@ -430,6 +430,7 @@ async def run_pretrip_plan(
     model: str,
     now: datetime,
     trigger_event_id: uuid.UUID | None = None,
+    run: AgentRun | None = None,
 ) -> RunOutcome:
     """Admit-to-Emit for one `pretrip_plan` run.
 
@@ -438,19 +439,28 @@ async def run_pretrip_plan(
     committed *before* the model is called, and the failure path writes
     `status='failed'` in its own transaction, so the spend stays auditable and
     the run replayable while the plan tables stay clean.
+
+    `run` is the row `app.agent.admit` already committed alongside the event's
+    disposition; passing it is what keeps "never accepted without a run" true.
+    Without one this creates its own, which is the path scripts/run_agent.py
+    takes.
     """
     trip = (
         await session.execute(sa.select(Trip).where(Trip.trip_id == trip_id))
     ).scalar_one()
 
-    run = AgentRun(
-        trip_id=trip_id,
-        trigger_event_id=trigger_event_id,
-        kind=RunKind.pretrip_plan,
-        status=RunStatus.running,
-        model=model,
-    )
-    session.add(run)
+    if run is None:
+        run = AgentRun(
+            trip_id=trip_id,
+            trigger_event_id=trigger_event_id,
+            kind=RunKind.pretrip_plan,
+            status=RunStatus.running,
+            model=model,
+            started_at=now,
+        )
+        session.add(run)
+    else:
+        run.model = model
     await session.commit()
     await session.refresh(run)
 

@@ -287,7 +287,9 @@ CREATE TABLE agent_events (
     disposition event_disposition DEFAULT 'pending'::event_disposition NOT NULL,
     occurred_at TIMESTAMP WITH TIME ZONE NOT NULL,
     received_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    idempotency_key UUID,  -- client-generated; a retry lands on the event that already exists
     PRIMARY KEY (event_id),
+    CONSTRAINT agent_events_idempotency_uq UNIQUE (user_id, idempotency_key),
     FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE,
     FOREIGN KEY(trip_id) REFERENCES trips (trip_id) ON DELETE CASCADE
 );

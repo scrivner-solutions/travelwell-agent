@@ -816,6 +816,11 @@ class AgentEvent(Base):
 
     __tablename__ = "agent_events"
     __table_args__ = (
+        # NULLs are distinct in Postgres, so producer-written events need no
+        # exemption from this and every client retry lands on its own row.
+        sa.UniqueConstraint(
+            "user_id", "idempotency_key", name="agent_events_idempotency_uq"
+        ),
         sa.Index("agent_events_trip_time_idx", "trip_id", sa.text("occurred_at DESC")),
         sa.Index(
             "agent_events_disposition_idx",
@@ -845,6 +850,12 @@ class AgentEvent(Base):
     )
     occurred_at: Mapped[datetime]
     received_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+    # Declared last because migration 0031 adds it: ADD COLUMN appends
+    # physically, and `alembic check` compares presence and type, not position.
+    # Null for producer-written events, which have no client to retry them.
+    idempotency_key: Mapped[uuid.UUID | None] = mapped_column(
+        doc="client-generated; a retry lands on the event that already exists"
+    )
 
 
 class AgentRun(Base):
