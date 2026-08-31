@@ -173,7 +173,7 @@ jobs:
             --region "$REGION" \
             --service-account "$RUNTIME_SA" \
             "${DB_FLAGS[@]}" \
-            --set-secrets DATABASE_URL=travelwell-database-url:latest \
+            --update-secrets DATABASE_URL=travelwell-database-url:latest \
             --command uv \
             --args run,--no-sync,alembic,upgrade,head \
             --max-retries 0
@@ -209,13 +209,17 @@ jobs:
           else
             DB_FLAGS=()
           fi
+          # update- rather than set-: set- replaces the whole set, so anything
+          # the service carries that is not listed here is deleted.
+          # TOKEN_ENCRYPTION_KEY is exactly that, and losing it fails silently
+          # until the first calendar operation.
           gcloud run deploy travelwell-backend \
             --image "$IMAGE" \
             --region "$REGION" \
             --service-account "$RUNTIME_SA" \
             "${DB_FLAGS[@]}" \
-            --set-secrets DATABASE_URL=travelwell-database-url:latest,SESSION_SECRET=travelwell-session-secret:latest \
-            --set-env-vars "^@^APP_ENV=staging@SESSION_COOKIE_SECURE=1@DEMO_LOGIN_ENABLED=1@PUBLIC_BASE_URL=$PUBLIC_BASE_URL@CORS_ALLOWED_ORIGINS=$ALLOWED_ORIGINS" \
+            --update-secrets DATABASE_URL=travelwell-database-url:latest,SESSION_SECRET=travelwell-session-secret:latest \
+            --update-env-vars "^@^APP_ENV=staging@SESSION_COOKIE_SECURE=1@DEMO_LOGIN_ENABLED=1@PUBLIC_BASE_URL=$PUBLIC_BASE_URL@CORS_ALLOWED_ORIGINS=$ALLOWED_ORIGINS" \
             --cpu-boost \
             --min-instances 0 \
             --max-instances 2 \
@@ -285,7 +289,7 @@ jobs:
             --image "$IMAGE" \
             --region "$REGION" \
             --service-account "$RUNTIME_SA" \
-            --set-env-vars "BACKEND_URL=${{ needs.backend.outputs.url }}" \
+            --update-env-vars "BACKEND_URL=${{ needs.backend.outputs.url }}" \
             --cpu-boost \
             --min-instances 0 \
             --max-instances 2 \
