@@ -731,44 +731,27 @@ PORTLAND = TripSpec(
         CalEventSpec("pdx_retro", "Quarterly retro", T(2, 10), T(2, 12),
                      "Jupiter NEXT, Ballroom"),
     ],
+    # PENDING, not the "accepted" default: this is the one event in the whole
+    # seed the worker is meant to claim. Portland is also the only trip that
+    # passes admit's activation gate -- `preparing` is an activation state and
+    # `starts_in_days=5` puts activation_at (start - 7d) two days in the past.
     events=[
-        EventSpec("pdx_activation", "scheduled_activation", T(-2, 0, 1),
-                  {"reason": "T-7d activation", "trip_start": "day 0"}),
+        EventSpec("pdx_activation", "scheduled_activation", T(-7, 0, 1),
+                  {"reason": "T-7d activation", "trip_start": "day 0"},
+                  disposition="pending"),
     ],
-    runs=[
-        # Still running: this is what `Preparing...` means on the trip row.
-        RunSpec(
-            key="pdx_plan", kind="pretrip_plan", status="running",
-            trigger_event="pdx_activation", started=T(-2, 0, 1),
-            context_snapshot={
-                "trip": {"city": "Portland", "nights": 3},
-                "calendar_events_read": 6,
-                "windows_found": 2,
-            },
-        ),
-    ],
-    plans=[
-        # Draft: excluded from the trip rollup on purpose, so a half-built plan
-        # never counts as work waiting on the user.
-        PlanSpec(
-            version=1, status=PlanStatus.draft, run="pdx_plan",
-            headline="Two openings around the offsite",
-            provenance_summary="Reading your calendar · 6 events so far",
-            items=[
-                ItemSpec(
-                    key="pdx_draft_run", kind=ItemKind.activity,
-                    status=ItemStatus.suggested, starts=T(1, 6, 30), ends=T(1, 7, 15),
-                    options=[
-                        OptionSpec(sel, "jupiter_pdx", "Hotel fitness room",
-                                   "Treadmill · 45 min",
-                                   reason="Before the 9:00 offsite",
-                                   distance_minutes=0, duration_minutes=45,
-                                   matched_preferences=["Mornings"]),
-                    ],
-                ),
-            ],
-        ),
-    ],
+    # No seeded run and no seeded plan, deliberately. A `running` pretrip_plan
+    # row here used to be what `Preparing...` rendered from, and it made the one
+    # actionable trip permanently unactionable: admit drops the event
+    # `already_running`, and the run could never be swept because RunSpec.started
+    # is trip-relative, so T(-2) on a trip five days out is a FUTURE timestamp
+    # and `reap_stale_runs` only cancels runs older than the timeout.
+    #
+    # The agent now writes both rows itself, which is the point: `Preparing...`
+    # is rendered from a real run while Gemini is working, and the draft plan
+    # that follows is one the model actually produced. If the worker is off,
+    # Portland shows preparing with nothing built, which is not a broken demo --
+    # it is the true statement that the agent has not run.
 )
 
 
