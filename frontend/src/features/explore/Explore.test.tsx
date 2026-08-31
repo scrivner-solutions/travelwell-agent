@@ -1,18 +1,21 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ExploreAnchor, ExplorePlace } from '@/api/queries'
 import { CategoryChips } from './CategoryChips'
 import { PlaceCard } from './PlaceCard'
 import { PlaceMap } from './PlaceMap'
+import { hoursLabel } from './hours'
 
 /**
  * What this pins: the card says each fact once, a category with nothing in it
  * is visible rather than hidden, the map puts north up and scales to the
- * places it was given rather than to the radius that was searched, and what
- * could not be judged about a place is stated rather than left to look like a
- * poor match.
+ * places it was given rather than to the radius that was searched, what could
+ * not be judged about a place is stated rather than left to look like a poor
+ * match, and opening hours are read against the trip's clock.
  */
+
+const TZ = 'America/Chicago'
 
 const anchor: ExploreAnchor = {
   name: 'The Gwen',
@@ -38,6 +41,7 @@ describe('PlaceCard', () => {
     render(
       <PlaceCard
         place={place({ walk_minutes: 7, day_pass_cents: 1500 })}
+        timezone={TZ}
         selected={false}
         onSelect={() => {}}
       />,
@@ -53,6 +57,7 @@ describe('PlaceCard', () => {
           matched_preferences: ['Swim'],
           unknown_notes: ['Facilities not listed', 'Day-pass price not listed'],
         })}
+        timezone={TZ}
         selected={false}
         onSelect={() => {}}
       />,
@@ -62,23 +67,27 @@ describe('PlaceCard', () => {
   })
 
   it('does not dress an unknown up as a matched preference', () => {
-    /* The chips are what the place earned. A note is the absence of an answer,
-       so it must not land in the same list or it reads as a fifth match. */
+    /* The periwinkle line is what the place earned. A note is the absence of
+       an answer, so it must not join that line or it reads as another match. */
     render(
       <PlaceCard
         place={place({
           matched_preferences: ['Swim'],
           unknown_notes: ['Facilities not listed'],
         })}
+        timezone={TZ}
         selected={false}
         onSelect={() => {}}
       />,
     )
-    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Swim'])
+    expect(screen.getByText('Swim').textContent).toBe('Swim')
+    expect(screen.getByText('Facilities not listed').textContent).toBe('Facilities not listed')
   })
 
   it('says nothing at all when there is nothing unknown', () => {
-    render(<PlaceCard place={place()} selected={false} onSelect={() => {}} />)
+    render(
+      <PlaceCard place={place()} timezone={TZ} selected={false} onSelect={() => {}} />,
+    )
     expect(screen.queryByText(/not listed/)).toBeNull()
   })
 
@@ -86,6 +95,7 @@ describe('PlaceCard', () => {
     const { rerender } = render(
       <PlaceCard
         place={place({ summary: 'Healthy American · $$', price_level: 2 })}
+        timezone={TZ}
         selected={false}
         onSelect={() => {}}
       />,
@@ -96,6 +106,7 @@ describe('PlaceCard', () => {
     rerender(
       <PlaceCard
         place={place({ price_level: 2 })}
+        timezone={TZ}
         selected={false}
         onSelect={() => {}}
       />,
@@ -107,18 +118,77 @@ describe('PlaceCard', () => {
     render(
       <PlaceCard
         place={place({ over_budget_reason: '$60 day pass, above the $20 you set' })}
+        timezone={TZ}
         selected={false}
         onSelect={() => {}}
       />,
     )
     expect(screen.getByText(/above the \$20 you set/)).toBeTruthy()
   })
+
+  it('badges the hours the design leads with, when we were told them', () => {
+    // Monday 1:00 PM in Chicago, against a place open 6 AM to 10 PM.
+    vi.setSystemTime(new Date('2026-08-31T18:00:00Z'))
+    render(
+      <PlaceCard
+        place={place({ hours: { mon: [360, 1320] } })}
+        timezone={TZ}
+        selected={false}
+        onSelect={() => {}}
+      />,
+    )
+    expect(screen.getByText('Open till 10 PM')).toBeTruthy()
+    vi.useRealTimers()
+  })
+
+  it('shows no hours badge at all when the provider never gave us any', () => {
+    render(
+      <PlaceCard place={place()} timezone={TZ} selected={false} onSelect={() => {}} />,
+    )
+    expect(screen.queryByText(/Open|Closed/)).toBeNull()
+  })
+})
+
+describe('hoursLabel', () => {
+  // Monday, 1:00 PM in Chicago.
+  const now = new Date('2026-08-31T18:00:00Z')
+
+  it('reads the trip clock, not the device clock', () => {
+    /* The same instant is already Tuesday in Tokyo, so a Monday-only place is
+       shut there. This is the whole reason the trip zone is a parameter. */
+    expect(hoursLabel({ mon: [360, 1320] }, TZ, now)?.text).toBe('Open till 10 PM')
+    expect(hoursLabel({ mon: [360, 1320] }, 'Asia/Tokyo', now)?.text).toBe('Closed today')
+  })
+
+  it('separates "never told us" from "closed"', () => {
+    expect(hoursLabel(null, TZ, now)).toBeNull()
+    expect(hoursLabel({ tue: [360, 1320] }, TZ, now)).toEqual({
+      text: 'Closed today',
+      tight: true,
+    })
+  })
+
+  it('marks closing soon, already shut, and not open yet as tight', () => {
+    expect(hoursLabel({ mon: [360, 840] }, TZ, now)).toEqual({
+      text: 'Closes in 60 min',
+      tight: true,
+    })
+    expect(hoursLabel({ mon: [360, 600] }, TZ, now)?.text).toBe('Closed now')
+    expect(hoursLabel({ mon: [900, 1320] }, TZ, now)?.text).toBe('Opens 3 PM')
+  })
+
+  it('says 24 hours rather than "open till midnight"', () => {
+    expect(hoursLabel({ mon: [0, 1440] }, TZ, now)).toEqual({
+      text: 'Open 24 hours',
+      tight: false,
+    })
+  })
 })
 
 describe('CategoryChips', () => {
   const kinds = [
     { kind: 'workout' as const, count: 3 },
-    { kind: 'recovery' as const, count: 0 },
+    { kind: 'food' as const, count: 0 },
   ]
 
   it('totals the categories on the All chip', () => {
@@ -128,8 +198,7 @@ describe('CategoryChips', () => {
 
   it('shows an empty category as disabled rather than hiding it', () => {
     render(<CategoryChips kinds={kinds} selected={undefined} onSelect={() => {}} />)
-    const recovery = screen.getByRole('button', { name: 'Recovery 0' })
-    expect(recovery.hasAttribute('disabled')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Food 0' }).getAttribute('disabled')).not.toBeNull()
   })
 
   it('a second click on the selected chip clears the filter', async () => {
@@ -141,11 +210,16 @@ describe('CategoryChips', () => {
 })
 
 describe('PlaceMap', () => {
-  const north = place({ id: 'n', name: 'North', lat: 41.9, lng: -87.6252, distance_meters: 840 })
+  const north = place({ id: 'n', name: 'North', lat: 41.9, lng: -87.6252, distance_meters: 840, walk_minutes: 7 })
   const east = place({ id: 'e', name: 'East', lat: 41.8924, lng: -87.61, distance_meters: 1260 })
 
+  /** The place pins, which are the only aria-pressed buttons on the map. */
   function pins(container: HTMLElement) {
-    return [...container.querySelectorAll('g.cursor-pointer circle')] as SVGCircleElement[]
+    return [...container.querySelectorAll('button[aria-pressed]')] as HTMLElement[]
+  }
+
+  function at(el: HTMLElement) {
+    return { x: Number.parseFloat(el.style.left), y: Number.parseFloat(el.style.top) }
   }
 
   it('puts north above the anchor and east to its right', () => {
@@ -154,20 +228,19 @@ describe('PlaceMap', () => {
         anchor={anchor}
         places={[north, east]}
         radiusM={8000}
+        timezone={TZ}
         selectedId={null}
         onSelect={() => {}}
       />,
     )
-    const at = pins(container).map((c) => ({
-      x: Number(c.getAttribute('cx')),
-      y: Number(c.getAttribute('cy')),
-    }))
-    expect(at).toHaveLength(2)
-    const [n, e] = at as [(typeof at)[number], (typeof at)[number]]
-    expect(n.y).toBeLessThan(160)
-    expect(n.x).toBeCloseTo(160, 0)
-    expect(e.x).toBeGreaterThan(160)
-    expect(e.y).toBeCloseTo(160, 0)
+    // Percentages of a square plot, so 50% is the anchor in both axes.
+    const placed = pins(container).map(at)
+    expect(placed).toHaveLength(2)
+    const [n, e] = placed as [(typeof placed)[number], (typeof placed)[number]]
+    expect(n.y).toBeLessThan(50)
+    expect(n.x).toBeCloseTo(50, 0)
+    expect(e.x).toBeGreaterThan(50)
+    expect(e.y).toBeCloseTo(50, 0)
   })
 
   it('scales to the furthest place, not to the radius searched', () => {
@@ -176,6 +249,7 @@ describe('PlaceMap', () => {
         anchor={anchor}
         places={[north, east]}
         radiusM={8000}
+        timezone={TZ}
         selectedId={null}
         onSelect={() => {}}
       />,
@@ -193,6 +267,7 @@ describe('PlaceMap', () => {
         anchor={anchor}
         places={[north, place({ id: 'x', name: 'Unlocated' })]}
         radiusM={8000}
+        timezone={TZ}
         selectedId={null}
         onSelect={() => {}}
       />,
@@ -200,18 +275,37 @@ describe('PlaceMap', () => {
     expect(pins(container)).toHaveLength(1)
   })
 
-  it('names only the selected pin, so the map does not become a word cloud', () => {
+  it('names only the selected place, so the map does not become a word cloud', () => {
     const { container } = render(
       <PlaceMap
         anchor={anchor}
         places={[north, east]}
         radiusM={8000}
+        timezone={TZ}
         selectedId="n"
         onSelect={() => {}}
       />,
     )
-    const svg = container.querySelector('svg')!
-    expect(within(svg as unknown as HTMLElement).getByText('North')).toBeTruthy()
-    expect(within(svg as unknown as HTMLElement).queryByText('East')).toBeNull()
+    // Every pin carries an initial and nothing more; the name belongs to the
+    // callout, which only the selected place has.
+    const visible = pins(container).map((b) => b.querySelector('[aria-hidden]')?.textContent)
+    expect(visible).toEqual(['N', 'E'])
+    expect(screen.getByText('7 min walk from The Gwen')).toBeTruthy()
+  })
+
+  it('keeps the callout inside the band when its pin sits at the edge', () => {
+    const far = place({ id: 'f', name: 'Far east', lat: 41.8924, lng: -87.55, distance_meters: 6000 })
+    const { container } = render(
+      <PlaceMap
+        anchor={anchor}
+        places={[far]}
+        radiusM={8000}
+        timezone={TZ}
+        selectedId="f"
+        onSelect={() => {}}
+      />,
+    )
+    const callout = container.querySelector('.z-20') as HTMLElement
+    expect(Number.parseFloat(callout.style.left)).toBeLessThanOrEqual(80)
   })
 })

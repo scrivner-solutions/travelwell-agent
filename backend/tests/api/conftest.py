@@ -55,12 +55,14 @@ os.environ.setdefault("APP_ENV", "test")
 # worktree's backend/.env would otherwise decide what the redirect tests assert.
 os.environ["PUBLIC_BASE_URL"] = "http://localhost:5173"
 
-# Everything the initial migration creates, modeled or not. Truncated together
-# so FK order never matters; CASCADE covers any table a future migration adds.
+# Truncated together so FK order never matters. CASCADE follows foreign keys
+# OUT of these tables, so it does NOT reach a new table that references nothing
+# -- `area_fills` was invisible here until it was named, and the symptom was one
+# test seeing the previous test's rows. A new table belongs in this list.
 ALL_TABLES = (
     "users, user_preferences, login_codes, connected_sources, trips, "
-    "trip_evidence, calendar_events, places, wellness_windows, plans, "
-    "plan_items, plan_item_options, pending_actions, reservations, "
+    "trip_evidence, calendar_events, places, area_fills, wellness_windows, "
+    "plans, plan_items, plan_item_options, pending_actions, reservations, "
     "agent_runs, agent_events, notifications"
 )
 
