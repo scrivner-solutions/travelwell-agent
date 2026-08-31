@@ -196,6 +196,9 @@ echo "== Deploy (public base: $PUBLIC_BASE_URL) =="
 # update- rather than set-: set- replaces the whole set, so anything the service
 # carries that is not listed here is deleted. TOKEN_ENCRYPTION_KEY is exactly
 # that, and losing it fails silently until the first calendar operation.
+# --no-cpu-throttling and a warm instance are what let the agent worker run:
+# Cloud Run otherwise throttles CPU outside requests and reclaims idle
+# instances, which stalls an in-process polling loop between clicks.
 gcloud run deploy "$SERVICE" \
   --image "$IMAGE" \
   --region "$REGION" \
@@ -205,7 +208,8 @@ gcloud run deploy "$SERVICE" \
   --update-secrets "$SECRETS" \
   --update-env-vars "^@^APP_ENV=staging@SESSION_COOKIE_SECURE=1@DEMO_LOGIN_ENABLED=1@PUBLIC_BASE_URL=$PUBLIC_BASE_URL@CORS_ALLOWED_ORIGINS=$ALLOWED_ORIGINS$OAUTH_ENV$AGENT_ENV" \
   --cpu-boost \
-  --min-instances 0 \
+  --no-cpu-throttling \
+  --min-instances "$BACKEND_MIN_INSTANCES" \
   --max-instances "$MAX_INSTANCES" \
   --memory "$BACKEND_MEMORY" \
   --cpu 1
