@@ -21,6 +21,7 @@ import {
   SOURCE_ACTION_LABEL,
   SOURCE_META,
   SOURCE_STATE,
+  canGoBackInApp,
   sourceAction,
   sourceName,
 } from '@/lib/sources'
@@ -274,7 +275,9 @@ export function ProfileScreen() {
   })
 
   const goBack = () => {
-    if (window.history.length > 1) router.history.back()
+    // The OAuth landing carries one of these two params and nothing else does.
+    const arrivedFromOAuth = connected !== undefined || connectError !== undefined
+    if (canGoBackInApp(arrivedFromOAuth, window.history.length)) router.history.back()
     else void router.navigate({ to: '/today' })
   }
 

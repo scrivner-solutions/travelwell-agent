@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SOURCE_ACTION_LABEL, SOURCE_STATE, sourceAction } from './sources'
+import { SOURCE_ACTION_LABEL, SOURCE_STATE, canGoBackInApp, sourceAction } from './sources'
 
 /**
  * What this pins: a row only offers what the backend will accept. /me/sources
@@ -36,5 +36,26 @@ describe('SOURCE_STATE', () => {
     for (const state of Object.values(SOURCE_STATE)) {
       expect(actions).not.toContain(state.text)
     }
+  })
+})
+
+/**
+ * What this pins: the reported bug. Pressing Done after connecting a calendar
+ * returned the user to Google's consent screen, because the only guard was
+ * history.length > 1, which is true after the redirect chain and says nothing
+ * about whether the previous entry is ours.
+ */
+describe('canGoBackInApp', () => {
+  it('refuses back after the OAuth callback, however deep the history', () => {
+    expect(canGoBackInApp(true, 2)).toBe(false)
+    expect(canGoBackInApp(true, 50)).toBe(false)
+  })
+
+  it('allows back for an ordinary in-app visit', () => {
+    expect(canGoBackInApp(false, 2)).toBe(true)
+  })
+
+  it('refuses back when this is the only entry, as before', () => {
+    expect(canGoBackInApp(false, 1)).toBe(false)
   })
 })

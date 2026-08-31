@@ -87,3 +87,12 @@ export function connectedSourceLine(sources: ConnectedSource[]): string | null {
     ? `${names} connected`
     : `${names} connected · synced ${formatAgo(synced)}`
 }
+
+/**
+ * Whether the profile's "Done" may use history.back(). After the OAuth callback
+ * the preceding entries belong to Google, so back lands on the consent screen.
+ * `history.length` cannot tell the two arrivals apart: it counts every origin.
+ */
+export function canGoBackInApp(arrivedFromOAuth: boolean, historyLength: number): boolean {
+  return !arrivedFromOAuth && historyLength > 1
+}
