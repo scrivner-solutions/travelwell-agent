@@ -105,6 +105,75 @@
         "title": "ApproveIn",
         "type": "object"
       },
+      "AssistantAsk": {
+        "properties": {
+          "utterance": {
+            "description": "What the traveler said, verbatim. Voice is transcribed client-side.",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Utterance",
+            "type": "string"
+          }
+        },
+        "required": [
+          "utterance"
+        ],
+        "title": "AssistantAsk",
+        "type": "object"
+      },
+      "AssistantChangeOut": {
+        "properties": {
+          "item_id": {
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "item_id",
+          "name",
+          "status"
+        ],
+        "title": "AssistantChangeOut",
+        "type": "object"
+      },
+      "AssistantTurnOut": {
+        "properties": {
+          "applied": {
+            "description": "Plan items this turn actually moved, in the order they were applied.",
+            "items": {
+              "$ref": "#/components/schemas/AssistantChangeOut"
+            },
+            "title": "Applied",
+            "type": "array"
+          },
+          "reply": {
+            "description": "One sentence for the traveler. Never empty.",
+            "title": "Reply",
+            "type": "string"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "reply",
+          "applied"
+        ],
+        "title": "AssistantTurnOut",
+        "type": "object"
+      },
       "AuthProvider": {
         "enum": [
           "google",
@@ -3404,6 +3473,70 @@
         "summary": "Get Trip",
         "tags": [
           "trips"
+        ]
+      }
+    },
+    "/trips/{trip_id}/assistant": {
+      "post": {
+        "description": "One utterance, interpreted against this trip's plan, applied, answered.\n\nThe 200 means the turn happened, not that anything changed: \"nothing here\nmatches that\" is a successful turn with an empty `applied`. A caller that\nwants to know whether the plan moved reads `applied`, not the status code.",
+        "operationId": "askAssistant",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trip_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Trip Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantAsk"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantTurnOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Problem details (RFC 9457)"
+          }
+        },
+        "summary": "Say something about this trip's plan and have the agent act on it",
+        "tags": [
+          "agent"
         ]
       }
     },

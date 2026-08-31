@@ -538,6 +538,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips/{trip_id}/assistant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Say something about this trip's plan and have the agent act on it
+         * @description One utterance, interpreted against this trip's plan, applied, answered.
+         *
+         *     The 200 means the turn happened, not that anything changed: "nothing here
+         *     matches that" is a successful turn with an empty `applied`. A caller that
+         *     wants to know whether the plan moved reads `applied`, not the status code.
+         */
+        post: operations["askAssistant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/trips/{trip_id}/confirm": {
         parameters: {
             query?: never;
@@ -710,6 +734,44 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** AssistantAsk */
+        AssistantAsk: {
+            /**
+             * Utterance
+             * @description What the traveler said, verbatim. Voice is transcribed client-side.
+             */
+            utterance: string;
+        };
+        /** AssistantChangeOut */
+        AssistantChangeOut: {
+            /**
+             * Item Id
+             * Format: uuid
+             */
+            item_id: string;
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
+        };
+        /** AssistantTurnOut */
+        AssistantTurnOut: {
+            /**
+             * Applied
+             * @description Plan items this turn actually moved, in the order they were applied.
+             */
+            applied: components["schemas"]["AssistantChangeOut"][];
+            /**
+             * Reply
+             * @description One sentence for the traveler. Never empty.
+             */
+            reply: string;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
         };
         /**
          * AuthProvider
@@ -2396,6 +2458,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TripOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    askAssistant: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantAsk"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantTurnOut"];
                 };
             };
             /** @description Problem details (RFC 9457) */
