@@ -739,6 +739,36 @@ class ExploreOut(BaseModel):
     route: ExploreRouteOut
 
 
+class BasemapOut(BaseModel):
+    """The ground the Explore map is drawn on: real streets, water and parks.
+
+    Coordinates, not an image. The client projects them with the same maths it
+    already uses for pins, so the basemap rescales with the plot instead of
+    going stale the moment a category chip changes what is on screen -- and it
+    arrives in our palette because we paint it, which a rendered tile could
+    never do.
+
+    Each way is a flat `[lat, lng, lat, lng, ...]` run. Nested pairs described
+    the same thing and cost roughly a third more bytes.
+    """
+
+    # The bucket actually served, which is not necessarily the radius asked
+    # for: areas are cached at fixed sizes so that panning and filtering reuse
+    # one fetch. Echoed so a client can tell it got a coarser area than it
+    # requested rather than inferring it from the geometry.
+    radius_m: int
+    # ODbL requires the credit, so it travels with the data rather than being
+    # left for a renderer to remember.
+    attribution: str
+    roads_major: list[list[float]]
+    roads_minor: list[list[float]]
+    water: list[list[float]]
+    parks: list[list[float]]
+    # Empty above the closest buckets, where a footprint is a speck and a city
+    # of them is a haze rather than a map.
+    buildings: list[list[float]]
+
+
 def explore_place_to_out(ranked: RankedPlace) -> ExplorePlaceOut:
     place = ranked.place
     return ExplorePlaceOut(

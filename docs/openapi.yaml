@@ -778,6 +778,43 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /explore/basemap:
+    get:
+      tags: [explore]
+      operationId: exploreBasemap
+      summary: Street, water and park geometry for the area this trip's map covers
+      description: >
+        Coordinates rather than a rendered tile, so the client projects them
+        with the same maths it uses for pins and paints them in the product's
+        palette. Sourced from OpenStreetMap and cached server-side for months;
+        street grids do not move. Its own endpoint because it changes on a
+        scale of years while the rest of /explore changes per tap, and because
+        the map renders on plain ground without it.
+      parameters:
+        - name: trip_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: radius_m
+          in: query
+          required: false
+          description: >
+            The client's plot radius. Bucketed server-side so that filtering a
+            category reuses the cached area rather than fetching a near-duplicate.
+          schema:
+            type: integer
+            default: 2000
+            minimum: 250
+            maximum: 20000
+      responses:
+        "200":
+          description: Geometry for the area, empty when the trip has no coordinates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Basemap"
   /geocode:
     get:
       tags: [explore]
@@ -1650,6 +1687,63 @@ components:
           $ref: "#/components/schemas/PlaceKind"
         count:
           type: integer
+
+    Basemap:
+      type: object
+      description: >
+        The ground under the pins: real streets, water and parks, as
+        coordinates rather than a rendered image. Each way is one flat
+        [lat, lng, lat, lng, ...] run -- nested pairs describe the same thing
+        for about a third more bytes. Sourced from OpenStreetMap.
+      required: [radius_m, attribution, roads_major, roads_minor, water, parks, buildings]
+      properties:
+        radius_m:
+          type: integer
+          description: >
+            The cached bucket actually served, which may be coarser than the
+            radius asked for.
+        attribution:
+          type: string
+          description: >
+            ODbL credit for the geometry. Carried with the data rather than
+            left for a renderer to remember.
+        roads_major:
+          type: array
+          description: Motorway, trunk and primary.
+          items:
+            type: array
+            items:
+              type: number
+        roads_minor:
+          type: array
+          description: Secondary and tertiary. Dropped whole when an area is too dense to be worth the bytes.
+          items:
+            type: array
+            items:
+              type: number
+        water:
+          type: array
+          description: Closed rings.
+          items:
+            type: array
+            items:
+              type: number
+        parks:
+          type: array
+          description: Closed rings.
+          items:
+            type: array
+            items:
+              type: number
+        buildings:
+          type: array
+          description: >
+            Closed rings. Empty above the closest buckets, where a footprint is
+            a speck and a city of them is a haze rather than a map.
+          items:
+            type: array
+            items:
+              type: number
 
     ExploreRoute:
       type: object

@@ -19,6 +19,7 @@ from sqlalchemy import select
 from app.api.deps import ApiRoute, CurrentUser, SessionDep
 from app.api.problems import Problem
 from app.api.schemas import (
+    BasemapOut,
     ExploreAnchorOut,
     ExploreKindOut,
     ExploreOut,
@@ -36,6 +37,7 @@ from app.api.trips import (
     owned_trip,
 )
 from app.db.models import Place, PlaceKind, Trip, UserPreferences
+from app.services.basemap import ATTRIBUTION, basemap_for, bucket_radius
 from app.services.places import default_provider
 from app.services.places.matching import (
     meters_between,
@@ -161,6 +163,31 @@ async def _todays_route(
     return ExploreRouteOut(stops=stops, total_minutes=total)
 
 
+def trip_anchor(trip: Trip) -> ExploreAnchorOut | None:
+    """The point this trip's map is measured and drawn from.
+
+    A function rather than two copies because the basemap has to be centred on
+    whatever the pins are centred on. Two definitions of "where is this trip"
+    would eventually disagree, and the symptom would be a city drawn next to
+    its own hotel.
+    """
+    if trip.hotel_lat is not None and trip.hotel_lng is not None:
+        return ExploreAnchorOut(
+            name=trip.hotel_name or "Your hotel",
+            is_hotel=True,
+            lat=trip.hotel_lat,
+            lng=trip.hotel_lng,
+        )
+    if trip.destination_lat is not None and trip.destination_lng is not None:
+        return ExploreAnchorOut(
+            name=trip.destination_city,
+            is_hotel=False,
+            lat=trip.destination_lat,
+            lng=trip.destination_lng,
+        )
+    return None
+
+
 @router.get("/explore")
 async def explore(
     user: CurrentUser,
@@ -172,21 +199,8 @@ async def explore(
 ) -> ExploreOut:
     trip = await owned_trip(session, user, trip_id)
 
-    if trip.hotel_lat is not None and trip.hotel_lng is not None:
-        anchor = ExploreAnchorOut(
-            name=trip.hotel_name or "Your hotel",
-            is_hotel=True,
-            lat=trip.hotel_lat,
-            lng=trip.hotel_lng,
-        )
-    elif trip.destination_lat is not None and trip.destination_lng is not None:
-        anchor = ExploreAnchorOut(
-            name=trip.destination_city,
-            is_hotel=False,
-            lat=trip.destination_lat,
-            lng=trip.destination_lng,
-        )
-    else:
+    anchor = trip_anchor(trip)
+    if anchor is None:
         # No point to measure from and no city column on `places`, so there is
         # no honest way to pick which cached rows belong to this trip.
         return ExploreOut(
@@ -241,6 +255,52 @@ async def explore(
         kinds=kinds,
         places=places,
         route=await _todays_route(session, trip, anchor),
+    )
+
+
+@router.get("/explore/basemap")
+async def explore_basemap(
+    user: CurrentUser,
+    session: SessionDep,
+    trip_id: uuid.UUID,
+    radius_m: int = Query(default=2000, ge=250, le=20_000),
+) -> BasemapOut:
+    """Street geometry for the area this trip's map covers.
+
+    Its own endpoint rather than a field on `/explore` for two reasons. It
+    changes on a scale of years while the rest of that payload changes per tap,
+    so bundling them would re-send a city every time a chip is pressed. And it
+    is the one part of the surface that may legitimately arrive late or not at
+    all: the map renders on plain ground without it, exactly as it did before.
+
+    `radius_m` is the client's plot radius, which is computed from what is on
+    screen. The server buckets it, so filtering a category usually reuses the
+    area already cached rather than fetching a slightly different one.
+    """
+    trip = await owned_trip(session, user, trip_id)
+    anchor = trip_anchor(trip)
+    if anchor is None or anchor.lat is None or anchor.lng is None:
+        # Same silence as `/explore` itself: with no point to centre on there
+        # is no area to draw, and guessing one would draw the wrong city.
+        return BasemapOut(
+            radius_m=bucket_radius(radius_m),
+            attribution=ATTRIBUTION,
+            roads_major=[],
+            roads_minor=[],
+            water=[],
+            parks=[],
+            buildings=[],
+        )
+
+    drawn = await basemap_for(session, anchor.lat, anchor.lng, radius_m)
+    return BasemapOut(
+        radius_m=bucket_radius(radius_m),
+        attribution=ATTRIBUTION,
+        roads_major=drawn.roads_major,
+        roads_minor=drawn.roads_minor,
+        water=drawn.water,
+        parks=drawn.parks,
+        buildings=drawn.buildings,
     )
 
 

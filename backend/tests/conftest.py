@@ -22,6 +22,11 @@ import pytest
 # test in every directory. `load_dotenv()` in tests/api/conftest.py does not
 # override an existing variable, so a stray .env cannot lift it.
 os.environ["PLACES_FETCH_ENABLED"] = "0"
+# Same reasoning, different provider. OpenStreetMap does not bill, so this one
+# is not about money -- it is that a suite which quietly issues live Overpass
+# requests is both slow and rude to a donated server, and the failure mode is
+# the same silent one: a test passes because a stranger's machine answered.
+os.environ["BASEMAP_FETCH_ENABLED"] = "0"
 
 
 class _NoLiveProvider:

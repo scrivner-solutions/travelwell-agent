@@ -862,6 +862,43 @@ class AreaFillRecord(Base):
     fetched_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
 
 
+class BasemapArea(Base):
+    """Street, water and park geometry for one area, cached as drawn.
+
+    The Explore map is a real map or it is a diagram of dots, and the
+    difference is this table. OpenStreetMap gives the geometry away, so unlike
+    `area_fills` the ceiling here is politeness to a community server rather
+    than money -- which is why there is no outcome enum: nothing bills, so a
+    failed attempt costs only the retry.
+
+    Geometry is stored in degrees, not pixels. The map's scale is
+    content-dependent -- it changes the moment a category chip hides the
+    furthest pin -- so a cached projection would be stale before the first tap.
+    """
+
+    __tablename__ = "basemap_areas"
+
+    basemap_area_id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, server_default=sa.text("gen_random_uuid()")
+    )
+    # Rounded centre and radius. `area_key()` in the basemap layer owns the
+    # format and is the only thing that may construct one.
+    area_key: Mapped[str] = mapped_column(unique=True, doc="rounded lat/lng and radius")
+    # Each way is one flat [lat, lng, lat, lng, ...] run. Flat rather than
+    # nested pairs because the payload is almost entirely numbers and the
+    # nesting cost more bytes than it explained.
+    roads_major: Mapped[list] = mapped_column(pg.JSONB, doc="motorway/trunk/primary")
+    roads_minor: Mapped[list] = mapped_column(pg.JSONB, doc="secondary/tertiary")
+    water: Mapped[list] = mapped_column(pg.JSONB, doc="closed rings")
+    parks: Mapped[list] = mapped_column(pg.JSONB, doc="closed rings")
+    # Only fetched for the closest buckets. At a 12.5 m pixel a footprint is a
+    # three-pixel speck, and a city of them is a grey haze over the streets.
+    buildings: Mapped[list] = mapped_column(pg.JSONB, doc="closed rings, close zooms only")
+    # An area with no geometry is a real answer -- open sea, a sparse suburb --
+    # so emptiness cannot be the signal to refetch. This timestamp is.
+    fetched_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+
+
 class AgentEvent(Base):
     """Trace root: every inbound trigger lands here before anything runs."""
 
