@@ -55,16 +55,32 @@ os.environ.setdefault("APP_ENV", "test")
 # worktree's backend/.env would otherwise decide what the redirect tests assert.
 os.environ["PUBLIC_BASE_URL"] = "http://localhost:5173"
 
-# Truncated together so FK order never matters. CASCADE follows foreign keys
-# OUT of these tables, so it does NOT reach a new table that references nothing
-# -- `area_fills` was invisible here until it was named, and the symptom was one
-# test seeing the previous test's rows. A new table belongs in this list.
-ALL_TABLES = (
-    "users, user_preferences, login_codes, connected_sources, trips, "
-    "trip_evidence, calendar_events, places, area_fills, wellness_windows, "
-    "plans, plan_items, plan_item_options, pending_actions, reservations, "
-    "agent_runs, agent_events, notifications"
-)
+def all_tables() -> str:
+    """Every modeled table, derived rather than listed.
+
+    This was a hand-written list, under a comment claiming CASCADE would reach
+    any table a future migration added. The real rule is narrower, and both
+    convenient summaries of it are wrong: an unlisted table is truncated if and
+    only if it has a foreign key INTO a listed table. `stored_secrets` was
+    missing from the list and truncated anyway, through `user_id -> users`.
+    `area_fills` has no foreign key in either direction, so nothing reached it,
+    and tests read each other's rows.
+
+    The failure is silent. It surfaces as an assertion inside whichever test
+    happens to run second, which reads as a bug in that test rather than here.
+
+    Deriving from `Base.metadata` is not a new mechanism. The repo already
+    treats the ORM models as the schema source and generates `docs/schema.sql`
+    from this same metadata, so the hand-written list was a second copy of a
+    list the repo already maintains. That is the load-bearing assumption: a
+    table created by a migration but never modeled would still be missed, and
+    `alembic check` is what keeps that from existing.
+    """
+    # Imported here, not at module scope: this file forces DATABASE_URL before
+    # anything under `app` is allowed to load.
+    from app.db.models import Base
+
+    return ", ".join(sorted(t.name for t in Base.metadata.sorted_tables))
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -103,7 +119,7 @@ async def clean_tables(database):
     import app.db.engine as db
 
     async with db.engine.begin() as conn:
-        await conn.execute(sa.text(f"truncate {ALL_TABLES} cascade"))
+        await conn.execute(sa.text(f"truncate {all_tables()} cascade"))
 
 
 @pytest_asyncio.fixture
