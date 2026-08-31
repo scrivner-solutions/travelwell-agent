@@ -341,6 +341,9 @@ class ConnectedSourceOut(BaseModel):
 
 class SourcesOut(BaseModel):
     sources: list[ConnectedSourceOut]
+    # Which kinds this build can actually put through an OAuth handshake, so the
+    # client can offer Connect for a kind the user has no row for yet.
+    connectable: list[SourceKind]
 
 
 class SyncOut(BaseModel):

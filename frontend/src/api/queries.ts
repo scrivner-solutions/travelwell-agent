@@ -313,6 +313,15 @@ export async function dismissTrip(tripId: string, updatedAt: string): Promise<Tr
   )
 }
 
+/** Deletes our stored token and marks the grant revoked. The row survives, so
+ * the profile can say "disconnected" rather than silently showing nothing. */
+export async function disconnectSource(kind: SourceKind): Promise<void> {
+  const client = await api()
+  throwOnError(
+    await client.DELETE('/me/sources/{kind}', { params: { path: { kind } } }),
+  )
+}
+
 export async function logout(): Promise<void> {
   const client = await api()
   throwOnError(await client.POST('/auth/logout'))
@@ -321,6 +330,7 @@ export async function logout(): Promise<void> {
 export type Preferences = components['schemas']['PreferencesOut']
 export type PreferencesUpdate = components['schemas']['PreferencesUpdateIn']
 export type ConnectedSource = components['schemas']['ConnectedSourceOut']
+export type SourceKind = ConnectedSource['kind']
 
 export function preferencesQueryOptions() {
   return queryOptions({
@@ -337,7 +347,9 @@ export function sourcesQueryOptions() {
     queryKey: ['me', 'sources'],
     queryFn: async () => {
       const client = await api()
-      return throwOnError(await client.GET('/me/sources')).sources
+      // The whole payload, not just the rows: `connectable` is what says a
+      // Connect button may be offered for a kind the user has no row for.
+      return throwOnError(await client.GET('/me/sources'))
     },
   })
 }

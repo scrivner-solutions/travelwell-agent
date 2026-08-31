@@ -851,12 +851,21 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [sources]
+                required: [sources, connectable]
                 properties:
                   sources:
                     type: array
                     items:
                       $ref: "#/components/schemas/ConnectedSource"
+                  connectable:
+                    type: array
+                    description: >
+                      Kinds this build can put through an OAuth handshake, so a
+                      client can offer Connect for a kind the user has no row
+                      for yet. Served rather than hardcoded client-side: the set
+                      grows as providers land, and a second copy drifts.
+                    items:
+                      $ref: "#/components/schemas/SourceKind"
         default:
           $ref: "#/components/responses/Problem"
 
