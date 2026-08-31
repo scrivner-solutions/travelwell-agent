@@ -126,6 +126,7 @@ class Refusal:
 
     item_id: str
     code: str
+    name: str = ""  # empty when the id matched no item we could name
 
 
 @dataclass(frozen=True)
@@ -304,7 +305,9 @@ async def apply_decision(
         if item.status == ItemStatus.skipped:
             continue  # Postcondition first, as every gate in `api/plan.py` is.
         if item.status not in _OPEN_TO_DECISION:
-            refused.append(Refusal(action.item_id, f"status:{item.status.value}"))
+            refused.append(
+                Refusal(action.item_id, f"status:{item.status.value}", item_name(item))
+            )
             continue
         item.status = ItemStatus.skipped
         item.updated_at = now
@@ -317,15 +320,44 @@ async def apply_decision(
     return applied, refused
 
 
-def compose_reply(
-    decision: AssistantDecision, applied: Sequence[ItemChange]
-) -> str:
-    """The model's sentence when it survived the prose tier, otherwise ours.
+_HELD = {
+    "confirmed": "is booked, so it stays on the plan",
+    "working": "is being booked right now, so it stays on the plan",
+    "removed": "is already off the plan",
+    "not_in_plan": "is not on this plan",
+}
 
-    A reply is never left empty. The prose tier rejects agent voice outright,
-    and "I've taken the gym off your plan" is exactly the sentence a model
-    writes here, so the fallback is the common path rather than the rare one.
+
+def _refusal_sentence(refusal: Refusal) -> str:
+    subject = refusal.name or "That item"
+    tail = _HELD.get(refusal.code.removeprefix("status:"), "cannot be taken off")
+    return f"{subject} {tail}."
+
+
+def compose_reply(
+    decision: AssistantDecision,
+    applied: Sequence[ItemChange],
+    refused: Sequence[Refusal] = (),
+) -> str:
+    """What actually happened, in words - never what the model hoped would.
+
+    The model writes its sentence at decision time, before the controller has
+    decided what it will carry out, so an optimistic reply survives a refusal
+    and tells the traveler their booked session was cancelled when it was not.
+    Measured live: "I am tired today, skip the gym" against a confirmed YMCA
+    booking returned `applied: []`, `refused: [status:confirmed]`, and the
+    model's "The YMCA session has been removed from today's plan."
+
+    So the model's prose is only usable when the controller did exactly what
+    the model asked. The moment anything is refused, the reply is composed from
+    the outcome instead. A reply is never left empty.
     """
+    if refused:
+        lines = [_refusal_sentence(r) for r in refused]
+        names = [c.name for c in applied if c.name]
+        if names:
+            lines.insert(0, f"Off the plan: {', '.join(names)}.")
+        return " ".join(lines)
     if decision.reply:
         return decision.reply
     if not applied:
@@ -417,7 +449,7 @@ async def respond(
         applied, refused = await apply_decision(
             session, decision, trip=trip, plan=plan, now=now
         )
-        reply = compose_reply(decision, applied)
+        reply = compose_reply(decision, applied, refused)
 
         run.status = RunStatus.completed
         run.finished_at = now

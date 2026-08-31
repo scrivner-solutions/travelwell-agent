@@ -284,6 +284,49 @@ async def test_an_item_held_by_a_booking_is_refused_not_skipped(gather_scene):
 
 
 @pytest.mark.asyncio
+async def test_a_refused_skip_is_never_reported_to_the_traveler_as_done(gather_scene):
+    """The reply may not outrun the controller.
+
+    The model writes its sentence before the controller decides anything, so a
+    confident "removed from your plan" survives a refusal unless something
+    stops it. Measured live against real Gemini on 2026-08-31: a confirmed YMCA
+    booking produced `applied: []`, `refused: [status:confirmed]`, and the
+    sentence "The YMCA session has been removed from today's plan." rendered on
+    screen. The session was still booked.
+
+    The earlier test above asserts a refusal is not applied; it asserts only
+    that *some* sentence came back. This one is about what the sentence says,
+    which is the half the traveler actually reads.
+    """
+    import sqlalchemy as sa
+
+    import app.db.engine as db
+    from app.db.models import ItemStatus, PlanItem
+
+    trip_id, item_id = await a_trip_with_a_gym_on_the_plan(gather_scene)
+    async with db.SessionFactory() as session:
+        await session.execute(
+            sa.update(PlanItem)
+            .where(PlanItem.item_id == uuid.UUID(item_id))
+            .values(status=ItemStatus.confirmed)
+        )
+        await session.commit()
+
+    outcome, _ = await ask(
+        trip_id,
+        "I am tired today, skip the gym",
+        [skip_response(item_id, reply="The gym has been removed from today's plan.")],
+    )
+
+    assert await status_of(item_id) == "confirmed"
+    assert outcome.applied == ()
+    # The model's optimistic sentence must not survive the refusal.
+    assert "removed" not in outcome.reply.lower(), outcome.reply
+    assert "booked" in outcome.reply.lower(), outcome.reply
+    assert GYM in outcome.reply, outcome.reply
+
+
+@pytest.mark.asyncio
 async def test_a_finished_trip_refuses_before_anything_is_spent(gather_scene):
     """409 at the door, no run row, no model call - a record does not take edits."""
     import sqlalchemy as sa
