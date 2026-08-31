@@ -1,12 +1,19 @@
 import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { exploreQueryOptions, tripsQueryOptions, type PlaceKind } from '@/api/queries'
+import {
+  basemapQueryOptions,
+  basemapRadius,
+  exploreQueryOptions,
+  tripsQueryOptions,
+  type PlaceKind,
+} from '@/api/queries'
 import { focusTrip } from '@/lib/trips'
 import { EmptyState, LoadingState } from '@/components/ui/ScreenState'
 import { ProfileButton } from '@/components/ui/ProfileButton'
 import { CategoryChips } from './CategoryChips'
 import { PlaceCard } from './PlaceCard'
 import { PlaceMap } from './PlaceMap'
+import { plotRadiusFor } from './projection'
 
 /* The design's section heading names the category in the user's language
  * rather than repeating the chip. There is no "All" in the design because it
@@ -56,6 +63,25 @@ export function ExploreScreen() {
   const explore = useQuery({
     ...exploreQueryOptions(trip?.id ?? '', { category }),
     enabled: trip !== undefined,
+  })
+
+  /* Asked for after Explore answers, because the area to fetch is the area the
+     map will draw, and that is decided by what came back. Deliberately not part
+     of the loading gate below: the map renders on plain ground without it, and
+     making the screen wait for geography would trade a working map for a
+     slower one. */
+  const drawnRadius =
+    explore.data?.anchor != null
+      ? plotRadiusFor(
+          explore.data.anchor,
+          explore.data.places,
+          explore.data.route,
+          explore.data.radius_m,
+        )
+      : null
+  const basemap = useQuery({
+    ...basemapQueryOptions(trip?.id ?? '', drawnRadius === null ? 0 : basemapRadius(drawnRadius)),
+    enabled: trip !== undefined && drawnRadius !== null,
   })
 
   if (trips.isPending || (trip !== undefined && explore.isPending)) {
@@ -109,6 +135,7 @@ export function ExploreScreen() {
         <PlaceMap
           anchor={anchor}
           places={data.places}
+          basemap={basemap.data}
           radiusM={data.radius_m}
           timezone={trip.timezone}
           route={data.route}

@@ -2,7 +2,7 @@ import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ExploreAnchor, ExplorePlace, ExploreRoute } from '@/api/queries'
+import type { Basemap, ExploreAnchor, ExplorePlace, ExploreRoute } from '@/api/queries'
 import { CategoryChips } from './CategoryChips'
 import { PlaceCard } from './PlaceCard'
 import { PlaceMap } from './PlaceMap'
@@ -370,5 +370,122 @@ describe('PlaceMap', () => {
     const { container } = draw({ selectedId: 'n', route: routeToNorth })
     expect(spur(container)).toBeUndefined()
     expect(screen.queryByText(/^Add North/)).toBeNull()
+  })
+})
+
+/**
+ * The basemap: real OpenStreetMap geometry under the pins.
+ *
+ * What these pin is the property that made it worth fetching coordinates
+ * rather than an image. The streets go through the same projection the pins
+ * do, so they stay under the right pin when the scale changes -- which it does
+ * on every category tap. A rendered tile could not do that, and neither could
+ * a second copy of the projection maths.
+ */
+describe('PlaceMap basemap', () => {
+  const streets: Basemap = {
+    radius_m: 2000,
+    attribution: '© OpenStreetMap contributors',
+    // A north-south street through the anchor, and an east-west one.
+    roads_major: [[41.885, -87.6252, 41.9, -87.6252]],
+    roads_minor: [[41.8924, -87.633, 41.8924, -87.617]],
+    water: [[41.895, -87.63, 41.896, -87.628, 41.895, -87.63]],
+    parks: [],
+    buildings: [],
+  }
+  const empty: Basemap = {
+    radius_m: 2000,
+    attribution: '© OpenStreetMap contributors',
+    roads_major: [],
+    roads_minor: [],
+    water: [],
+    parks: [],
+    buildings: [],
+  }
+  const somewhere = place({ id: 'n', name: 'North', lat: 41.9, lng: -87.6252 })
+
+  function drawMap(basemap?: Basemap) {
+    return render(
+      <PlaceMap
+        anchor={anchor}
+        places={[somewhere]}
+        route={{ stops: [], total_minutes: null }}
+        basemap={basemap}
+        radiusM={8000}
+        timezone={TZ}
+        selectedId={null}
+        onSelect={() => {}}
+        onOpen={() => {}}
+      />,
+    )
+  }
+
+  const texture = (c: HTMLElement) => c.querySelector('[class*="map-texture"]')
+
+  it('draws real streets when it has them', () => {
+    const { container } = drawMap(streets)
+    expect(container.querySelector('.stroke-map-road-major')).not.toBeNull()
+    expect(container.querySelector('.stroke-map-road')).not.toBeNull()
+    expect(container.querySelector('.fill-map-water')).not.toBeNull()
+  })
+
+  it('gives up the placeholder grid to real streets', () => {
+    // The grid stands in for a street network; both at once reads as two.
+    expect(texture(drawMap().container)).not.toBeNull()
+    expect(texture(drawMap(streets).container)).toBeNull()
+  })
+
+  it('keeps the placeholder grid when the area came back with nothing in it', () => {
+    // Open sea and "we could not fetch" arrive identically here, and neither is
+    // a reason to remove the only texture the band has.
+    expect(texture(drawMap(empty).container)).not.toBeNull()
+  })
+
+  it('credits OpenStreetMap wherever the geometry is shown', () => {
+    // ODbL, not decoration.
+    const { container } = drawMap(streets)
+    expect(container.textContent).toContain('OpenStreetMap')
+  })
+
+  it('leaves the credit off when there is no geometry to credit', () => {
+    expect(drawMap(empty).container.textContent).not.toContain('OpenStreetMap')
+  })
+
+  it('puts the street through the anchor at the centre of the plot', () => {
+    /* The load-bearing one. The north-south road runs along the anchor's own
+       longitude, so whatever the scale, it has to be drawn down the middle. */
+    const { container } = drawMap(streets)
+    const d = container.querySelector('.stroke-map-road-major')!.getAttribute('d')!
+    const xs = [...d.matchAll(/[ML](-?[\d.]+) /g)].map((m) => Number(m[1]))
+    expect(xs.every((x) => Math.abs(x - 160) < 0.5)).toBe(true)
+  })
+
+  it('rescales the streets with the pins rather than holding still', () => {
+    /* What an image could not do. Same geometry, a nearer furthest pin, so the
+       plot zooms in and the same street has to move outward with it. */
+    const near = place({ id: 'x', name: 'Near', lat: 41.8934, lng: -87.6252 })
+    const wide = render(
+      <PlaceMap anchor={anchor} places={[somewhere]} route={{ stops: [], total_minutes: null }}
+        basemap={streets} radiusM={8000} timezone={TZ} selectedId={null}
+        onSelect={() => {}} onOpen={() => {}} />,
+    )
+    const close = render(
+      <PlaceMap anchor={anchor} places={[near]} route={{ stops: [], total_minutes: null }}
+        basemap={streets} radiusM={8000} timezone={TZ} selectedId={null}
+        onSelect={() => {}} onOpen={() => {}} />,
+    )
+    const ys = (c: HTMLElement) =>
+      [...c
+        .querySelector('.stroke-map-road-major')!
+        .getAttribute('d')!
+        .matchAll(/[ML]-?[\d.]+ (-?[\d.]+)/g)].map((m) => Number(m[1]))
+    const spread = (c: HTMLElement) => Math.max(...ys(c)) - Math.min(...ys(c))
+    expect(spread(close.container)).toBeGreaterThan(spread(wide.container) * 2)
+  })
+
+  it('culls a way that is nowhere near the frame', () => {
+    const faraway: Basemap = { ...empty, roads_major: [[51.5, -0.12, 51.51, -0.13]] }
+    const { container } = drawMap(faraway)
+    expect(container.querySelector('.stroke-map-road-major')).toBeNull()
   })
 })

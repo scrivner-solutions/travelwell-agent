@@ -18,6 +18,7 @@ export type Explore = components['schemas']['ExploreOut']
 export type ExplorePlace = components['schemas']['ExplorePlaceOut']
 export type ExploreAnchor = components['schemas']['ExploreAnchorOut']
 export type ExploreRoute = components['schemas']['ExploreRouteOut']
+export type Basemap = components['schemas']['BasemapOut']
 export type ExploreRouteStop = components['schemas']['ExploreRouteStopOut']
 export type PlaceKind = components['schemas']['PlaceKind']
 
@@ -363,6 +364,39 @@ export async function updatePreferences(
   return throwOnError<Preferences>(
     await client.PATCH('/me/preferences', { body: patch }),
   )
+}
+
+/** How wide an area to ask for, given what the map is currently showing.
+
+ *  The 1.2 covers the viewport square being slightly larger than the plot
+ *  circle it is scaled from. The rounding is not the server's bucketing
+ *  repeated -- that stays server-side and comes back in `radius_m` -- it only
+ *  stops a few metres of drift in the plot radius from making a new request. */
+export function basemapRadius(plotRadiusM: number): number {
+  return Math.max(500, Math.ceil((plotRadiusM * 1.2) / 500) * 500)
+}
+
+/** The ground under the pins: real streets, water and parks.
+
+ *  Its own query rather than a field on Explore because the two age nothing
+ *  alike. Category chips re-read Explore constantly; this changes on a scale
+ *  of years, so it is held for the session and never refetched on focus. A
+ *  failure is not surfaced: the map draws on plain ground without it. */
+export function basemapQueryOptions(tripId: string, radiusM: number) {
+  return queryOptions({
+    queryKey: ['trips', tripId, 'basemap', radiusM],
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: false,
+    queryFn: async () => {
+      const client = await api()
+      return throwOnError<Basemap>(
+        await client.GET('/explore/basemap', {
+          params: { query: { trip_id: tripId, radius_m: radiusM } },
+        }),
+      )
+    },
+  })
 }
 
 export interface ExploreFilters {

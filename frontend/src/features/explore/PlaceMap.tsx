@@ -1,28 +1,36 @@
 import type { ReactNode } from 'react'
-import type { ExploreAnchor, ExplorePlace, ExploreRoute } from '@/api/queries'
+import type { Basemap, ExploreAnchor, ExplorePlace, ExploreRoute } from '@/api/queries'
+import { BasemapLayer } from './BasemapLayer'
+import {
+  CENTER,
+  PLOT_RADIUS,
+  VIEW,
+  hasGeography,
+  offset,
+  plotRadiusFor,
+  type Offset,
+  type Point,
+} from './projection'
 import { hoursLabel } from './hours'
 
 /* Positions are real: each pin sits at its true bearing and distance from the
- * anchor, projected flat. What is missing is street detail, which needs map
- * tiles. So this draws the spatial relationship the brief asks for -- hotel to
- * gym to dinner -- without drawing streets it cannot know. Swapping tiles in
- * underneath later does not move a single pin.
+ * anchor, projected flat, on top of real streets drawn by `BasemapLayer`.
  *
- * The design's painted park, river and block are the one element deliberately
- * not copied. They are geography, and we have none: a green rectangle labelled
- * MILLENNIUM PARK is right in Chicago and a lie in Kyoto, and nothing here can
- * tell which trip it is drawing. Real ones arrive with tiles, which is a
- * provider and a bill, not a stylesheet. */
-
-const METERS_PER_DEGREE_LAT = 111_320
-const VIEW = 320
-const CENTER = VIEW / 2
-const PLOT_RADIUS = CENTER - 26
+ * The design's painted park, river and block are still not copied, and the
+ * reason is worth keeping: they are geography drawn where it looked good, and
+ * a green rectangle labelled MILLENNIUM PARK is right in Chicago and a lie in
+ * Kyoto. The answer was never a nicer fake. OpenStreetMap gives the real
+ * geometry away -- what a tile provider charges for is its own rendering of
+ * it, which is precisely the half we do not want, since ours has to arrive in
+ * this palette. */
 
 export interface PlaceMapProps {
   anchor: ExploreAnchor
   places: ExplorePlace[]
   route: ExploreRoute
+  /** Real streets, water and parks. Absent until it loads, and absent for good
+   *  if it cannot: the map is designed to work without it. */
+  basemap?: Basemap
   radiusM: number
   timezone: string
   selectedId: string | null
@@ -31,49 +39,6 @@ export interface PlaceMapProps {
   onOpen: (id: string) => void
   /** Floats over the map, top-left: the category chips. */
   children?: ReactNode
-}
-
-/** Metres east and north of the anchor. Scaling happens afterwards, once every
- *  point that has to fit on the plot has been measured. */
-interface Offset {
-  eastM: number
-  northM: number
-}
-
-interface Point {
-  x: number
-  y: number
-}
-
-function offset(
-  lat: number | null | undefined,
-  lng: number | null | undefined,
-  anchor: ExploreAnchor,
-): Offset | null {
-  if (lat == null || lng == null || anchor.lat == null || anchor.lng == null) {
-    return null
-  }
-  const shrink = Math.cos((anchor.lat * Math.PI) / 180)
-  return {
-    eastM: (lng - anchor.lng) * METERS_PER_DEGREE_LAT * shrink,
-    northM: (lat - anchor.lat) * METERS_PER_DEGREE_LAT,
-  }
-}
-
-/* Scale to the furthest thing drawn, not to the query radius. The radius is a
- * ceiling on what was searched; drawing to it puts every pin of a walkable
- * cluster in a heap at the centre of a mostly empty frame. A floor keeps a
- * single very close place from filling it.
- *
- * Route stops count towards the maximum even when a category filter hides
- * their pin, or the day's dinner leg runs off the edge whenever the Workout
- * chip is the one selected. */
-function plotRadiusMeters(offsets: Offset[], radiusM: number): number {
-  const furthest = offsets.reduce(
-    (max, o) => Math.max(max, Math.hypot(o.eastM, o.northM)),
-    0,
-  )
-  return furthest > 0 ? Math.max(furthest * 1.15, 400) : radiusM
 }
 
 /** The design labels pins by initial, not by rank. A number would claim an
@@ -106,6 +71,7 @@ export function PlaceMap({
   anchor,
   places,
   route,
+  basemap,
   radiusM,
   timezone,
   selectedId,
@@ -122,15 +88,23 @@ export function PlaceMap({
     at: offset(stop.lat, stop.lng, anchor),
   }))
 
-  const measured = [...placeOffsets, ...routeOffsets]
-    .map((entry) => entry.at)
-    .filter((at): at is Offset => at !== null)
-  const metersPerUnit = plotRadiusMeters(measured, radiusM) / PLOT_RADIUS
+  const metersPerUnit = plotRadiusFor(anchor, places, route, radiusM) / PLOT_RADIUS
   const toPoint = (at: Offset): Point => ({
     x: CENTER + at.eastM / metersPerUnit,
     // Screen y grows downward; north must go up.
     y: CENTER - at.northM / metersPerUnit,
   })
+
+  /* The basemap arrives as coordinates, so it goes through exactly the maths
+     the pins do. That is what keeps the streets under the right pin when a
+     category filter changes the scale -- a pre-rendered image could not. */
+  const project = (lat: number, lng: number): Point => {
+    const at = offset(lat, lng, anchor)
+    // Far enough off-canvas to be culled. Reached only when the anchor has no
+    // coordinates, in which case there is no basemap to draw either.
+    return at === null ? { x: -9999, y: -9999 } : toPoint(at)
+  }
+  const ground = hasGeography(basemap)
 
   const pins = placeOffsets.flatMap((entry) =>
     entry.at === null ? [] : [{ place: entry.place, ...toPoint(entry.at) }],
@@ -160,7 +134,11 @@ export function PlaceMap({
 
   return (
     <div className="relative h-[352px] overflow-hidden bg-map-ground">
-      <div aria-hidden className="absolute inset-0 bg-[image:var(--map-texture)]" />
+      {/* The grid stands in for streets. Under real ones it would read as a
+          second, wrong street network, so it gives way to them. */}
+      {!ground && (
+        <div aria-hidden className="absolute inset-0 bg-[image:var(--map-texture)]" />
+      )}
 
       {/* Kept square and centred so a percentage offset means the same distance
           horizontally as vertically. The ground fills whatever is left over. */}
@@ -171,6 +149,7 @@ export function PlaceMap({
           role="img"
           aria-label={`Places around ${anchor.name}`}
         >
+          {ground && <BasemapLayer basemap={basemap} project={project} view={VIEW} />}
           {routePoints.length > 1 && (
             <polyline
               points={routePoints.map((p) => `${p.x},${p.y}`).join(' ')}
@@ -295,6 +274,15 @@ export function PlaceMap({
       </div>
 
       {children && <div className="absolute inset-x-4 top-3.5 z-30">{children}</div>}
+
+      {/* ODbL requires the credit wherever the geometry is shown, so this is a
+          licence term rather than a nicety. Placed against the ground's own
+          right edge, below the chips and clear of the route strip. */}
+      {ground && (
+        <p className="pointer-events-none absolute right-1.5 bottom-1 z-10 text-[9px] leading-none text-muted-faint">
+          {basemap.attribution}
+        </p>
+      )}
 
       <div className="absolute inset-x-4 bottom-3.5 z-20 flex flex-col items-start gap-1.5">
         <RouteStrip route={route} />
