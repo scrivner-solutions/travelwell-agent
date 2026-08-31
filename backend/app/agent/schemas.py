@@ -331,6 +331,10 @@ class ViolationCode(enum.StrEnum):
     # depth; Verify is now their only enforcement.
     too_many_items = "too_many_items"
     too_many_options = "too_many_options"
+    # The assistant's two, in the same vocabulary because a repair turn is
+    # rendered by the same code whichever pipeline produced the violation.
+    unknown_item = "unknown_item"
+    too_many_actions = "too_many_actions"
     # Not in AGENT_DESIGN.md's table, which assumes a payload that already
     # matched the schema. With structured outputs this should be unreachable;
     # if it fires, the provider ignored the schema.

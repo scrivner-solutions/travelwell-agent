@@ -670,6 +670,43 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /trips/{tripId}/assistant:
+    post:
+      tags: [events]
+      operationId: askAssistant
+      summary: Say something about this trip's plan and have the agent act on it
+      description: |
+        The attended counterpart to /events. That spine is for producers that
+        drop a row and stop; this is for a person looking at the screen, so the
+        turn runs inside the request and the answer comes back with it.
+
+        It still writes an `agent_events` row as the trace root, so the event
+        log stays the record of everything the agent did. What it does not do is
+        classify: the trip is named in the path by the person who owns it, so
+        there is nothing to admit.
+
+        200 means the turn happened, not that anything changed. An utterance the
+        plan cannot express is a successful turn with an empty `applied` and a
+        reply saying so.
+      parameters:
+        - $ref: "#/components/parameters/TripId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssistantAsk"
+      responses:
+        "200":
+          description: The turn, and any plan items it moved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssistantTurn"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /runs/{runId}:
     get:
       tags: [events]
@@ -1773,6 +1810,52 @@ components:
           type: object
           description: Kind-specific payload (transcript text, UI intent name, etc.).
           additionalProperties: true
+
+    AssistantAsk:
+      type: object
+      required: [utterance]
+      properties:
+        utterance:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: What the traveler said, verbatim. Voice is transcribed client-side.
+
+    AssistantChange:
+      type: object
+      required: [item_id, name, status]
+      properties:
+        item_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: The item as the traveler sees it, from the selected option.
+        status:
+          type: string
+          description: >-
+            What the item was moved to. Only `skipped` is reachable from an
+            utterance: `removed` is a tombstone with no way back, which is more
+            than a sentence should be able to decide.
+
+    AssistantTurn:
+      type: object
+      required: [run_id, reply, applied]
+      properties:
+        run_id:
+          type: string
+          format: uuid
+        reply:
+          type: string
+          description: >-
+            One plain sentence for the traveler. Never empty, and never in the
+            first person - if the model writes as "I", the sentence is
+            regenerated from the rows that actually moved.
+        applied:
+          type: array
+          description: Plan items this turn moved. Empty when nothing matched.
+          items:
+            $ref: "#/components/schemas/AssistantChange"
 
     RunRef:
       type: object

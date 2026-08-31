@@ -326,16 +326,13 @@ async def test_the_daily_checkin_reads_what_the_planner_already_paid_for(
     assert result.coverage.authoritative is False
 
 
-@pytest.mark.asyncio
-async def test_a_trip_with_nowhere_to_be_near_never_claims_a_search(
-    gather_scene, fetching_allowed
-):
+async def unanchor(trip_id):
+    """Strip every coordinate off the trip, as `create_trip` leaves it."""
     import sqlalchemy as sa
 
     import app.db.engine as db
     from app.db.models import Trip
 
-    trip_id = await gather_scene()
     async with db.SessionFactory() as session:
         await session.execute(
             sa.update(Trip)
@@ -348,6 +345,14 @@ async def test_a_trip_with_nowhere_to_be_near_never_claims_a_search(
             )
         )
         await session.commit()
+    return trip_id
+
+
+@pytest.mark.asyncio
+async def test_a_trip_with_nowhere_to_be_near_never_claims_a_search(
+    gather_scene, fetching_allowed
+):
+    trip_id = await unanchor(await gather_scene())
 
     provider = CountingProvider()
     result = await run_gather(trip_id, provider=provider)
@@ -362,3 +367,28 @@ async def test_the_reason_travels_into_the_context_snapshot(gather_scene):
     result = await run_gather(await gather_scene(), provider=CountingProvider())
     assert "places_coverage:policy_declined" in result.context.meta.degraded
 
+
+
+@pytest.mark.asyncio
+async def test_a_trip_with_no_coordinates_offers_no_candidates(gather_scene):
+    """An unanchored trip must reach the model with nothing, not with everything.
+
+    The coverage test above proves gather is *honest* about not having searched.
+    It says nothing about what came back from the cache anyway, and that is the
+    whole bug: with no origin the distance filter is skipped rather than failing
+    closed, so every `Place` row in the database becomes a candidate for a trip
+    that could be on another continent. `Evanston pool` is the witness - the
+    anchored run is already proven to exclude it as too far.
+    """
+    result = await run_gather(await unanchor(await gather_scene()))
+
+    names = [c.name for c in result.context.candidates]
+    assert "Evanston pool" not in names, (
+        "a place the anchored run rejects as too far cannot become eligible by "
+        "the trip losing its coordinates"
+    )
+    assert names == [], f"no origin means no candidates, got {names}"
+    assert result.context.is_empty_decision_space(), (
+        "this is the property that matters: an empty decision space is what "
+        "stops the run before it spends a model call planning the wrong city"
+    )

@@ -421,10 +421,16 @@ async def _nearby_places(
     Filtered in Python rather than SQL: without PostGIS the query would be a
     bounding box that still needs the real distance afterwards, and the cache is
     small. Track B owns filling this table; nothing here calls the Places API.
+
+    No origin fails closed. The cache is global, so an unfiltered read hands a
+    Kyoto trip every place in Seattle and the run plans the wrong city with a
+    confident 200. Nothing downstream can catch that - the places are real and
+    the schema is satisfied - so the honest answer is no candidates, which makes
+    the context an empty decision space and stops the run before the model call.
     """
-    rows = list((await session.execute(select(Place))).scalars())
     if origin is None:
-        return rows
+        return []
+    rows = list((await session.execute(select(Place))).scalars())
     near = []
     for place in rows:
         if place.lat is None or place.lng is None:

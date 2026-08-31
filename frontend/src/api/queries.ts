@@ -402,3 +402,31 @@ export function exploreQueryOptions(tripId: string, filters: ExploreFilters = {}
     },
   })
 }
+
+// --- Assistant (one utterance, applied to this trip's plan) ---------------
+
+export type AssistantTurn = components['schemas']['AssistantTurnOut']
+
+/**
+ * Say something about a trip's plan and have the agent act on it.
+ *
+ * The key is the caller's, not generated here: a retry of a lost response has
+ * to send the same one, or the traveler pays for a second model call and may
+ * get a second answer to a question they asked once.
+ */
+export async function askAssistant(
+  tripId: string,
+  utterance: string,
+  idempotencyKey: string,
+): Promise<AssistantTurn> {
+  const client = await api()
+  return throwOnError<AssistantTurn>(
+    await client.POST('/trips/{trip_id}/assistant', {
+      params: {
+        path: { trip_id: tripId },
+        header: { 'Idempotency-Key': idempotencyKey },
+      },
+      body: { utterance },
+    }),
+  )
+}
