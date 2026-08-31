@@ -174,7 +174,7 @@ async def test_choosing_an_option_leaves_the_status_alone(authed_client, scene):
         f"/api/v1/plan-items/{workout['id']}/select-option",
         json={"option_id": alternative["id"], "updated_at": workout["updated_at"]},
     )
-    assert r.json()["status"] == "suggested"
+    assert r.json()["status"] == "awaiting_user"
 
 
 async def test_reselecting_the_current_option_is_a_no_op(authed_client, scene):
@@ -435,7 +435,9 @@ async def test_a_finished_trips_plan_refuses_every_gate(
         assert r.json()["code"] == "trip_past"
 
     # Untouched by all of it.
-    assert (await _item(authed_client, scene.trip_id, "YMCA"))["status"] == "suggested"
+    assert (
+        await _item(authed_client, scene.trip_id, "YMCA")
+    )["status"] == "awaiting_user"
 
 
 async def test_a_finished_trip_still_reads_and_explains(authed_client, scene):

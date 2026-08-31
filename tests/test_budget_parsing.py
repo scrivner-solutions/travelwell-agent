@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../b
 
 from google.adk.runners import InMemoryRunner
 from google.genai import types
-from app.agent import app
+from app.legacy_agent import app
 
 @pytest.mark.asyncio
 async def test_day_pass_under_5_dollar_prefix():

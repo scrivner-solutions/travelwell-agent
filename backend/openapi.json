@@ -1440,6 +1440,36 @@
         "title": "SourcesOut",
         "type": "object"
       },
+      "SyncOut": {
+        "description": "What one sync run did. Counts rather than a bare ok, because \"nothing\nchanged\" and \"nothing was returned\" are different answers and only one of\nthem is a problem.",
+        "properties": {
+          "created": {
+            "title": "Created",
+            "type": "integer"
+          },
+          "last_synced_at": {
+            "format": "date-time",
+            "title": "Last Synced At",
+            "type": "string"
+          },
+          "unchanged": {
+            "title": "Unchanged",
+            "type": "integer"
+          },
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "created",
+          "updated",
+          "unchanged",
+          "last_synced_at"
+        ],
+        "title": "SyncOut",
+        "type": "object"
+      },
       "TimelineEntryOut": {
         "properties": {
           "calendar_event": {
@@ -2716,6 +2746,161 @@
           }
         },
         "summary": "List Connected Sources",
+        "tags": [
+          "profile"
+        ]
+      }
+    },
+    "/me/sources/{kind}": {
+      "delete": {
+        "description": "Forget the token and mark the grant revoked, keeping the row.\n\nThe row is the record that a connection existed, which is what lets\n/me/sources say \"disconnected\" instead of silently showing nothing, and what\nexplains the calendar_events still in the cache.\n\nRevoking at Google's end is deliberately not done here. It is an outbound\nHTTP call, and the seam that owns outbound calls to Google is the calendar\nclient, which does not exist yet. Until then the local token is destroyed,\nso the grant is unusable by us whether or not Google still lists it.",
+        "operationId": "disconnect_source_api_v1_me_sources__kind__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SourceKind"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Problem details (RFC 9457)"
+          }
+        },
+        "summary": "Disconnect Source",
+        "tags": [
+          "profile"
+        ]
+      }
+    },
+    "/me/sources/{kind}/callback": {
+      "get": {
+        "operationId": "connect_callback_api_v1_me_sources__kind__callback_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SourceKind"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Problem details (RFC 9457)"
+          }
+        },
+        "summary": "Connect Callback",
+        "tags": [
+          "profile"
+        ]
+      }
+    },
+    "/me/sources/{kind}/connect": {
+      "get": {
+        "operationId": "connect_source_api_v1_me_sources__kind__connect_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SourceKind"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Problem details (RFC 9457)"
+          }
+        },
+        "summary": "Connect Source",
+        "tags": [
+          "profile"
+        ]
+      }
+    },
+    "/me/sources/{kind}/sync": {
+      "post": {
+        "description": "Pull a window of the calendar into the cache, now.\n\nExplicit rather than scheduled, because there is no scheduler yet and a\nfeature nobody can trigger cannot be shown to work. Whatever runs this on a\ntimer later calls the same service.",
+        "operationId": "sync_connected_source_api_v1_me_sources__kind__sync_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SourceKind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Problem details (RFC 9457)"
+          }
+        },
+        "summary": "Sync Connected Source",
         "tags": [
           "profile"
         ]

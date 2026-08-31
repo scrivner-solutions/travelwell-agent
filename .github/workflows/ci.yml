@@ -81,6 +81,17 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
+      # Two tracks branching a migration off the same parent merge cleanly in
+      # git (different filenames) and then fail `alembic upgrade head`.
+      - name: Exactly one alembic head
+        run: |
+          heads=$(uv run --no-sync alembic heads | grep -c '(head)') || true
+          if [ "$heads" -ne 1 ]; then
+            echo "::error::alembic has $heads heads, expected 1. A merge left two migration branches unjoined; re-point the later down_revision at the other tip."
+            uv run --no-sync alembic heads
+            exit 1
+          fi
+
       - name: Install Postgres client tools
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends postgresql-client-16
 

@@ -16,7 +16,9 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0020"
-down_revision: str | None = "0004"
+# Re-pointed from "0004" at merge time: the calendar track branched off the
+# same parent, and two heads fail `alembic upgrade head`.
+down_revision: str | None = "0012"
 branch_labels = None
 depends_on = None
 

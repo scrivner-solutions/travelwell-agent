@@ -860,6 +860,99 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /me/sources/{kind}/connect:
+    get:
+      tags: [profile]
+      operationId: connectSource
+      summary: Begin a durable calendar grant (server-side redirect flow)
+      description: >
+        Separate from sign-in and deliberately so. This asks Google for a
+        refresh token (access_type=offline, prompt=consent) and for the
+        calendar read scope alone, so revoking the calendar cannot take
+        sign-in with it. Only google_calendar is connectable; the other kinds
+        are schema vocabulary and answer 404.
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/SourceKind"
+      responses:
+        "302":
+          description: Redirect to Google's consent screen
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /me/sources/{kind}/callback:
+    get:
+      tags: [profile]
+      operationId: connectSourceCallback
+      summary: Google's redirect target; stores the grant on success
+      description: >
+        Identified by the session cookie, which SameSite=Lax sends on this
+        top-level navigation. A grant that arrives without a refresh token, or
+        with the scope unchecked, is refused rather than stored: both look
+        like success at this point and fail at the first sync.
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/SourceKind"
+      responses:
+        "302":
+          description: >
+            Redirect back into the app: to /profile?connected={kind}, or to
+            /profile?connect_error=oauth_failed|scope_declined|no_refresh_token|token_store_unconfigured.
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /me/sources/{kind}/sync:
+    post:
+      tags: [profile]
+      operationId: syncConnectedSource
+      summary: Pull a window of the calendar into the cache now
+      description: >
+        Yesterday forward ninety days. Explicit rather than scheduled because
+        there is no scheduler yet; whatever runs this on a timer later calls
+        the same service. Cancelled events are stored, not dropped, so a
+        removed commitment is distinguishable from one that never synced.
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/SourceKind"
+      responses:
+        "200":
+          description: What the run wrote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncResult"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /me/sources/{kind}:
+    delete:
+      tags: [profile]
+      operationId: disconnectSource
+      summary: Forget the stored token and mark the grant revoked
+      description: >
+        The row survives so /me/sources can say revoked rather than showing
+        nothing, which is a different fact. Idempotent.
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/SourceKind"
+      responses:
+        "204":
+          description: Disconnected
+        default:
+          $ref: "#/components/responses/Problem"
+
   /notifications:
     get:
       tags: [notifications]
@@ -1838,6 +1931,23 @@ components:
         connected_at:
           type: string
           format: date-time
+        last_synced_at:
+          type: string
+          format: date-time
+
+    SyncResult:
+      type: object
+      required: [created, updated, unchanged, last_synced_at]
+      description: >
+        Counts rather than a bare ok: "nothing changed" and "nothing was
+        returned" are different answers and only one of them is a problem.
+      properties:
+        created:
+          type: integer
+        updated:
+          type: integer
+        unchanged:
+          type: integer
         last_synced_at:
           type: string
           format: date-time

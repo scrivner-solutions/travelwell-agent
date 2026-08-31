@@ -28,6 +28,5 @@ until the v1 surface fully replaces it:
 |---|---|
 | `POST /api/recommend` | Legacy gym-finder pipeline; slated for retirement |
 | `GET /resolve_location` | Legacy geocoding helper; a v1 equivalent lands with the Explore surface |
-| `GET /api/config` | Legacy frontend config; superseded by runtime `config.json` |
 
 New work goes through `openapi.yaml` only.
