@@ -37,6 +37,8 @@ create extension if not exists citext;
 -- Enums
 -- ---------------------------------------------------------------------------
 
+CREATE TYPE area_fill_outcome AS ENUM ('ok', 'error', 'unavailable');
+
 CREATE TYPE place_kind AS ENUM ('workout', 'food', 'outdoor', 'recovery', 'lodging');
 
 CREATE TYPE reservation_provider AS ENUM ('travelwell', 'opentable', 'external_link');
@@ -122,6 +124,24 @@ CREATE TABLE places (
     fetched_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
     PRIMARY KEY (place_id),
     UNIQUE (provider_ref)
+);
+
+-- One area, and the last attempt to fill it from the provider.
+-- `places.fetched_at` makes staleness a property of a ROW, which cannot
+-- answer the question that costs money: has anyone ever looked here? An area
+-- with no rows and an area that is genuinely empty are the same absence, so
+-- the cheap proxy "is there a fresh row near this point" refetches an empty
+-- neighbourhood on every planning run forever. Written only when a fetch was
+-- actually attempted. A declined fetch leaves no row, because a row here is
+-- a claim about the provider, not about us.
+CREATE TABLE area_fills (
+    area_fill_id UUID DEFAULT gen_random_uuid() NOT NULL,
+    area_key TEXT NOT NULL,  -- rounded lat/lng, radius, kinds
+    outcome area_fill_outcome NOT NULL,
+    result_count SMALLINT DEFAULT 0 NOT NULL,
+    fetched_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    PRIMARY KEY (area_fill_id),
+    UNIQUE (area_key)
 );
 
 -- One row per user. Drives Explore filters, plan ranking, and the "Matched
