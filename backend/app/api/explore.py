@@ -11,6 +11,7 @@ a second definition on the server would eventually disagree with it.
 
 import math
 import uuid
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Query
 from sqlalchemy import select
@@ -22,13 +23,25 @@ from app.api.schemas import (
     ExploreKindOut,
     ExploreOut,
     ExplorePlaceOut,
+    ExploreRouteOut,
+    ExploreRouteStopOut,
     ResolvedLocationOut,
     explore_place_to_out,
+    item_face,
 )
-from app.api.trips import owned_trip
-from app.db.models import Place, PlaceKind, UserPreferences
+from app.api.trips import (
+    HIDDEN_ITEM_STATUSES,
+    current_plan,
+    local_today,
+    owned_trip,
+)
+from app.db.models import Place, PlaceKind, Trip, UserPreferences
 from app.services.places import default_provider
-from app.services.places.matching import meters_between, rank_places
+from app.services.places.matching import (
+    meters_between,
+    rank_places,
+    walk_minutes_between,
+)
 from app.services.places.ports import ProviderError, ProviderUnavailable
 
 router = APIRouter(tags=["explore"], route_class=ApiRoute)
@@ -65,6 +78,89 @@ def _matches_text(place: Place, query: str) -> bool:
     return any(needle in field.casefold() for field in haystack)
 
 
+_NO_ROUTE = ExploreRouteOut(stops=[], total_minutes=None)
+
+
+async def _todays_route(
+    session: SessionDep, trip: Trip, anchor: ExploreAnchorOut
+) -> ExploreRouteOut:
+    """Today's decided stops as a path from the anchor.
+
+    Plotted from `item_face`, the same helper the timeline titles an item with,
+    so the line cannot draw a different option than the one on the card.
+
+    Legs are anchor-to-first then stop-to-stop, which is the order the day is
+    walked; the shared straight-line pace applies, so they under-read exactly
+    where the card's own walk time does.
+    """
+    assert anchor.lat is not None and anchor.lng is not None
+    plan = await current_plan(session, trip.trip_id)
+    if plan is None:
+        return _NO_ROUTE
+
+    tz = ZoneInfo(trip.timezone)
+    today = local_today(trip.timezone)
+    faces = [
+        item_face(item)
+        for item in sorted(
+            (
+                item
+                for item in plan.items
+                if item.status not in HIDDEN_ITEM_STATUSES
+                and item.scheduled_start.astimezone(tz).date() == today
+            ),
+            key=lambda item: item.scheduled_start,
+        )
+    ]
+    wanted = {f.place_id for f in faces if f is not None and f.place_id is not None}
+    if not wanted:
+        return _NO_ROUTE
+
+    located = {
+        p.place_id: p
+        for p in (
+            await session.execute(select(Place).where(Place.place_id.in_(wanted)))
+        )
+        .scalars()
+        .all()
+        if p.lat is not None and p.lng is not None
+    }
+
+    stops = [
+        ExploreRouteStopOut(
+            name=anchor.name,
+            lat=anchor.lat,
+            lng=anchor.lng,
+            is_anchor=True,
+            walk_minutes=None,
+        )
+    ]
+    total = 0
+    for face in faces:
+        if face is None or face.place_id not in located:
+            continue
+        place = located[face.place_id]
+        previous = stops[-1]
+        minutes = walk_minutes_between(
+            previous.lat, previous.lng, place.lat, place.lng
+        )
+        total += minutes
+        stops.append(
+            ExploreRouteStopOut(
+                name=face.display_name,
+                lat=place.lat,
+                lng=place.lng,
+                is_anchor=False,
+                walk_minutes=minutes,
+            )
+        )
+
+    # The anchor on its own is a point, not a route worth a line.
+    if len(stops) == 1:
+        return _NO_ROUTE
+    return ExploreRouteOut(stops=stops, total_minutes=total)
+
+
 @router.get("/explore")
 async def explore(
     user: CurrentUser,
@@ -94,7 +190,12 @@ async def explore(
         # No point to measure from and no city column on `places`, so there is
         # no honest way to pick which cached rows belong to this trip.
         return ExploreOut(
-            trip_id=trip.trip_id, anchor=None, radius_m=radius_m, kinds=[], places=[]
+            trip_id=trip.trip_id,
+            anchor=None,
+            radius_m=radius_m,
+            kinds=[],
+            places=[],
+            route=_NO_ROUTE,
         )
 
     assert anchor.lat is not None and anchor.lng is not None
@@ -139,6 +240,7 @@ async def explore(
         radius_m=radius_m,
         kinds=kinds,
         places=places,
+        route=await _todays_route(session, trip, anchor),
     )
 
 

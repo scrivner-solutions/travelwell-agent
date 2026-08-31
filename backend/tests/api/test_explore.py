@@ -404,3 +404,162 @@ async def test_a_place_we_know_nothing_about_says_so_rather_than_ranking_silentl
     # Said, not dropped: it is still a card, and still not over budget.
     assert "over_budget_reason" not in unlisted
     assert by_name["Corner Pool"]["unknown_notes"] == []
+
+
+# --- the day's route ---------------------------------------------------------
+#
+# The map draws the day as a path, so the route is served rather than stitched
+# together on the client: a dinner stop is not in `places` while the Workout
+# chip is selected, and the line still has to reach it.
+
+
+async def _make_plan(trip_id, stops: list[tuple[str, int]], *, skipped: str | None = None):
+    """A plan whose items sit on today's date, one selected option each.
+
+    `stops` is (place name, hour). Named places rather than ids so the
+    assertions read as the route the user would walk.
+    """
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    import sqlalchemy as sa
+
+    import app.db.engine as db
+    from app.db.models import (
+        ItemKind,
+        ItemStatus,
+        OptionState,
+        Place,
+        Plan,
+        PlanItem,
+        PlanItemOption,
+        PlanStatus,
+    )
+
+    tz = ZoneInfo("America/Chicago")
+    today = datetime.now(tz).date()
+    async with db.SessionFactory() as session:
+        by_name = {
+            p.name: p
+            for p in (await session.execute(sa.select(Place))).scalars().all()
+        }
+        plan = Plan(
+            trip_id=trip_id,
+            version=1,
+            status=PlanStatus.proposed,
+            headline="A day out",
+        )
+        session.add(plan)
+        await session.flush()
+        for name, hour in stops:
+            place = by_name.get(name)
+            item = PlanItem(
+                plan_id=plan.plan_id,
+                trip_id=trip_id,
+                kind=ItemKind.activity,
+                status=ItemStatus.skipped if name == skipped else ItemStatus.planned,
+                scheduled_start=datetime.combine(today, datetime.min.time(), tz).replace(
+                    hour=hour
+                ),
+            )
+            item.options = [
+                PlanItemOption(
+                    state=OptionState.selected,
+                    rank=0,
+                    display_name=name,
+                    place_id=place.place_id if place is not None else None,
+                )
+            ]
+            session.add(item)
+        await session.commit()
+
+
+async def _route(authed_client, trip_id, **params):
+    r = await authed_client.get(
+        "/api/v1/explore", params={"trip_id": str(trip_id), **params}
+    )
+    assert r.status_code == 200, r.text
+    return r.json()["route"]
+
+
+async def test_the_route_walks_the_days_stops_out_from_the_anchor(authed_client, user):
+    trip_id = await _make_trip(user)
+    await _make_places()
+    await _make_plan(trip_id, [("Corner Pool", 9), ("Green Plate", 19)])
+
+    route = await _route(authed_client, trip_id)
+    assert [s["name"] for s in route["stops"]] == [
+        "The Gwen",
+        "Corner Pool",
+        "Green Plate",
+    ]
+    assert [s["is_anchor"] for s in route["stops"]] == [True, False, False]
+    # The anchor has no previous stop to walk from, and ApiRoute strips None
+    # from the wire, so the field is absent rather than null.
+    assert "walk_minutes" not in route["stops"][0]
+    legs = [s["walk_minutes"] for s in route["stops"][1:]]
+    assert all(m is not None and m > 0 for m in legs)
+    assert route["total_minutes"] == sum(legs)
+
+
+async def test_the_route_is_ordered_by_the_clock_not_by_insertion(authed_client, user):
+    trip_id = await _make_trip(user)
+    await _make_places()
+    await _make_plan(trip_id, [("Green Plate", 19), ("Corner Pool", 9)])
+
+    route = await _route(authed_client, trip_id)
+    assert [s["name"] for s in route["stops"]] == [
+        "The Gwen",
+        "Corner Pool",
+        "Green Plate",
+    ]
+
+
+async def test_a_skipped_stop_is_not_on_the_route(authed_client, user):
+    trip_id = await _make_trip(user)
+    await _make_places()
+    await _make_plan(
+        trip_id, [("Corner Pool", 9), ("Green Plate", 19)], skipped="Green Plate"
+    )
+
+    route = await _route(authed_client, trip_id)
+    assert [s["name"] for s in route["stops"]] == ["The Gwen", "Corner Pool"]
+
+
+async def test_a_category_filter_does_not_shorten_the_route(authed_client, user):
+    """The chip filters the cards, not the day. Dinner stays on the line while
+    Workout is selected, which is the whole reason the route is served with its
+    own coordinates instead of being looked up in `places`."""
+    trip_id = await _make_trip(user)
+    await _make_places()
+    await _make_plan(trip_id, [("Corner Pool", 9), ("Green Plate", 19)])
+
+    route = await _route(authed_client, trip_id, category="workout")
+    assert "Green Plate" in [s["name"] for s in route["stops"]]
+
+
+async def test_a_day_with_nothing_planned_reports_no_route(authed_client, user):
+    trip_id = await _make_trip(user)
+    await _make_places()
+    route = await _route(authed_client, trip_id)
+    assert route == {"stops": []}
+
+
+async def test_a_stop_we_cannot_place_is_left_off_rather_than_guessed(
+    authed_client, user
+):
+    """An option with no place behind it has no coordinates, and a stop drawn at
+    the anchor would read as somewhere the user is going."""
+    trip_id = await _make_trip(user)
+    await _make_places()
+    await _make_plan(trip_id, [("Corner Pool", 9), ("Somewhere Unbuilt", 19)])
+
+    route = await _route(authed_client, trip_id)
+    assert [s["name"] for s in route["stops"]] == ["The Gwen", "Corner Pool"]
+
+
+async def test_a_trip_with_no_coordinates_has_no_route_either(authed_client, user):
+    trip_id = await _make_trip(user, hotel=False, located=False)
+    await _make_places()
+    route = await _route(authed_client, trip_id)
+    assert route == {"stops": []}

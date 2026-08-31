@@ -752,7 +752,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [trip_id, radius_m, kinds, places]
+                required: [trip_id, radius_m, kinds, places, route]
                 properties:
                   trip_id:
                     type: string
@@ -773,6 +773,8 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/Place"
+                  route:
+                    $ref: "#/components/schemas/ExploreRoute"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -1648,6 +1650,46 @@ components:
           $ref: "#/components/schemas/PlaceKind"
         count:
           type: integer
+
+    ExploreRoute:
+      type: object
+      description: >
+        Today's decided stops as a path, for the map's line and the strip that
+        reads it back as a walk. Empty stops is the ordinary case, not an
+        error: nothing scheduled today, or planned places with no coordinates.
+      required: [stops]
+      properties:
+        stops:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExploreRouteStop"
+        total_minutes:
+          type: integer
+          description: >
+            Sum of the legs, absent exactly when there is no leg to add up.
+
+    ExploreRouteStop:
+      type: object
+      description: >
+        One stop, in schedule order. Carries its own coordinates rather than a
+        place id: the line must survive a category filter, and a dinner stop is
+        not in places while the Workout chip is selected.
+      required: [name, lat, lng, is_anchor]
+      properties:
+        name:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+        is_anchor:
+          type: boolean
+          description: The point the day starts from, not a planned stop.
+        walk_minutes:
+          type: integer
+          description: >
+            From the previous stop, absent on the first. Straight-line at a
+            walking pace, like Place.distance_meters -- measured, not routed.
 
     ResolvedLocation:
       type: object

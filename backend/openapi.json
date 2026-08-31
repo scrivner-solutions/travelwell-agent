@@ -370,6 +370,9 @@
             "title": "Radius M",
             "type": "integer"
           },
+          "route": {
+            "$ref": "#/components/schemas/ExploreRouteOut"
+          },
           "trip_id": {
             "format": "uuid",
             "title": "Trip Id",
@@ -380,7 +383,8 @@
           "trip_id",
           "radius_m",
           "kinds",
-          "places"
+          "places",
+          "route"
         ],
         "title": "ExploreOut",
         "type": "object"
@@ -574,6 +578,74 @@
           "unknown_notes"
         ],
         "title": "ExplorePlaceOut",
+        "type": "object"
+      },
+      "ExploreRouteOut": {
+        "description": "Today's plan as a path, for the map's line and its summary strip.\n\nEmpty `stops` is the ordinary case, not an error: a trip with nothing\nscheduled today, or one whose planned places have no coordinates.",
+        "properties": {
+          "stops": {
+            "items": {
+              "$ref": "#/components/schemas/ExploreRouteStopOut"
+            },
+            "title": "Stops",
+            "type": "array"
+          },
+          "total_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Minutes"
+          }
+        },
+        "required": [
+          "stops"
+        ],
+        "title": "ExploreRouteOut",
+        "type": "object"
+      },
+      "ExploreRouteStopOut": {
+        "description": "One stop on today's walking route, in schedule order.\n\nCarries its own coordinates rather than a place id the client would look\nup in `places`: the route must survive a category filter, and a dinner stop\nis not in the list while the Workout chip is selected.",
+        "properties": {
+          "is_anchor": {
+            "title": "Is Anchor",
+            "type": "boolean"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lng": {
+            "title": "Lng",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "walk_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Walk Minutes"
+          }
+        },
+        "required": [
+          "name",
+          "lat",
+          "lng",
+          "is_anchor"
+        ],
+        "title": "ExploreRouteStopOut",
         "type": "object"
       },
       "ItemKind": {
