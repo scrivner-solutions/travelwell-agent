@@ -118,10 +118,13 @@ async def test_vertex_accepts_the_request_we_actually_build():
     """The gate that was missing, and the only kind that could have fired.
 
     Every other agent test uses `FakeLLM`, which accepts any config because it
-    never looks at one. This asserts the provider does. Excluded from CI by the
-    marker because it costs a call and needs credentials; run it after any
-    change to `_config`, the default model, or `PlanProposal`'s field
-    constraints, which are the three things that can break it.
+    never looks at one. This asserts the provider does.
+
+    Deselected by default everywhere - `addopts` in pyproject.toml, not this
+    marker on its own - because it costs a call and needs credentials. Run it
+    with `-m integration_live` after any change to `_config`, the default
+    model, or `PlanProposal`'s field constraints, the three things that can
+    break it.
     """
     from app.agent.gemini import GeminiClient
     from app.agent.llm import LlmRequest
