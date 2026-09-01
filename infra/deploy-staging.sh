@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
-# Manual staging deploy: build, push, migrate, deploy, smoke test.
-# Mirrors the parked GitHub workflow (.github/workflows/deploy.yml) step for
-# step so the two paths stay interchangeable.
+# Staging deploy: build, push, migrate, deploy, smoke test. THE implementation,
+# for both paths - a human runs it by hand, and .github/workflows/deploy.yml
+# calls this same file on every merge to main. It used to say it "mirrors" that
+# workflow step for step; two implementations promising to match is exactly how
+# they drifted, so the workflow now holds only when-and-who and calls this.
+#
+# It does not authenticate. It uses whatever gcloud is already logged in as:
+# a human locally, the deployer service account via Workload Identity in CI.
+# Keep it that way - auth is the one thing that legitimately differs.
 #
 #   bash infra/deploy-staging.sh
 
