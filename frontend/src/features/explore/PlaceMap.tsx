@@ -23,6 +23,9 @@ export interface PlaceMapProps {
   onOpen: (id: string) => void
   /** Floats over the map, top-left: the category chips. */
   children?: ReactNode
+  /** Sits beside Close on the expanded map: the Filters button, which the
+   *  band has no room for and the screen shows under it instead. */
+  toolbar?: ReactNode
 }
 
 /** The map as a band in the Explore screen: fitted to the places, still, and
@@ -38,6 +41,7 @@ export function PlaceMap({
   onSelect,
   onOpen,
   children,
+  toolbar,
 }: PlaceMapProps) {
   const bandRef = useRef<HTMLDivElement>(null)
   const size = useFrameSize(bandRef, { w: VIEW, h: VIEW })
@@ -99,6 +103,7 @@ export function PlaceMap({
           selectedId={selectedId}
           onSelect={onSelect}
           onClose={() => setExpanded(false)}
+          toolbar={toolbar}
         >
           {children}
         </ExpandedMap>

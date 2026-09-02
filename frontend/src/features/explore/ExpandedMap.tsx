@@ -34,6 +34,7 @@ export interface ExpandedMapProps {
   onClose: () => void
   /** The category chips, floated over the map exactly as on the band. */
   children?: ReactNode
+  toolbar?: ReactNode
 }
 
 /** The map on the whole screen, where looking around is allowed.
@@ -54,6 +55,7 @@ export function ExpandedMap({
   onSelect,
   onClose,
   children,
+  toolbar,
 }: ExpandedMapProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
@@ -120,6 +122,7 @@ export function ExpandedMap({
 
         <div className="absolute inset-x-4 top-[max(0.875rem,env(safe-area-inset-top))] z-30 flex items-start gap-2">
           <div className="min-w-0 flex-1">{children}</div>
+          {toolbar}
           <button
             type="button"
             onClick={onClose}

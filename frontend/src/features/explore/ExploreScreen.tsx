@@ -1,9 +1,11 @@
 import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { getRouteApi } from '@tanstack/react-router'
 import {
   basemapQueryOptions,
   basemapRadius,
   exploreQueryOptions,
+  preferencesQueryOptions,
   tripsQueryOptions,
   type PlaceKind,
 } from '@/api/queries'
@@ -11,9 +13,21 @@ import { focusTrip } from '@/lib/trips'
 import { EmptyState, LoadingState } from '@/components/ui/ScreenState'
 import { ProfileButton } from '@/components/ui/ProfileButton'
 import { CategoryChips } from './CategoryChips'
+import { FilterSheet } from './FilterSheet'
+import { FiltersButton } from './FiltersButton'
+import {
+  DEFAULT_FILTERS,
+  activeCount,
+  constraintLine,
+  passes,
+  windowRange,
+  type Filters,
+} from './filters'
 import { PlaceCard } from './PlaceCard'
 import { PlaceMap } from './PlaceMap'
 import { plotRadiusFor } from './projection'
+
+const route = getRouteApi('/_shell/explore')
 
 /* The design's section heading names the category in the user's language
  * rather than repeating the chip. There is no "All" in the design because it
@@ -23,10 +37,6 @@ const HEADINGS: Partial<Record<PlaceKind, string>> = {
   food: 'Places to eat',
   outdoor: 'Outside near you',
   recovery: 'Rest and recovery',
-}
-
-function radiusLabel(meters: number): string {
-  return meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${meters} m`
 }
 
 /* Eyebrow, then serif headline: the skeleton every screen in the design uses.
@@ -52,6 +62,30 @@ function Header({ eyebrow }: { eyebrow?: string }) {
 
 export function ExploreScreen() {
   const [category, setCategory] = useState<PlaceKind | undefined>(undefined)
+  /* Filters are the URL (see the route). Defaults are written back as
+     `undefined`, which the router drops from the search string. */
+  const search = route.useSearch()
+  const navigate = route.useNavigate()
+  const filters: Filters = {
+    window: search.window ?? DEFAULT_FILTERS.window,
+    walk: search.walk ?? DEFAULT_FILTERS.walk,
+    underCap: search.cap ?? DEFAULT_FILTERS.underCap,
+    amenities: search.amenities ?? DEFAULT_FILTERS.amenities,
+  }
+  const setFilters = (next: Filters) =>
+    void navigate({
+      replace: true,
+      search: (prev) => ({
+        ...prev,
+        window: next.window === DEFAULT_FILTERS.window ? undefined : next.window,
+        walk: next.walk ?? undefined,
+        cap: next.underCap || undefined,
+        amenities: next.amenities || undefined,
+      }),
+    })
+  const setSheet = (open: boolean) =>
+    void navigate({ replace: true, search: (prev) => ({ ...prev, sheet: open ? 'filters' : undefined }) })
+
   // One selection drives both surfaces, which is what keeps the pins and the
   // cards in step rather than each holding its own idea of "current".
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -59,6 +93,7 @@ export function ExploreScreen() {
   const cards = useRef<Record<string, HTMLLIElement | null>>({})
 
   const trips = useQuery(tripsQueryOptions())
+  const prefs = useQuery(preferencesQueryOptions())
   const trip = trips.data ? focusTrip(trips.data) : undefined
   const explore = useQuery({
     ...exploreQueryOptions(trip?.id ?? '', { category }),
@@ -123,7 +158,21 @@ export function ExploreScreen() {
     ? `Near ${anchor.name} · ${trip.destination_name}`
     : `Central ${trip.destination_name}`
   const heading = category === undefined ? 'Places near you' : (HEADINGS[category] ?? 'Places near you')
-  const count = data.places.length
+
+  /* Filtering is on the client, over what the server sent: every fact the
+     sheet asks about is already on the place. The basemap above is sized to
+     ALL the places on purpose, so narrowing the list never asks for a new
+     area. */
+  const now = new Date()
+  const filterPrefs = prefs.data
+    ? { dayPassBudgetCents: prefs.data.day_pass_budget_cents ?? null, amenities: prefs.data.amenities }
+    : undefined
+  const shown = data.places.filter((place) =>
+    passes(place, filters, { prefs: filterPrefs, now, timezone: trip.timezone }),
+  )
+  const windowOver = windowRange(filters.window, now, trip.timezone) === null
+  const count = shown.length
+  const filtersButton = <FiltersButton count={activeCount(filters)} onClick={() => setSheet(true)} />
 
   return (
     <>
@@ -134,7 +183,7 @@ export function ExploreScreen() {
       <div className="-mx-4">
         <PlaceMap
           anchor={anchor}
-          places={data.places}
+          places={shown}
           basemap={basemap.data}
           radiusM={data.radius_m}
           timezone={trip.timezone}
@@ -144,18 +193,38 @@ export function ExploreScreen() {
           onOpen={(id) =>
             cards.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
           }
+          toolbar={filtersButton}
         >
           <CategoryChips kinds={data.kinds} selected={category} onSelect={setCategory} />
         </PlaceMap>
       </div>
 
       <section className="pt-4">
-        <h2 className="font-display text-heading-sm">{heading}</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-display text-heading-sm">{heading}</h2>
+          {filtersButton}
+        </div>
         <p className="mt-1.5 text-label font-medium text-muted-soft">
-          {count === 1 ? '1 place' : `${count} places`} · within {radiusLabel(data.radius_m)}
+          {constraintLine(count, filters)}
         </p>
 
-        {count === 0 ? (
+        {data.places.length > 0 && count === 0 ? (
+          <div className="mt-3 rounded-section border border-dashed border-border-faint bg-card p-5 text-center">
+            <p className="text-body font-semibold">Nothing fits these filters</p>
+            <p className="mt-1.5 text-caption text-muted-soft">
+              {windowOver
+                ? `It is past 10 PM in ${trip.destination_name}, so this evening is over.`
+                : 'Try a wider window or a longer walk.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => setFilters(DEFAULT_FILTERS)}
+              className="mt-3.5 h-11 rounded-control border border-border bg-card px-4 text-body-sm font-semibold hover:bg-surface focus-visible:outline-2 focus-visible:outline-primary"
+            >
+              Reset filters
+            </button>
+          </div>
+        ) : count === 0 ? (
           <div className="mt-3 rounded-section border border-dashed border-border-faint bg-card p-5 text-center">
             <p className="text-body font-semibold">Nothing cached here yet</p>
             <p className="mt-1.5 text-caption text-muted-soft">
@@ -173,7 +242,7 @@ export function ExploreScreen() {
           </div>
         ) : (
           <ul className="mt-3 flex flex-col gap-[11px]">
-            {data.places.map((place) => (
+            {shown.map((place) => (
               <li
                 key={place.id}
                 ref={(el) => {
@@ -193,6 +262,16 @@ export function ExploreScreen() {
           </ul>
         )}
       </section>
+
+      <FilterSheet
+        open={search.sheet === 'filters'}
+        onClose={() => setSheet(false)}
+        filters={filters}
+        onChange={setFilters}
+        prefs={filterPrefs}
+        count={count}
+        onStandingPreferences={() => void navigate({ to: '/profile' })}
+      />
     </>
   )
 }
