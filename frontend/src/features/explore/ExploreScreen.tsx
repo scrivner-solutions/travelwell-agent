@@ -83,8 +83,9 @@ export function ExploreScreen() {
         amenities: next.amenities || undefined,
       }),
     })
+  // Pushed, not replaced, as the trip screen's sheets are: back closes it.
   const setSheet = (open: boolean) =>
-    void navigate({ replace: true, search: (prev) => ({ ...prev, sheet: open ? 'filters' : undefined }) })
+    void navigate({ search: (prev) => ({ ...prev, sheet: open ? 'filters' : undefined }) })
 
   // One selection drives both surfaces, which is what keeps the pins and the
   // cards in step rather than each holding its own idea of "current".

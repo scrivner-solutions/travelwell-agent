@@ -682,6 +682,17 @@ describe('PlaceMap gestures', () => {
     expect(after[0]!.y - before[0]!.y).toBeCloseTo(10, 6)
   })
 
+  it('a drag that starts slowly still moves the ground the whole way', async () => {
+    const { dialog, ground } = await open()
+    const before = pins(dialog)
+    fireEvent.pointerDown(ground, pointer(1, 100, 100))
+    fireEvent.pointerMove(ground, pointer(1, 104, 100))
+    fireEvent.pointerMove(ground, pointer(1, 108, 100))
+    fireEvent.pointerMove(ground, pointer(1, 115, 100))
+    fireEvent.pointerUp(ground, pointer(1, 115, 100))
+    expect(pins(dialog)[0]!.x - before[0]!.x).toBeCloseTo(15, 6)
+  })
+
   it('a tap selects a pin; the click a drag leaves behind does not', async () => {
     const { dialog, ground, onSelect } = await open()
     const pin = within(dialog).getByRole('button', { name: /^North/ })

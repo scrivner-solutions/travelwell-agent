@@ -92,13 +92,17 @@ export function useMapGestures({ size, bounds, onChange }: MapGestureOptions): G
     pointers.current.set(e.pointerId, now)
 
     if (others.length === 0) {
+      let from = was
       if (!dragging.current) {
-        const from = press.current?.at ?? was
+        // Until the press is a drag nothing moves; once it is, the ground
+        // catches up from where the finger went down, not from where the
+        // threshold happened to be crossed.
+        from = press.current?.at ?? was
         if (Math.hypot(now.x - from.x, now.y - from.y) < TAP_MAX_PX) return
         dragging.current = true
         capture(e)
       }
-      onChange((vp) => pan(vp, now.x - was.x, now.y - was.y, size))
+      onChange((vp) => pan(vp, now.x - from.x, now.y - from.y, size))
       return
     }
 
