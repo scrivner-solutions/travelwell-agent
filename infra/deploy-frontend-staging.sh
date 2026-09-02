@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Manual staging deploy for the TravelWell frontend: build, push, deploy, smoke.
-# Mirrors infra/deploy-staging.sh (backend) so the two stay recognisable.
+# Staging deploy for the TravelWell frontend: build, push, deploy, smoke. Run by
+# hand, and called by .github/workflows/deploy.yml on every merge to main.
+# Shaped like infra/deploy-staging.sh (backend) so the two stay recognisable.
 #
 #   bash infra/deploy-frontend-staging.sh
 #
@@ -43,8 +44,8 @@ BACKEND_URL=$(gcloud run services describe "$BACKEND_SERVICE" --region "$REGION"
 echo "== Backend: $BACKEND_URL =="
 
 # Same rule as the backend: build a pristine export of HEAD so the :$SHA tag
-# names exactly what is inside. DEPLOY_FROM_WORKTREE=1 builds the live tree and
-# tags -dirty, which is required while nginx.conf.template is still uncommitted.
+# names exactly what is inside. DEPLOY_FROM_WORKTREE=1 builds the live tree
+# instead and tags it -dirty so it cannot be mistaken for a commit.
 if [[ "${DEPLOY_FROM_WORKTREE:-0}" == 1 ]]; then
   IMAGE="$IMAGE-dirty"
   BUILD_CONTEXT="$REPO_ROOT/frontend"
