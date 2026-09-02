@@ -5,9 +5,11 @@ pure function of what the client returned - which is the reason the port has
 exactly one method. The endpoint half goes through the real router with the
 client patched at the package boundary.
 
-The two `trip_id` tests are the point of most of this file. Detection decides
-which trip an event belongs to; sync must never guess, and must never overwrite
-the answer on a later run.
+Sync knows nothing about trips, and the row it writes has nowhere to put an
+opinion about one: which trip an event belongs to is detection's judgement,
+recorded in `trip_evidence`, and which events fall inside a trip is arithmetic
+on the trip's dates, done in `overlap.py`. The timeline tests at the bottom
+are that arithmetic seen from the endpoint.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -160,44 +162,6 @@ async def test_a_changed_event_updates_in_place(db_session, source, rows):
     assert len(rows_after) == 1
     assert rows_after[0].cal_event_id == before.cal_event_id
     assert rows_after[0].title == "Standup (moved)"
-
-
-async def test_sync_never_sets_trip_id(db_session, source, rows):
-    await sync_source(
-        db_session, source, FakeCalendarClient([remote()]), start=WINDOW[0], end=WINDOW[1]
-    )
-    await db_session.commit()
-
-    (row,) = await rows()
-    # Which trip an event belongs to is detection's answer, not sync's.
-    assert row.trip_id is None
-
-
-async def test_a_later_sync_does_not_clobber_a_detected_trip(
-    db_session, source, rows, make_trip, user
-):
-    trip = await make_trip(user)
-    await sync_source(
-        db_session, source, FakeCalendarClient([remote()]), start=WINDOW[0], end=WINDOW[1]
-    )
-    await db_session.commit()
-    (row,) = await rows()
-    row.trip_id = trip.trip_id
-    await db_session.commit()
-
-    await sync_source(
-        db_session,
-        source,
-        FakeCalendarClient([remote(title="Standup (moved)")]),
-        start=WINDOW[0],
-        end=WINDOW[1],
-    )
-    await db_session.commit()
-
-    (after,) = await rows()
-    assert after.title == "Standup (moved)"
-    # The update list omits trip_id on purpose; this is what that protects.
-    assert after.trip_id == trip.trip_id
 
 
 async def test_a_cancellation_is_stored_rather_than_deleted(db_session, source, rows):
@@ -457,7 +421,7 @@ async def test_an_event_with_no_trip_reaches_the_timeline(
 ):
     """The whole point of the overlap filter.
 
-    Sync never sets trip_id, so under the old `where trip_id = :trip_id` every
+    Sync never set trip_id, so under the old `where trip_id = :trip_id` every
     synced event was invisible. Worse, the events that matter most to a planner
     are exactly the ones no detector would ever call part of the trip - the
     standing meeting back home that still eats the morning.
@@ -466,8 +430,6 @@ async def test_an_event_with_no_trip_reaches_the_timeline(
     stub_client(FakeCalendarClient([await _place_on_trip(db_session, trip)]))
     await connected.post("/api/v1/me/sources/google_calendar/sync")
 
-    (stored,) = (await db_session.execute(sa.select(CalendarEvent))).scalars().all()
-    assert stored.trip_id is None
     assert await _timeline_titles(connected, trip) == ["Standup"]
 
 
@@ -522,7 +484,8 @@ async def test_two_overlapping_trips_both_show_the_event(
 async def test_another_travelers_event_never_appears(
     connected, stub_client, db_session, user, other_user, make_trip
 ):
-    """The scope that came with trip_id and had to be replaced explicitly.
+    """The scope that came with the old trip_id filter and had to be replaced
+    explicitly.
 
     trip_id implied one trip and therefore one owner. An overlap on dates alone
     matches every traveler's calendar, so user_id is load-bearing, not tidiness.

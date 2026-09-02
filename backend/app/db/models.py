@@ -745,7 +745,12 @@ class TripEvidence(Base):
 
 
 class CalendarEvent(Base):
-    """Trip-relevant calendar cache: derived display fields, no raw payloads."""
+    """Calendar cache: derived display fields, no raw payloads.
+
+    No trip column. Which trip an event belongs to is detection's judgement
+    and lives in `trip_evidence`; which events fall inside a trip is arithmetic
+    on the trip's dates, done in `services/calendar/overlap.py`.
+    """
 
     __tablename__ = "calendar_events"
     __table_args__ = (
@@ -754,11 +759,7 @@ class CalendarEvent(Base):
             "external_id",
             name="calendar_events_source_id_external_id_key",
         ),
-        # Two readers, two orders. Detection filters by trip; the timeline
-        # filters by owner and date overlap, because which trip an event
-        # BELONGS to is a judgement and whether it CONSTRAINS the traveler is
-        # arithmetic. Neither index replaces the other.
-        sa.Index("calendar_events_trip_time_idx", "trip_id", "starts_at"),
+        # Both readers filter by owner and date overlap.
         sa.Index("calendar_events_user_time_idx", "user_id", "starts_at"),
     )
 
@@ -770,9 +771,6 @@ class CalendarEvent(Base):
     )
     source_id: Mapped[uuid.UUID] = mapped_column(
         sa.ForeignKey("connected_sources.source_id", ondelete="CASCADE")
-    )
-    trip_id: Mapped[uuid.UUID | None] = mapped_column(
-        sa.ForeignKey("trips.trip_id", ondelete="CASCADE")
     )
     external_id: Mapped[str] = mapped_column(doc="provider event id")
     title: Mapped[str]

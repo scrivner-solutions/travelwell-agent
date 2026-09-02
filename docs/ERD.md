@@ -30,7 +30,6 @@ erDiagram
     notifications }o--|| agent_runs : "run_id"
     plans }o--|| agent_runs : "generated_by_run_id"
     calendar_events }o--|| connected_sources : "source_id"
-    calendar_events }o--|| trips : "trip_id"
     calendar_events }o--|| users : "user_id"
     connected_sources }o--|| users : "user_id"
     notifications }o--|| trips : "trip_id"
@@ -111,7 +110,6 @@ erDiagram
     trips
     agent_events }o--|| users : "user_id"
     calendar_events }o--|| connected_sources : "source_id"
-    calendar_events }o--|| trips : "trip_id"
     calendar_events }o--|| users : "user_id"
     connected_sources }o--|| users : "user_id"
     notifications }o--|| users : "user_id"
@@ -186,7 +184,6 @@ erDiagram
     wellness_windows
     agent_events }o--|| trips : "trip_id"
     agent_runs }o--|| trips : "trip_id"
-    calendar_events }o--|| trips : "trip_id"
     notifications }o--|| trips : "trip_id"
     pending_actions }o--|| trips : "trip_id"
     plan_item_options }o--|| places : "place_id"

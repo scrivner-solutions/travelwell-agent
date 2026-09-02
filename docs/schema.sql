@@ -294,12 +294,14 @@ CREATE TABLE trip_evidence (
 
 CREATE INDEX trip_evidence_trip_idx ON trip_evidence (trip_id);
 
--- Trip-relevant calendar cache: derived display fields, no raw payloads.
+-- Calendar cache: derived display fields, no raw payloads. No trip column.
+-- Which trip an event belongs to is detection's judgement and lives in
+-- `trip_evidence`; which events fall inside a trip is arithmetic on the
+-- trip's dates, done in `services/calendar/overlap.py`.
 CREATE TABLE calendar_events (
     cal_event_id UUID DEFAULT gen_random_uuid() NOT NULL,
     user_id UUID NOT NULL,
     source_id UUID NOT NULL,
-    trip_id UUID,
     external_id TEXT NOT NULL,  -- provider event id
     title TEXT NOT NULL,
     location TEXT,
@@ -312,11 +314,8 @@ CREATE TABLE calendar_events (
     PRIMARY KEY (cal_event_id),
     CONSTRAINT calendar_events_source_id_external_id_key UNIQUE (source_id, external_id),
     FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE,
-    FOREIGN KEY(source_id) REFERENCES connected_sources (source_id) ON DELETE CASCADE,
-    FOREIGN KEY(trip_id) REFERENCES trips (trip_id) ON DELETE CASCADE
+    FOREIGN KEY(source_id) REFERENCES connected_sources (source_id) ON DELETE CASCADE
 );
-
-CREATE INDEX calendar_events_trip_time_idx ON calendar_events (trip_id, starts_at);
 
 CREATE INDEX calendar_events_user_time_idx ON calendar_events (user_id, starts_at);
 

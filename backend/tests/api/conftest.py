@@ -455,16 +455,15 @@ async def scene(user):
                 sa.text(
                     """
                     insert into calendar_events
-                      (user_id, source_id, trip_id, external_id, title, location,
+                      (user_id, source_id, external_id, title, location,
                        starts_at, ends_at, content_hash)
                     values
-                      (:uid, :sid, :tid, :ext, :title, :loc, :starts, :ends, :hash)
+                      (:uid, :sid, :ext, :title, :loc, :starts, :ends, :hash)
                     """
                 ),
                 {
                     "uid": user.user_id,
                     "sid": source_id,
-                    "tid": trip.trip_id,
                     "ext": f"test_evt_{i}",
                     "title": title,
                     "loc": location,
