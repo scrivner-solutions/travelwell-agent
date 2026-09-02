@@ -757,6 +757,12 @@ class BasemapOut(BaseModel):
     # one fetch. Echoed so a client can tell it got a coarser area than it
     # requested rather than inferring it from the geometry.
     radius_m: int
+    # The centre the geometry was fetched around, which is the requested one
+    # snapped to the cache grid. Null only when the trip has nowhere to centre
+    # on. A client drawing this area over a wider one needs to know where it
+    # actually is, not where it asked for.
+    lat: float | None
+    lng: float | None
     # ODbL requires the credit, so it travels with the data rather than being
     # left for a renderer to remember.
     attribution: str

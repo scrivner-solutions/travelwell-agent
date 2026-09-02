@@ -1,11 +1,12 @@
 import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Basemap, ExploreAnchor, ExplorePlace, ExploreRoute } from '@/api/queries'
 import { CategoryChips } from './CategoryChips'
 import { PlaceCard } from './PlaceCard'
 import { PlaceMap } from './PlaceMap'
+import type { Rect } from './areas'
 import { hoursLabel } from './hours'
 
 /**
@@ -385,6 +386,8 @@ describe('PlaceMap', () => {
 describe('PlaceMap basemap', () => {
   const streets: Basemap = {
     radius_m: 2000,
+    lat: 41.8924,
+    lng: -87.6252,
     attribution: '© OpenStreetMap contributors',
     // A north-south street through the anchor, and an east-west one.
     roads_major: [[41.885, -87.6252, 41.9, -87.6252]],
@@ -395,6 +398,8 @@ describe('PlaceMap basemap', () => {
   }
   const empty: Basemap = {
     radius_m: 2000,
+    lat: 41.8924,
+    lng: -87.6252,
     attribution: '© OpenStreetMap contributors',
     roads_major: [],
     roads_minor: [],
@@ -451,13 +456,34 @@ describe('PlaceMap basemap', () => {
     expect(drawMap(empty).container.textContent).not.toContain('OpenStreetMap')
   })
 
+  /* The ground is drawn in metres under one group transform, so where a
+     street lands on the frame is the path composed with that transform. */
+  function majorRoad(container: HTMLElement) {
+    const g = container.querySelector('g[transform]')!.getAttribute('transform')!
+    const [tx, ty, s] = g
+      .match(/translate\((\S+) (\S+)\) scale\((\S+)\)/)!
+      .slice(1)
+      .map(Number) as [number, number, number]
+    const d = container.querySelector('.stroke-map-road-major')!.getAttribute('d')!
+    return [...d.matchAll(/[ML](-?[\d.]+) (-?[\d.]+)/g)].map((m) => ({
+      x: tx + Number(m[1]) * s,
+      y: ty + Number(m[2]) * s,
+    }))
+  }
+
   it('puts the street through the anchor at the centre of the plot', () => {
     /* The load-bearing one. The north-south road runs along the anchor's own
        longitude, so whatever the scale, it has to be drawn down the middle. */
     const { container } = drawMap(streets)
-    const d = container.querySelector('.stroke-map-road-major')!.getAttribute('d')!
-    const xs = [...d.matchAll(/[ML](-?[\d.]+) /g)].map((m) => Number(m[1]))
+    const xs = majorRoad(container).map((p) => p.x)
+    expect(xs.length).toBeGreaterThan(0)
     expect(xs.every((x) => Math.abs(x - 160) < 0.5)).toBe(true)
+  })
+
+  it('draws north up on the ground as well as for the pins', () => {
+    const { container } = drawMap(streets)
+    const [south, north] = majorRoad(container)
+    expect(north!.y).toBeLessThan(south!.y)
   })
 
   it('rescales the streets with the pins rather than holding still', () => {
@@ -474,18 +500,365 @@ describe('PlaceMap basemap', () => {
         basemap={streets} radiusM={8000} timezone={TZ} selectedId={null}
         onSelect={() => {}} onOpen={() => {}} />,
     )
-    const ys = (c: HTMLElement) =>
-      [...c
-        .querySelector('.stroke-map-road-major')!
-        .getAttribute('d')!
-        .matchAll(/[ML]-?[\d.]+ (-?[\d.]+)/g)].map((m) => Number(m[1]))
+    const ys = (c: HTMLElement) => majorRoad(c).map((p) => p.y)
     const spread = (c: HTMLElement) => Math.max(...ys(c)) - Math.min(...ys(c))
     expect(spread(close.container)).toBeGreaterThan(spread(wide.container) * 2)
+    /* And it does so by moving the group, not by rebuilding the geometry: the
+       path itself is the same string at both scales. That is the property a
+       gesture over sixty thousand points depends on. */
+    const d = (c: HTMLElement) => c.querySelector('.stroke-map-road-major')!.getAttribute('d')
+    expect(d(close.container)).toBe(d(wide.container))
+  })
+
+  it('keeps road widths in frame units under the zoom transform', () => {
+    const { container } = drawMap(streets)
+    for (const road of container.querySelectorAll('[class*="stroke-map-road"]')) {
+      expect(road.getAttribute('vector-effect')).toBe('non-scaling-stroke')
+    }
   })
 
   it('culls a way that is nowhere near the frame', () => {
     const faraway: Basemap = { ...empty, roads_major: [[51.5, -0.12, 51.51, -0.13]] }
     const { container } = drawMap(faraway)
     expect(container.querySelector('.stroke-map-road-major')).toBeNull()
+  })
+})
+
+/* The expanded map: the same ground on the whole screen, where looking around
+ * is allowed. Its state is a viewport, so every control is checked by where
+ * the pins end up rather than by what a button is called. */
+describe('PlaceMap expanded', () => {
+  const north = place({ id: 'n', name: 'North', lat: 41.9, lng: -87.6252, walk_minutes: 7 })
+  const east = place({ id: 'e', name: 'East', lat: 41.8924, lng: -87.61, walk_minutes: 12 })
+  const noRoute: ExploreRoute = { stops: [], total_minutes: null }
+
+  async function open(over: Partial<ComponentProps<typeof PlaceMap>> = {}) {
+    const onSelect = vi.fn()
+    const result = render(
+      <PlaceMap
+        anchor={anchor}
+        places={[north, east]}
+        route={noRoute}
+        radiusM={8000}
+        timezone={TZ}
+        selectedId={null}
+        onSelect={onSelect}
+        onOpen={() => {}}
+        {...over}
+      />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Expand map' }))
+    const dialog = result.container.querySelector('dialog') as HTMLDialogElement
+    // showModal() moves focus into the dialog in a browser; jsdom's stand-in
+    // does not, so the test does what a tap on the ground does.
+    ;(dialog.firstElementChild as HTMLElement).focus()
+    return { ...result, dialog, onSelect }
+  }
+
+  /** Pin positions inside the dialog, as percentages of its frame. */
+  function pins(dialog: HTMLElement) {
+    return [...dialog.querySelectorAll('button[aria-pressed]')].map((el) => ({
+      x: Number.parseFloat((el as HTMLElement).style.left),
+      y: Number.parseFloat((el as HTMLElement).style.top),
+    }))
+  }
+  const button = (dialog: HTMLElement, name: string) =>
+    within(dialog).getByRole('button', { name })
+
+  it('opens the map on the whole screen, and closes it again', async () => {
+    const { container, dialog } = await open()
+    expect(dialog.open).toBe(true)
+    expect(dialog).toHaveAccessibleName('Map of places around The Gwen')
+    await userEvent.click(button(dialog, 'Close map'))
+    expect(container.querySelector('dialog')).toBeNull()
+  })
+
+  it('zooms in about the centre, in steps you can see', async () => {
+    const { dialog } = await open()
+    const before = pins(dialog)
+    await userEvent.click(button(dialog, 'Zoom in'))
+    const after = pins(dialog)
+    for (const [i, pin] of after.entries()) {
+      expect(pin.x - 50).toBeCloseTo((before[i]!.x - 50) * 1.5, 6)
+      expect(pin.y - 50).toBeCloseTo((before[i]!.y - 50) * 1.5, 6)
+    }
+  })
+
+  it('pans with the arrow keys, the view moving the way the arrow points', async () => {
+    const { dialog } = await open()
+    const before = pins(dialog)
+    await userEvent.keyboard('{ArrowRight}')
+    const after = pins(dialog)
+    // 48 px of a 360 px frame: the ground slides left as the view looks right.
+    expect(after[0]!.x - before[0]!.x).toBeCloseTo((-48 / 360) * 100, 6)
+    expect(after[0]!.y).toBeCloseTo(before[0]!.y, 6)
+  })
+
+  it('recentres to the fitted view after any amount of wandering', async () => {
+    const { dialog } = await open()
+    const fitted = pins(dialog)
+    await userEvent.click(button(dialog, 'Zoom in'))
+    await userEvent.keyboard('{ArrowUp}{ArrowLeft}')
+    expect(pins(dialog)).not.toEqual(fitted)
+    await userEvent.click(button(dialog, 'Recentre'))
+    expect(pins(dialog)).toEqual(fitted)
+  })
+
+  it('stops zooming out at twice the fitted view', async () => {
+    const { dialog } = await open()
+    const out = button(dialog, 'Zoom out')
+    await userEvent.click(out)
+    expect(out).toBeEnabled()
+    await userEvent.click(out)
+    expect(out).toBeDisabled()
+  })
+
+  it('a pin still selects', async () => {
+    const { dialog, onSelect } = await open()
+    await userEvent.click(within(dialog).getByRole('button', { name: /^North/ }))
+    expect(onSelect).toHaveBeenCalledWith('n')
+  })
+
+  it('brings the selected card up to meet the pin, in place of the callout', async () => {
+    const { dialog } = await open({ selectedId: 'n' })
+    expect(within(dialog).getByRole('heading', { name: 'North' })).toBeInTheDocument()
+    // The callout is for the band, where the card is off-screen. Here it is not.
+    expect(dialog.querySelector('.w-\\[210px\\]')).toBeNull()
+    expect(within(dialog).getByText(/Add North: \+7 min from The Gwen/)).toBeInTheDocument()
+  })
+
+  it('never speaks in the first person', async () => {
+    const { dialog } = await open({ selectedId: 'e' })
+    expect(dialog.textContent).not.toMatch(/\bI\b/)
+  })
+})
+
+/* Gestures, with synthetic pointer and wheel events. Each one is checked by
+ * where the pins end up, which is the same check a finger would make. */
+describe('PlaceMap gestures', () => {
+  const north = place({ id: 'n', name: 'North', lat: 41.9, lng: -87.6252, walk_minutes: 7 })
+  const east = place({ id: 'e', name: 'East', lat: 41.8924, lng: -87.61, walk_minutes: 12 })
+  // The dialog's frame in jsdom, where nothing has a size: the hook's fallback.
+  const W = 360
+  const H = 640
+
+  async function open() {
+    const onSelect = vi.fn()
+    const { container } = render(
+      <PlaceMap
+        anchor={anchor}
+        places={[north, east]}
+        route={{ stops: [], total_minutes: null }}
+        radiusM={8000}
+        timezone={TZ}
+        selectedId={null}
+        onSelect={onSelect}
+        onOpen={() => {}}
+      />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Expand map' }))
+    const dialog = container.querySelector('dialog') as HTMLDialogElement
+    const ground = within(dialog).getByRole('img').parentElement as HTMLElement
+    return { dialog, ground, onSelect }
+  }
+
+  /** Pin positions in the dialog, in pixels of its frame. */
+  function pins(dialog: HTMLElement) {
+    return [...dialog.querySelectorAll('button[aria-pressed]')].map((el) => ({
+      x: (Number.parseFloat((el as HTMLElement).style.left) / 100) * W,
+      y: (Number.parseFloat((el as HTMLElement).style.top) / 100) * H,
+    }))
+  }
+  const pointer = (id: number, x: number, y: number) => ({
+    pointerId: id,
+    clientX: x,
+    clientY: y,
+    button: 0,
+  })
+
+  it('drags the ground with the pointer', async () => {
+    const { dialog, ground } = await open()
+    const before = pins(dialog)
+    fireEvent.pointerDown(ground, pointer(1, 100, 100))
+    fireEvent.pointerMove(ground, pointer(1, 140, 110))
+    fireEvent.pointerUp(ground, pointer(1, 140, 110))
+    const after = pins(dialog)
+    expect(after[0]!.x - before[0]!.x).toBeCloseTo(40, 6)
+    expect(after[0]!.y - before[0]!.y).toBeCloseTo(10, 6)
+  })
+
+  it('a drag that starts slowly still moves the ground the whole way', async () => {
+    const { dialog, ground } = await open()
+    const before = pins(dialog)
+    fireEvent.pointerDown(ground, pointer(1, 100, 100))
+    fireEvent.pointerMove(ground, pointer(1, 104, 100))
+    fireEvent.pointerMove(ground, pointer(1, 108, 100))
+    fireEvent.pointerMove(ground, pointer(1, 115, 100))
+    fireEvent.pointerUp(ground, pointer(1, 115, 100))
+    expect(pins(dialog)[0]!.x - before[0]!.x).toBeCloseTo(15, 6)
+  })
+
+  it('a tap selects a pin; the click a drag leaves behind does not', async () => {
+    const { dialog, ground, onSelect } = await open()
+    const pin = within(dialog).getByRole('button', { name: /^North/ })
+    fireEvent.pointerDown(pin, pointer(1, 50, 50))
+    fireEvent.pointerUp(pin, pointer(1, 51, 50))
+    fireEvent.click(pin)
+    expect(onSelect).toHaveBeenCalledTimes(1)
+
+    fireEvent.pointerDown(pin, pointer(1, 50, 50))
+    fireEvent.pointerMove(ground, pointer(1, 80, 50))
+    fireEvent.pointerUp(ground, pointer(1, 80, 50))
+    fireEvent.click(pin)
+    expect(onSelect).toHaveBeenCalledTimes(1)
+
+    // And the swallowed click does not poison the next honest tap.
+    fireEvent.pointerDown(pin, pointer(1, 50, 50))
+    fireEvent.pointerUp(pin, pointer(1, 50, 50))
+    fireEvent.click(pin)
+    expect(onSelect).toHaveBeenCalledTimes(2)
+  })
+
+  it('a wheel zooms about the pointer, keeping the ground under it still', async () => {
+    const { dialog, ground } = await open()
+    const about = { x: 90, y: 160 }
+    const before = pins(dialog)
+    fireEvent.wheel(ground, { clientX: about.x, clientY: about.y, deltaY: -100 })
+    const after = pins(dialog)
+    const factor = Math.exp(100 * 0.0015)
+    for (const [i, pin] of after.entries()) {
+      expect(pin.x - about.x).toBeCloseTo((before[i]!.x - about.x) * factor, 6)
+      expect(pin.y - about.y).toBeCloseTo((before[i]!.y - about.y) * factor, 6)
+    }
+  })
+
+  it('a pinch zooms by the spread of the fingers and follows their midpoint', async () => {
+    const { dialog, ground } = await open()
+    const before = pins(dialog)
+    fireEvent.pointerDown(ground, pointer(1, 100, 300))
+    fireEvent.pointerDown(ground, pointer(2, 200, 300))
+    // Second finger moves out: distance doubles, midpoint drifts 150 -> 200.
+    fireEvent.pointerMove(ground, pointer(2, 300, 300))
+    fireEvent.pointerUp(ground, pointer(2, 300, 300))
+    fireEvent.pointerUp(ground, pointer(1, 100, 300))
+    const after = pins(dialog)
+    for (const [i, pin] of after.entries()) {
+      expect(pin.x).toBeCloseTo(200 + (before[i]!.x - 150) * 2, 6)
+      expect(pin.y).toBeCloseTo(300 + (before[i]!.y - 300) * 2, 6)
+    }
+  })
+
+  it('the band itself does not drag', () => {
+    const onSelect = vi.fn()
+    render(
+      <PlaceMap
+        anchor={anchor}
+        places={[north, east]}
+        route={{ stops: [], total_minutes: null }}
+        radiusM={8000}
+        timezone={TZ}
+        selectedId={null}
+        onSelect={onSelect}
+        onOpen={() => {}}
+      />,
+    )
+    const ground = screen.getByRole('img').parentElement as HTMLElement
+    const before = ground.querySelector('button[aria-pressed]')!.getAttribute('style')
+    fireEvent.pointerDown(ground, pointer(1, 100, 100))
+    fireEvent.pointerMove(ground, pointer(1, 160, 100))
+    fireEvent.pointerUp(ground, pointer(1, 160, 100))
+    expect(ground.querySelector('button[aria-pressed]')!.getAttribute('style')).toBe(before)
+    expect(ground.style.touchAction).toBe('')
+  })
+})
+
+/* Finer ground on zoom. The map only reports where the view settled and
+ * draws whatever it is handed; the deciding is in useAreaDetail.test.tsx. */
+describe('PlaceMap detail', () => {
+  const north = place({ id: 'n', name: 'North', lat: 41.9, lng: -87.6252, walk_minutes: 7 })
+  const noRoute: ExploreRoute = { stops: [], total_minutes: null }
+  const base: Basemap = {
+    radius_m: 5500,
+    lat: 41.8924,
+    lng: -87.6252,
+    attribution: '© OpenStreetMap contributors',
+    roads_major: [[41.885, -87.6252, 41.9, -87.6252]],
+    roads_minor: [],
+    water: [],
+    parks: [],
+    buildings: [],
+  }
+  // A block-sized cell a little north-east of the hotel, with one building.
+  const fine: Basemap = {
+    radius_m: 750,
+    lat: 41.8954,
+    lng: -87.6212,
+    attribution: '© OpenStreetMap contributors',
+    roads_major: [],
+    roads_minor: [],
+    water: [],
+    parks: [],
+    buildings: [[41.895, -87.622, 41.8952, -87.622, 41.8952, -87.6218, 41.895, -87.6218, 41.895, -87.622]],
+  }
+
+  async function open(over: Partial<ComponentProps<typeof PlaceMap>> = {}) {
+    const result = render(
+      <PlaceMap
+        anchor={anchor}
+        places={[north]}
+        route={noRoute}
+        radiusM={8000}
+        timezone={TZ}
+        selectedId={null}
+        onSelect={() => {}}
+        onOpen={() => {}}
+        {...over}
+      />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Expand map' }))
+    return result.container.querySelector('dialog') as HTMLDialogElement
+  }
+
+  it('reports the settled view in metres, and again after a zoom', async () => {
+    const onView = vi.fn()
+    const dialog = await open({ basemap: base, onView })
+    expect(onView).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(onView).toHaveBeenCalledTimes(1))
+    const first = onView.mock.calls[0]?.[0] as Rect
+    // jsdom measures nothing, so the frame is the 360 x 640 fallback: the
+    // long side is the short one times 640/360.
+    expect(first.centerEastM).toBe(0)
+    expect(first.centerNorthM).toBe(0)
+    expect(first.halfHeightM).toBeCloseTo(first.halfWidthM * (640 / 360))
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Zoom in' }))
+    await vi.waitFor(() => expect(onView).toHaveBeenCalledTimes(2))
+    const second = onView.mock.calls[1]?.[0] as Rect
+    expect(second.halfWidthM).toBeCloseTo(first.halfWidthM / 1.5)
+  })
+
+  it('draws a finer area over the base on its own patch of ground', async () => {
+    const dialog = await open({ basemap: base, detail: [fine] })
+    const ground = dialog.querySelector('[data-testid="area-ground"]') as SVGRectElement
+    expect(ground).not.toBeNull()
+    // The patch is the cell's square, in metres east and south of the hotel.
+    expect(Number(ground.getAttribute('width'))).toBe(1500)
+    expect(Number(ground.getAttribute('height'))).toBe(1500)
+    const eastM = (fine.lng! - anchor.lng!) * 111_320 * Math.cos((anchor.lat! * Math.PI) / 180)
+    const northM = (fine.lat! - anchor.lat!) * 111_320
+    expect(Number(ground.getAttribute('x'))).toBeCloseTo(eastM - 750, 3)
+    expect(Number(ground.getAttribute('y'))).toBeCloseTo(-northM - 750, 3)
+    // Under the patch: the base's street. On it: the building.
+    const baseRoad = dialog.querySelector('.stroke-map-road-major') as Element
+    const building = dialog.querySelector('.fill-map-building') as Element
+    expect(building).not.toBeNull()
+    expect(baseRoad.compareDocumentPosition(ground) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(ground.compareDocumentPosition(building) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('a detail area alone is still real ground, not the dot grid', async () => {
+    const dialog = await open({ detail: [fine] })
+    expect(dialog.querySelector('[class*="map-texture"]')).toBeNull()
+    expect(dialog.querySelector('.fill-map-building')).not.toBeNull()
   })
 })

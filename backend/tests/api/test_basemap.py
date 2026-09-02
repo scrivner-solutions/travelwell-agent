@@ -11,6 +11,7 @@ fetch path turn it on for themselves and replace the network call, which is the
 same two-part arrangement the places layer uses.
 """
 
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -156,10 +157,55 @@ def test_a_category_filter_sized_radius_change_reuses_one_area():
 
 
 def test_two_hotels_in_one_district_share_an_area():
-    # 3dp is about 110 m.
+    # The grid is half the radius: a kilometre at this bucket.
     assert normalize(41.8924, -87.6252, 2000).key == normalize(
         41.89249, -87.62518, 2000
     ).key
+
+
+def test_a_snapped_centre_snaps_to_itself():
+    """What lets a client ask for the cell it was told about and get that
+    cell, rather than a neighbour one float-rounding away."""
+    first = normalize(ANCHOR_LAT, ANCHOR_LNG, 2000)
+    again = normalize(first.lat, first.lng, first.radius_m)
+    assert again == first
+
+
+def test_a_view_nudged_less_than_half_a_cell_stays_in_it():
+    cell = normalize(ANCHOR_LAT, ANCHOR_LNG, 2000)
+    step_lat = 1000 / geometry.METERS_PER_DEGREE_LAT
+    nudged = normalize(cell.lat + 0.4 * step_lat, cell.lng, 2000)
+    assert nudged.key == cell.key
+    over = normalize(cell.lat + 0.6 * step_lat, cell.lng, 2000)
+    assert over.key != cell.key
+
+
+def test_a_centre_never_moves_more_than_a_quarter_radius():
+    """The bound the client relies on when it picks a bucket: the fetched
+    square still covers the view it asked about."""
+    for lat, lng in ((41.8924, -87.6252), (60.17, 24.94), (-33.87, 151.21)):
+        for radius in (750, 2000, 5500, 16000):
+            area = normalize(lat, lng, radius)
+            moved_m = geometry_meters(lat, lng, area.lat, area.lng)
+            # Per axis it is a quarter; the diagonal is that times root two.
+            assert moved_m <= radius / 4 * 1.4143, (lat, lng, radius, moved_m)
+
+
+def test_the_finer_bucket_has_the_finer_grid():
+    at_750 = {normalize(ANCHOR_LAT + d, ANCHOR_LNG, 750).key for d in (0, 0.004, 0.008)}
+    at_5500 = {normalize(ANCHOR_LAT + d, ANCHOR_LNG, 5500).key for d in (0, 0.004, 0.008)}
+    assert len(at_750) == 3
+    assert len(at_5500) == 1
+
+
+def test_the_key_names_the_cell_to_the_metre():
+    assert re.fullmatch(r"-?\d+\.\d{5},-?\d+\.\d{5},2000", _area().key)
+
+
+def geometry_meters(lat1, lng1, lat2, lng2):
+    from app.services.places.matching import meters_between
+
+    return meters_between(lat1, lng1, lat2, lng2)
 
 
 def test_a_bounding_box_widens_in_longitude_away_from_the_equator():
@@ -173,9 +219,11 @@ def test_a_bounding_box_widens_in_longitude_away_from_the_equator():
     """
     import math
 
-    south, west, north, east = normalize(60.0, 10.0, 2000).bbox()
+    area = normalize(60.0, 10.0, 2000)
+    south, west, north, east = area.bbox()
+    # At the area's own latitude: the centre snaps to a grid, so it is not 60.0.
     assert (east - west) == pytest.approx(
-        (north - south) / math.cos(math.radians(60.0)), rel=1e-9
+        (north - south) / math.cos(math.radians(area.lat)), rel=1e-9
     )
 
 
@@ -255,6 +303,86 @@ async def test_a_fetch_is_stored_so_the_next_request_is_free(
     second = await authed_client.get("/api/v1/explore/basemap", params=params)
     assert first.json()["roads_major"] == second.json()["roads_major"]
     assert calls == [_area().key]
+
+
+async def test_a_centre_near_the_anchor_is_drawn_around_that_centre(
+    authed_client, user, monkeypatch
+):
+    """The expanded map, zoomed onto a district a few streets from the hotel."""
+    monkeypatch.setenv("BASEMAP_FETCH_ENABLED", "1")
+    asked: list = []
+
+    async def _record(area):
+        asked.append(area)
+        return Basemap([], [], [], [], [])
+
+    monkeypatch.setattr(overpass, "fetch", _record)
+    trip_id = await _make_trip(user)
+    lat, lng = ANCHOR_LAT + 0.02, ANCHOR_LNG - 0.03
+    r = await authed_client.get(
+        "/api/v1/explore/basemap",
+        params={"trip_id": str(trip_id), "radius_m": 900, "lat": lat, "lng": lng},
+    )
+    assert r.status_code == 200, r.text
+    expected = normalize(lat, lng, 900)
+    assert asked == [expected]
+    body = r.json()
+    assert (body["lat"], body["lng"], body["radius_m"]) == (
+        expected.lat, expected.lng, 1000,
+    )
+
+
+async def test_the_anchor_area_says_where_it_was_actually_centred(
+    authed_client, user
+):
+    trip_id = await _make_trip(user)
+    r = await authed_client.get(
+        "/api/v1/explore/basemap", params={"trip_id": str(trip_id)}
+    )
+    body = r.json()
+    assert (body["lat"], body["lng"]) == (_area().lat, _area().lng)
+    assert (body["lat"], body["lng"]) != (ANCHOR_LAT, ANCHOR_LNG)
+
+
+async def test_a_centre_far_from_the_anchor_is_refused(
+    authed_client, user, monkeypatch
+):
+    """Without this the endpoint is a worldwide proxy for a donated server,
+    open to anyone with a demo login."""
+    monkeypatch.setenv("BASEMAP_FETCH_ENABLED", "1")
+
+    async def _refuse(area):
+        raise AssertionError("fetched an area outside the trip")
+
+    monkeypatch.setattr(overpass, "fetch", _refuse)
+    trip_id = await _make_trip(user)
+    r = await authed_client.get(
+        "/api/v1/explore/basemap",
+        params={"trip_id": str(trip_id), "lat": 48.8566, "lng": 2.3522},
+    )
+    assert r.status_code == 422, r.text
+    assert r.json()["code"] == "basemap_centre_too_far"
+
+
+async def test_a_centre_needs_both_coordinates(authed_client, user):
+    trip_id = await _make_trip(user)
+    r = await authed_client.get(
+        "/api/v1/explore/basemap", params={"trip_id": str(trip_id), "lat": 41.9}
+    )
+    assert r.status_code == 422, r.text
+    assert r.json()["code"] == "basemap_centre_incomplete"
+
+
+async def test_a_trip_with_no_coordinates_has_no_centre_to_report(
+    authed_client, user
+):
+    trip_id = await _make_trip(user, located=False)
+    r = await authed_client.get(
+        "/api/v1/explore/basemap", params={"trip_id": str(trip_id)}
+    )
+    assert r.status_code == 200, r.text
+    # Absent rather than null on the wire: responses drop None fields.
+    assert (r.json().get("lat"), r.json().get("lng")) == (None, None)
 
 
 async def test_a_provider_failure_keeps_the_stale_area(

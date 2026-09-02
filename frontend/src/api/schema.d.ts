@@ -267,6 +267,10 @@ export interface paths {
          *     `radius_m` is the client's plot radius, which is computed from what is on
          *     screen. The server buckets it, so filtering a category usually reuses the
          *     area already cached rather than fetching a slightly different one.
+         *
+         *     `lat`/`lng` centre the area somewhere other than the trip's anchor: the
+         *     expanded map asks for finer geometry around wherever it has been zoomed
+         *     to. Both or neither, and never far from the anchor.
          */
         get: operations["explore_basemap_api_v1_explore_basemap_get"];
         put?: never;
@@ -826,6 +830,10 @@ export interface components {
             attribution: string;
             /** Buildings */
             buildings: number[][];
+            /** Lat */
+            lat: number | null;
+            /** Lng */
+            lng: number | null;
             /** Parks */
             parks: number[][];
             /** Radius M */
@@ -2030,6 +2038,8 @@ export interface operations {
             query: {
                 trip_id: string;
                 radius_m?: number;
+                lat?: number | null;
+                lng?: number | null;
             };
             header?: never;
             path?: never;

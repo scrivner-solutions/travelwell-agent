@@ -845,6 +845,26 @@ paths:
             default: 2000
             minimum: 250
             maximum: 20000
+        - name: lat
+          in: query
+          required: false
+          description: >
+            Centre the area here instead of on the trip's anchor, for the expanded
+            map zoomed onto a district. Goes with `lng`; refused (422
+            `basemap_centre_too_far`) more than 30 km from the anchor, so the
+            endpoint is not a worldwide proxy for a donated server.
+          schema:
+            type: number
+            minimum: -90
+            maximum: 90
+        - name: lng
+          in: query
+          required: false
+          description: Goes with `lat`; one without the other is 422 `basemap_centre_incomplete`.
+          schema:
+            type: number
+            minimum: -180
+            maximum: 180
       responses:
         "200":
           description: Geometry for the area, empty when the trip has no coordinates
@@ -1732,13 +1752,22 @@ components:
         coordinates rather than a rendered image. Each way is one flat
         [lat, lng, lat, lng, ...] run -- nested pairs describe the same thing
         for about a third more bytes. Sourced from OpenStreetMap.
-      required: [radius_m, attribution, roads_major, roads_minor, water, parks, buildings]
+      required: [radius_m, lat, lng, attribution, roads_major, roads_minor, water, parks, buildings]
       properties:
         radius_m:
           type: integer
           description: >
             The cached bucket actually served, which may be coarser than the
             radius asked for.
+        lat:
+          type: number
+          nullable: true
+          description: >
+            Where the area is actually centred: the requested centre snapped to
+            the cache grid (half the radius). Null when the trip has no coordinates.
+        lng:
+          type: number
+          nullable: true
         attribution:
           type: string
           description: >

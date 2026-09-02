@@ -88,7 +88,9 @@ class Area:
 
     @property
     def key(self) -> str:
-        return f"{self.lat:.3f},{self.lng:.3f},{self.radius_m}"
+        # Five places is a metre, far under the grid `snap()` puts centres on,
+        # so two areas print the same key only when they are the same cell.
+        return f"{self.lat:.5f},{self.lng:.5f},{self.radius_m}"
 
     def bbox(self) -> tuple[float, float, float, float]:
         """south, west, north, east -- the square that contains the circle.
@@ -174,7 +176,28 @@ def simplify(area: Area, points: list[tuple[float, float]]) -> list[float]:
     return out
 
 
+# The grid a centre is snapped to, as a share of the bucket radius. Half the
+# radius means a view that pans across a city lands on a handful of cells per
+# bucket rather than a fresh area per screen, and a 10 km city at the 2 km
+# bucket is at most a hundred rows. The price is that a centre moves by up to a
+# quarter of the radius, which the client allows for when it picks the bucket.
+_GRID_SHARE = 0.5
+
+
+def snap(lat: float, lng: float, radius_m: int) -> tuple[float, float]:
+    """Nearest grid point for this bucket. Idempotent: a snapped centre snaps
+    to itself, so a client that asks for the cell it was told about gets it."""
+    step_lat = radius_m * _GRID_SHARE / METERS_PER_DEGREE_LAT
+    snapped_lat = round(lat / step_lat) * step_lat
+    # The longitude step is taken at the snapped latitude, not the requested
+    # one, so every centre on a row shares one step and the rows line up.
+    step_lng = step_lat / max(math.cos(math.radians(snapped_lat)), 0.01)
+    return snapped_lat, round(lng / step_lng) * step_lng
+
+
 def normalize(lat: float, lng: float, radius_m: float) -> Area:
-    """The one place coordinates are rounded. 3dp is ~110 m, so two hotels in
-    the same district share a cached city rather than fetching it twice."""
-    return Area(round(lat, 3), round(lng, 3), bucket_radius(radius_m))
+    """The one place coordinates are rounded: onto a grid scaled to the bucket,
+    so neighbouring views share one cached row instead of fetching it twice."""
+    radius = bucket_radius(radius_m)
+    snapped_lat, snapped_lng = snap(lat, lng, radius)
+    return Area(snapped_lat, snapped_lng, radius)

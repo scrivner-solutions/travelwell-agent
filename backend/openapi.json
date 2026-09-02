@@ -200,6 +200,28 @@
             "title": "Buildings",
             "type": "array"
           },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lng"
+          },
           "parks": {
             "items": {
               "items": {
@@ -247,6 +269,8 @@
         },
         "required": [
           "radius_m",
+          "lat",
+          "lng",
           "attribution",
           "roads_major",
           "roads_minor",
@@ -2903,7 +2927,7 @@
     },
     "/explore/basemap": {
       "get": {
-        "description": "Street geometry for the area this trip's map covers.\n\nIts own endpoint rather than a field on `/explore` for two reasons. It\nchanges on a scale of years while the rest of that payload changes per tap,\nso bundling them would re-send a city every time a chip is pressed. And it\nis the one part of the surface that may legitimately arrive late or not at\nall: the map renders on plain ground without it, exactly as it did before.\n\n`radius_m` is the client's plot radius, which is computed from what is on\nscreen. The server buckets it, so filtering a category usually reuses the\narea already cached rather than fetching a slightly different one.",
+        "description": "Street geometry for the area this trip's map covers.\n\nIts own endpoint rather than a field on `/explore` for two reasons. It\nchanges on a scale of years while the rest of that payload changes per tap,\nso bundling them would re-send a city every time a chip is pressed. And it\nis the one part of the surface that may legitimately arrive late or not at\nall: the map renders on plain ground without it, exactly as it did before.\n\n`radius_m` is the client's plot radius, which is computed from what is on\nscreen. The server buckets it, so filtering a category usually reuses the\narea already cached rather than fetching a slightly different one.\n\n`lat`/`lng` centre the area somewhere other than the trip's anchor: the\nexpanded map asks for finer geometry around wherever it has been zoomed\nto. Both or neither, and never far from the anchor.",
         "operationId": "explore_basemap_api_v1_explore_basemap_get",
         "parameters": [
           {
@@ -2926,6 +2950,42 @@
               "minimum": 250,
               "title": "Radius M",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lat",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 90,
+                  "minimum": -90,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lat"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lng",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 180,
+                  "minimum": -180,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lng"
             }
           }
         ],
