@@ -451,13 +451,34 @@ describe('PlaceMap basemap', () => {
     expect(drawMap(empty).container.textContent).not.toContain('OpenStreetMap')
   })
 
+  /* The ground is drawn in metres under one group transform, so where a
+     street lands on the frame is the path composed with that transform. */
+  function majorRoad(container: HTMLElement) {
+    const g = container.querySelector('g[transform]')!.getAttribute('transform')!
+    const [tx, ty, s] = g
+      .match(/translate\((\S+) (\S+)\) scale\((\S+)\)/)!
+      .slice(1)
+      .map(Number) as [number, number, number]
+    const d = container.querySelector('.stroke-map-road-major')!.getAttribute('d')!
+    return [...d.matchAll(/[ML](-?[\d.]+) (-?[\d.]+)/g)].map((m) => ({
+      x: tx + Number(m[1]) * s,
+      y: ty + Number(m[2]) * s,
+    }))
+  }
+
   it('puts the street through the anchor at the centre of the plot', () => {
     /* The load-bearing one. The north-south road runs along the anchor's own
        longitude, so whatever the scale, it has to be drawn down the middle. */
     const { container } = drawMap(streets)
-    const d = container.querySelector('.stroke-map-road-major')!.getAttribute('d')!
-    const xs = [...d.matchAll(/[ML](-?[\d.]+) /g)].map((m) => Number(m[1]))
+    const xs = majorRoad(container).map((p) => p.x)
+    expect(xs.length).toBeGreaterThan(0)
     expect(xs.every((x) => Math.abs(x - 160) < 0.5)).toBe(true)
+  })
+
+  it('draws north up on the ground as well as for the pins', () => {
+    const { container } = drawMap(streets)
+    const [south, north] = majorRoad(container)
+    expect(north!.y).toBeLessThan(south!.y)
   })
 
   it('rescales the streets with the pins rather than holding still', () => {
@@ -474,13 +495,21 @@ describe('PlaceMap basemap', () => {
         basemap={streets} radiusM={8000} timezone={TZ} selectedId={null}
         onSelect={() => {}} onOpen={() => {}} />,
     )
-    const ys = (c: HTMLElement) =>
-      [...c
-        .querySelector('.stroke-map-road-major')!
-        .getAttribute('d')!
-        .matchAll(/[ML]-?[\d.]+ (-?[\d.]+)/g)].map((m) => Number(m[1]))
+    const ys = (c: HTMLElement) => majorRoad(c).map((p) => p.y)
     const spread = (c: HTMLElement) => Math.max(...ys(c)) - Math.min(...ys(c))
     expect(spread(close.container)).toBeGreaterThan(spread(wide.container) * 2)
+    /* And it does so by moving the group, not by rebuilding the geometry: the
+       path itself is the same string at both scales. That is the property a
+       gesture over sixty thousand points depends on. */
+    const d = (c: HTMLElement) => c.querySelector('.stroke-map-road-major')!.getAttribute('d')
+    expect(d(close.container)).toBe(d(wide.container))
+  })
+
+  it('keeps road widths in frame units under the zoom transform', () => {
+    const { container } = drawMap(streets)
+    for (const road of container.querySelectorAll('[class*="stroke-map-road"]')) {
+      expect(road.getAttribute('vector-effect')).toBe('non-scaling-stroke')
+    }
   })
 
   it('culls a way that is nowhere near the frame', () => {

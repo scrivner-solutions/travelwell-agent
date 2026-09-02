@@ -1,17 +1,23 @@
-import type { Basemap } from '@/api/queries'
-import type { Point } from './projection'
+import { useMemo } from 'react'
+import type { Basemap, ExploreAnchor } from '@/api/queries'
+import { metersPerUnit, offset, type Size, type Viewport } from './projection'
 
 /* Ways are stored flat -- [lat, lng, lat, lng, ...] -- because the payload is
    almost entirely numbers and nesting them cost about a third more bytes. */
 const STRIDE = 2
 
-/* How far outside the frame a way may reach before it is dropped. The cached
-   area is squared off around the anchor while the frame is scaled to the pins,
-   so a city's worth of geometry can sit off-canvas; culling it keeps that out
-   of the DOM rather than out of the download. */
-const MARGIN = 24
+/* How far past the loaded square a way may reach before it is dropped, as a
+   share of the area's radius. The server sends every way that touches the
+   square, so the ones this catches are the few that run right through it and
+   out the other side of the city, and garbage. */
+const CULL_MARGIN = 0.5
 
-function path(ways: number[][], project: (lat: number, lng: number) => Point, view: number, close: boolean): string {
+/* World units are metres east and south of the anchor -- south, so that the
+   group transform below is a plain scale and never a flip. Paths are built
+   once per loaded area; pan and zoom only move the group, which is what keeps
+   a gesture over sixty thousand points from rebuilding a megabyte of path
+   string per frame. */
+function worldPath(ways: number[][], anchor: ExploreAnchor, limitM: number, close: boolean): string {
   const parts: string[] = []
   for (const way of ways) {
     let d = ''
@@ -20,10 +26,10 @@ function path(ways: number[][], project: (lat: number, lng: number) => Point, vi
     let minY = Infinity
     let maxY = -Infinity
     for (let i = 0; i + 1 < way.length; i += STRIDE) {
-      const lat = way[i]
-      const lng = way[i + 1]
-      if (lat === undefined || lng === undefined) break
-      const { x, y } = project(lat, lng)
+      const at = offset(way[i], way[i + 1], anchor)
+      if (at === null) break
+      const x = at.eastM
+      const y = -at.northM
       d += `${d === '' ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`
       minX = Math.min(minX, x)
       maxX = Math.max(maxX, x)
@@ -31,9 +37,8 @@ function path(ways: number[][], project: (lat: number, lng: number) => Point, vi
       maxY = Math.max(maxY, y)
     }
     if (d === '') continue
-    const offCanvas =
-      maxX < -MARGIN || minX > view + MARGIN || maxY < -MARGIN || minY > view + MARGIN
-    if (offCanvas) continue
+    const outside = maxX < -limitM || minX > limitM || maxY < -limitM || minY > limitM
+    if (outside) continue
     parts.push(close ? `${d}Z` : d)
   }
   return parts.join('')
@@ -41,8 +46,9 @@ function path(ways: number[][], project: (lat: number, lng: number) => Point, vi
 
 export interface BasemapLayerProps {
   basemap: Basemap
-  project: (lat: number, lng: number) => Point
-  view: number
+  anchor: ExploreAnchor
+  viewport: Viewport
+  size: Size
 }
 
 /** The ground: water, parks and streets, drawn beneath everything of ours.
@@ -55,33 +61,46 @@ export interface BasemapLayerProps {
  *  buildings, then the smaller road classes, then the larger ones on top. That
  *  is what makes a street look carved through a block rather than painted over
  *  it, and a motorway look like it crosses a side street. */
-export function BasemapLayer({ basemap, project, view }: BasemapLayerProps) {
-  const water = path(basemap.water, project, view, true)
-  const parks = path(basemap.parks, project, view, true)
-  const buildings = path(basemap.buildings, project, view, true)
-  const minor = path(basemap.roads_minor, project, view, false)
-  const major = path(basemap.roads_major, project, view, false)
+export function BasemapLayer({ basemap, anchor, viewport, size }: BasemapLayerProps) {
+  const paths = useMemo(() => {
+    const limitM = basemap.radius_m * (1 + CULL_MARGIN)
+    return {
+      water: worldPath(basemap.water, anchor, limitM, true),
+      parks: worldPath(basemap.parks, anchor, limitM, true),
+      buildings: worldPath(basemap.buildings, anchor, limitM, true),
+      minor: worldPath(basemap.roads_minor, anchor, limitM, false),
+      major: worldPath(basemap.roads_major, anchor, limitM, false),
+    }
+  }, [basemap, anchor])
 
+  const scale = 1 / metersPerUnit(viewport, size)
+  const tx = size.w / 2 - viewport.centerEastM * scale
+  const ty = size.h / 2 + viewport.centerNorthM * scale
+
+  /* Road widths are in frame units, not metres: `non-scaling-stroke` keeps
+     them from becoming rivers when the view zooms in, or vanishing out. */
   return (
-    <g aria-hidden>
-      {water !== '' && <path d={water} className="fill-map-water" />}
-      {parks !== '' && <path d={parks} className="fill-map-park" />}
-      {buildings !== '' && <path d={buildings} className="fill-map-building" />}
-      {minor !== '' && (
+    <g aria-hidden transform={`translate(${tx} ${ty}) scale(${scale})`}>
+      {paths.water !== '' && <path d={paths.water} className="fill-map-water" />}
+      {paths.parks !== '' && <path d={paths.parks} className="fill-map-park" />}
+      {paths.buildings !== '' && <path d={paths.buildings} className="fill-map-building" />}
+      {paths.minor !== '' && (
         <path
-          d={minor}
+          d={paths.minor}
           fill="none"
           strokeWidth={1.6}
           strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
           className="stroke-map-road"
         />
       )}
-      {major !== '' && (
+      {paths.major !== '' && (
         <path
-          d={major}
+          d={paths.major}
           fill="none"
           strokeWidth={3}
           strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
           className="stroke-map-road-major"
         />
       )}

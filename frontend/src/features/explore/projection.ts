@@ -76,6 +76,112 @@ export function plotRadiusFor(
   return plotRadiusMeters(offsets, radiusM)
 }
 
+/* ---- Viewport ------------------------------------------------------------
+
+   What the map is looking at, in metres from the anchor, independent of the
+   pixels it is drawn into. Pan and zoom are edits to this record; the draw is a
+   function of it. Every function below is pure so the gestures can be tested
+   without a DOM, and so the inline band and the expanded map can share one
+   projection instead of agreeing by coincidence. */
+
+export interface Viewport {
+  centerEastM: number
+  centerNorthM: number
+  /** Metres from the centre to the nearest edge. The frame need not be square,
+   *  so it is the SHORTER side that shows exactly this much ground. */
+  radiusM: number
+}
+
+/** The frame, in whatever unit the caller places things in: SVG user units for
+ *  the inline band, CSS pixels for the expanded map. */
+export interface Size {
+  w: number
+  h: number
+}
+
+export interface ZoomBounds {
+  minRadiusM: number
+  maxRadiusM: number
+}
+
+/* Below this the 4-5 dp simplification of the geometry wobbles, and the
+ * smallest area the server keeps is 750 m anyway. */
+export const MIN_RADIUS_M = 250
+
+/** Zooming further out than twice the fitted view only shows empty ground past
+ *  the square that was fetched. */
+export function zoomBoundsFor(fitted: Viewport): ZoomBounds {
+  return { minRadiusM: MIN_RADIUS_M, maxRadiusM: fitted.radiusM * 2 }
+}
+
+/** Today's view: centred on the anchor, scaled so the furthest pin sits at
+ *  `PLOT_RADIUS` of the `CENTER` half-frame. */
+export function fit(
+  anchor: ExploreAnchor,
+  places: ExplorePlace[],
+  route: ExploreRoute,
+  radiusM: number,
+): Viewport {
+  return {
+    centerEastM: 0,
+    centerNorthM: 0,
+    radiusM: (plotRadiusFor(anchor, places, route, radiusM) * CENTER) / PLOT_RADIUS,
+  }
+}
+
+export function metersPerUnit(vp: Viewport, size: Size): number {
+  return vp.radiusM / (Math.min(size.w, size.h) / 2)
+}
+
+export function toPoint(vp: Viewport, size: Size, at: Offset): Point {
+  const mpu = metersPerUnit(vp, size)
+  return {
+    x: size.w / 2 + (at.eastM - vp.centerEastM) / mpu,
+    // Screen y grows downward; north must go up.
+    y: size.h / 2 - (at.northM - vp.centerNorthM) / mpu,
+  }
+}
+
+export function toOffset(vp: Viewport, size: Size, p: Point): Offset {
+  const mpu = metersPerUnit(vp, size)
+  return {
+    eastM: vp.centerEastM + (p.x - size.w / 2) * mpu,
+    northM: vp.centerNorthM - (p.y - size.h / 2) * mpu,
+  }
+}
+
+/** Drag the ground by (dx, dy) frame units: the centre moves the other way. */
+export function pan(vp: Viewport, dx: number, dy: number, size: Size): Viewport {
+  const mpu = metersPerUnit(vp, size)
+  return {
+    ...vp,
+    centerEastM: vp.centerEastM - dx * mpu,
+    centerNorthM: vp.centerNorthM + dy * mpu,
+  }
+}
+
+/** Zoom by `factor` (> 1 zooms in) about a point of the frame, keeping the
+ *  ground under that point where it is. Clamped to `bounds`; at a limit the
+ *  view stays put rather than sliding. */
+export function zoomAt(
+  vp: Viewport,
+  factor: number,
+  about: Point,
+  size: Size,
+  bounds: ZoomBounds,
+): Viewport {
+  const radiusM = Math.min(bounds.maxRadiusM, Math.max(bounds.minRadiusM, vp.radiusM / factor))
+  if (radiusM === vp.radiusM) return vp
+  const ground = toOffset(vp, size, about)
+  const zoomed = { ...vp, radiusM }
+  const mpu = metersPerUnit(zoomed, size)
+  return {
+    ...zoomed,
+    centerEastM: ground.eastM - (about.x - size.w / 2) * mpu,
+    centerNorthM: ground.northM + (about.y - size.h / 2) * mpu,
+  }
+}
+
 /** True when there is enough geography to replace the placeholder grid.
 
  *  The grid texture stands in for streets. Leaving it under real ones would

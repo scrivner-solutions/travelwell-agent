@@ -2,14 +2,14 @@ import type { ReactNode } from 'react'
 import type { Basemap, ExploreAnchor, ExplorePlace, ExploreRoute } from '@/api/queries'
 import { BasemapLayer } from './BasemapLayer'
 import {
-  CENTER,
-  PLOT_RADIUS,
   VIEW,
+  fit,
   hasGeography,
   offset,
-  plotRadiusFor,
+  toPoint,
   type Offset,
   type Point,
+  type Size,
 } from './projection'
 import { hoursLabel } from './hours'
 
@@ -88,29 +88,22 @@ export function PlaceMap({
     at: offset(stop.lat, stop.lng, anchor),
   }))
 
-  const metersPerUnit = plotRadiusFor(anchor, places, route, radiusM) / PLOT_RADIUS
-  const toPoint = (at: Offset): Point => ({
-    x: CENTER + at.eastM / metersPerUnit,
-    // Screen y grows downward; north must go up.
-    y: CENTER - at.northM / metersPerUnit,
-  })
-
-  /* The basemap arrives as coordinates, so it goes through exactly the maths
-     the pins do. That is what keeps the streets under the right pin when a
-     category filter changes the scale -- a pre-rendered image could not. */
-  const project = (lat: number, lng: number): Point => {
-    const at = offset(lat, lng, anchor)
-    // Far enough off-canvas to be culled. Reached only when the anchor has no
-    // coordinates, in which case there is no basemap to draw either.
-    return at === null ? { x: -9999, y: -9999 } : toPoint(at)
-  }
+  /* The inline band is a fixed square of `VIEW` units placed by percentage,
+     so its frame is that square rather than measured pixels. The basemap
+     arrives as coordinates and goes through the same viewport the pins do,
+     which is what keeps the streets under the right pin when a category
+     filter changes the scale -- a pre-rendered image could not. */
+  const viewport = fit(anchor, places, route, radiusM)
+  const size: Size = { w: VIEW, h: VIEW }
+  const place = (at: Offset): Point => toPoint(viewport, size, at)
+  const centre = place({ eastM: 0, northM: 0 })
   const ground = hasGeography(basemap)
 
   const pins = placeOffsets.flatMap((entry) =>
-    entry.at === null ? [] : [{ place: entry.place, ...toPoint(entry.at) }],
+    entry.at === null ? [] : [{ place: entry.place, ...place(entry.at) }],
   )
   const routePoints = routeOffsets.flatMap((entry) =>
-    entry.at === null ? [] : [toPoint(entry.at)],
+    entry.at === null ? [] : [place(entry.at)],
   )
 
   const selected = pins.find((pin) => pin.place.id === selectedId) ?? null
@@ -149,7 +142,9 @@ export function PlaceMap({
           role="img"
           aria-label={`Places around ${anchor.name}`}
         >
-          {ground && <BasemapLayer basemap={basemap} project={project} view={VIEW} />}
+          {ground && (
+            <BasemapLayer basemap={basemap} anchor={anchor} viewport={viewport} size={size} />
+          )}
           {routePoints.length > 1 && (
             <polyline
               points={routePoints.map((p) => `${p.x},${p.y}`).join(' ')}
@@ -163,7 +158,7 @@ export function PlaceMap({
           )}
           {spurTo && (
             <polyline
-              points={`${CENTER},${CENTER} ${spurTo.x},${spurTo.y}`}
+              points={`${centre.x},${centre.y} ${spurTo.x},${spurTo.y}`}
               fill="none"
               stroke="var(--agent-bright)"
               strokeWidth={2}
@@ -184,8 +179,8 @@ export function PlaceMap({
         <div
           className="pointer-events-none absolute z-10 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-ink font-semibold text-[11px] leading-none text-card shadow-[var(--shadow-pin)]"
           style={{
-            left: pct(CENTER),
-            top: pct(CENTER),
+            left: pct(centre.x),
+            top: pct(centre.y),
             width: anchor.is_hotel ? 30 : 14,
             height: anchor.is_hotel ? 30 : 14,
           }}
