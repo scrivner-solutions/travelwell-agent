@@ -205,6 +205,109 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit a user event (voice, text, or UI intent) to the agent event spine
+         * @description 202, not 201: the row exists, and whether it becomes a run is the
+         *     worker's decision, not this request's.
+         *
+         *     A repeated Idempotency-Key returns the event that already exists rather
+         *     than a second one, which for `scheduled_activation` is the difference
+         *     between a retry and a second paid run.
+         */
+        post: operations["submitEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/explore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Explore */
+        get: operations["explore_api_v1_explore_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/explore/basemap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Explore Basemap
+         * @description Street geometry for the area this trip's map covers.
+         *
+         *     Its own endpoint rather than a field on `/explore` for two reasons. It
+         *     changes on a scale of years while the rest of that payload changes per tap,
+         *     so bundling them would re-send a city every time a chip is pressed. And it
+         *     is the one part of the surface that may legitimately arrive late or not at
+         *     all: the map renders on plain ground without it, exactly as it did before.
+         *
+         *     `radius_m` is the client's plot radius, which is computed from what is on
+         *     screen. The server buckets it, so filtering a category usually reuses the
+         *     area already cached rather than fetching a slightly different one.
+         *
+         *     `lat`/`lng` centre the area somewhere other than the trip's anchor: the
+         *     expanded map asks for finer geometry around wherever it has been zoomed
+         *     to. Both or neither, and never far from the anchor.
+         */
+        get: operations["explore_basemap_api_v1_explore_basemap_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/geocode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Geocode
+         * @description Resolve free text to a point.
+         *
+         *     Written fresh rather than ported: the prototype's /resolve_location is
+         *     synchronous and answers with hardcoded Skokie coordinates when no key is
+         *     configured, which is worse than an error because the caller cannot tell.
+         *     Here the three outcomes stay distinct -- no such place is 404, no key is
+         *     503, and a provider failure is 502 -- so nobody plans a trip around a
+         *     fallback.
+         */
+        get: operations["geocode_api_v1_geocode_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me": {
         parameters: {
             query?: never;
@@ -255,6 +358,93 @@ export interface paths {
         get: operations["list_connected_sources_api_v1_me_sources_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/sources/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Disconnect Source
+         * @description Forget the token and mark the grant revoked, keeping the row.
+         *
+         *     The row is the record that a connection existed, which is what lets
+         *     /me/sources say "disconnected" instead of silently showing nothing, and what
+         *     explains the calendar_events still in the cache.
+         *
+         *     Revoking at Google's end is deliberately not done here. It is an outbound
+         *     HTTP call, and the seam that owns outbound calls to Google is the calendar
+         *     client, which does not exist yet. Until then the local token is destroyed,
+         *     so the grant is unusable by us whether or not Google still lists it.
+         */
+        delete: operations["disconnect_source_api_v1_me_sources__kind__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/sources/{kind}/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Connect Callback */
+        get: operations["connect_callback_api_v1_me_sources__kind__callback_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/sources/{kind}/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Connect Source */
+        get: operations["connect_source_api_v1_me_sources__kind__connect_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/sources/{kind}/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync Connected Source
+         * @description Pull a window of the calendar into the cache, now.
+         *
+         *     Explicit rather than scheduled, because there is no scheduler yet and a
+         *     feature nobody can trigger cannot be shown to work. Whatever runs this on a
+         *     timer later calls the same service.
+         */
+        post: operations["sync_connected_source_api_v1_me_sources__kind__sync_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -376,6 +566,30 @@ export interface paths {
         get: operations["get_trip_api_v1_trips__trip_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{trip_id}/assistant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Say something about this trip's plan and have the agent act on it
+         * @description One utterance, interpreted against this trip's plan, applied, answered.
+         *
+         *     The 200 means the turn happened, not that anything changed: "nothing here
+         *     matches that" is a successful turn with an empty `applied`. A caller that
+         *     wants to know whether the plan moved reads `applied`, not the status code.
+         */
+        post: operations["askAssistant"];
         delete?: never;
         options?: never;
         head?: never;
@@ -555,11 +769,82 @@ export interface components {
              */
             updated_at: string;
         };
+        /** AssistantAsk */
+        AssistantAsk: {
+            /**
+             * Utterance
+             * @description What the traveler said, verbatim. Voice is transcribed client-side.
+             */
+            utterance: string;
+        };
+        /** AssistantChangeOut */
+        AssistantChangeOut: {
+            /**
+             * Item Id
+             * Format: uuid
+             */
+            item_id: string;
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
+        };
+        /** AssistantTurnOut */
+        AssistantTurnOut: {
+            /**
+             * Applied
+             * @description Plan items this turn actually moved, in the order they were applied.
+             */
+            applied: components["schemas"]["AssistantChangeOut"][];
+            /**
+             * Reply
+             * @description One sentence for the traveler. Never empty.
+             */
+            reply: string;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+        };
         /**
          * AuthProvider
          * @enum {string}
          */
         AuthProvider: "google" | "apple" | "email";
+        /**
+         * BasemapOut
+         * @description The ground the Explore map is drawn on: real streets, water and parks.
+         *
+         *     Coordinates, not an image. The client projects them with the same maths it
+         *     already uses for pins, so the basemap rescales with the plot instead of
+         *     going stale the moment a category chip changes what is on screen -- and it
+         *     arrives in our palette because we paint it, which a rendered tile could
+         *     never do.
+         *
+         *     Each way is a flat `[lat, lng, lat, lng, ...]` run. Nested pairs described
+         *     the same thing and cost roughly a third more bytes.
+         */
+        BasemapOut: {
+            /** Attribution */
+            attribution: string;
+            /** Buildings */
+            buildings: number[][];
+            /** Lat */
+            lat: number | null;
+            /** Lng */
+            lng: number | null;
+            /** Parks */
+            parks: number[][];
+            /** Radius M */
+            radius_m: number;
+            /** Roads Major */
+            roads_major: number[][];
+            /** Roads Minor */
+            roads_minor: number[][];
+            /** Water */
+            water: number[][];
+        };
         /** CalendarEventSummaryOut */
         CalendarEventSummaryOut: {
             /**
@@ -611,6 +896,146 @@ export interface components {
              * Format: email
              */
             email: string;
+        };
+        /** EventCreate */
+        EventCreate: {
+            kind: components["schemas"]["EventKind"];
+            /**
+             * Payload
+             * @description Kind-specific payload (transcript text, UI intent name, etc.).
+             */
+            payload: {
+                [key: string]: unknown;
+            };
+            /** Trip Id */
+            trip_id?: string | null;
+        };
+        /**
+         * EventKind
+         * @enum {string}
+         */
+        EventKind: "scheduled_activation" | "scheduled_daily" | "user_text" | "user_voice" | "ui_action" | "calendar_changed" | "trip_changed" | "reservation_changed" | "external_context";
+        /**
+         * ExploreAnchorOut
+         * @description Where the map opens and what distances are measured from.
+         */
+        ExploreAnchorOut: {
+            /** Is Hotel */
+            is_hotel: boolean;
+            /** Lat */
+            lat?: number | null;
+            /** Lng */
+            lng?: number | null;
+            /** Name */
+            name: string;
+        };
+        /**
+         * ExploreKindOut
+         * @description A category chip. The count is over the whole radius, not the filter, so
+         *     switching chips never changes the other chips' numbers.
+         */
+        ExploreKindOut: {
+            /** Count */
+            count: number;
+            kind: components["schemas"]["PlaceKind"];
+        };
+        /** ExploreOut */
+        ExploreOut: {
+            anchor?: components["schemas"]["ExploreAnchorOut"] | null;
+            /** Kinds */
+            kinds: components["schemas"]["ExploreKindOut"][];
+            /** Places */
+            places: components["schemas"]["ExplorePlaceOut"][];
+            /** Radius M */
+            radius_m: number;
+            route: components["schemas"]["ExploreRouteOut"];
+            /**
+             * Trip Id
+             * Format: uuid
+             */
+            trip_id: string;
+        };
+        /**
+         * ExplorePlaceOut
+         * @description One card and one pin: the list and the map read the same row.
+         *
+         *     The first four derived fields are computed per request against this user's
+         *     preferences and this trip's anchor, so two users looking at the same cached
+         *     place see different reasons for it.
+         */
+        ExplorePlaceOut: {
+            /** Address */
+            address?: string | null;
+            /** Amenities */
+            amenities?: string[] | null;
+            /** Day Pass Cents */
+            day_pass_cents?: number | null;
+            /** Distance Meters */
+            distance_meters?: number | null;
+            /** Hours */
+            hours?: {
+                [key: string]: number[];
+            } | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kind: components["schemas"]["PlaceKind"];
+            /** Lat */
+            lat?: number | null;
+            /** Lng */
+            lng?: number | null;
+            /** Matched Preferences */
+            matched_preferences: string[];
+            /** Name */
+            name: string;
+            /** Over Budget Reason */
+            over_budget_reason?: string | null;
+            /** Photo Url */
+            photo_url?: string | null;
+            /** Price Level */
+            price_level?: number | null;
+            reservable_via?: components["schemas"]["ReservationProvider"] | null;
+            /** Summary */
+            summary?: string | null;
+            /** Unknown Notes */
+            unknown_notes: string[];
+            /** Walk Minutes */
+            walk_minutes?: number | null;
+        };
+        /**
+         * ExploreRouteOut
+         * @description Today's plan as a path, for the map's line and its summary strip.
+         *
+         *     Empty `stops` is the ordinary case, not an error: a trip with nothing
+         *     scheduled today, or one whose planned places have no coordinates.
+         */
+        ExploreRouteOut: {
+            /** Stops */
+            stops: components["schemas"]["ExploreRouteStopOut"][];
+            /** Total Minutes */
+            total_minutes?: number | null;
+        };
+        /**
+         * ExploreRouteStopOut
+         * @description One stop on today's walking route, in schedule order.
+         *
+         *     Carries its own coordinates rather than a place id the client would look
+         *     up in `places`: the route must survive a category filter, and a dinner stop
+         *     is not in the list while the Workout chip is selected.
+         */
+        ExploreRouteStopOut: {
+            /** Is Anchor */
+            is_anchor: boolean;
+            /** Lat */
+            lat: number;
+            /** Lng */
+            lng: number;
+            /** Name */
+            name: string;
+            /** Walk Minutes */
+            walk_minutes?: number | null;
         };
         /**
          * ItemKind
@@ -669,6 +1094,11 @@ export interface components {
              */
             updated_at: string;
         };
+        /**
+         * PlaceKind
+         * @enum {string}
+         */
+        PlaceKind: "workout" | "food" | "outdoor" | "recovery" | "lodging";
         /** PlanItemOptionOut */
         PlanItemOptionOut: {
             /** Display Name */
@@ -914,6 +1344,36 @@ export interface components {
          * @enum {string}
          */
         ReservationStatus: "pending" | "holding" | "confirmed" | "failed" | "canceled";
+        /**
+         * ResolvedLocationOut
+         * @description Free text resolved to a point. `query` is echoed so a client that fired
+         *     several lookups can tell the answers apart.
+         */
+        ResolvedLocationOut: {
+            /** Lat */
+            lat: number;
+            /** Lng */
+            lng: number;
+            /** Name */
+            name: string;
+            /** Query */
+            query: string;
+            /** Timezone */
+            timezone?: string | null;
+        };
+        /** RunRef */
+        RunRef: {
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /**
+             * Run Id
+             * @description Present when the event started (or joined) an agent run.
+             */
+            run_id?: string | null;
+        };
         /** SelectOptionIn */
         SelectOptionIn: {
             /**
@@ -952,8 +1412,29 @@ export interface components {
         SourceStatus: "connected" | "error" | "revoked";
         /** SourcesOut */
         SourcesOut: {
+            /** Connectable */
+            connectable: components["schemas"]["SourceKind"][];
             /** Sources */
             sources: components["schemas"]["ConnectedSourceOut"][];
+        };
+        /**
+         * SyncOut
+         * @description What one sync run did. Counts rather than a bare ok, because "nothing
+         *     changed" and "nothing was returned" are different answers and only one of
+         *     them is a problem.
+         */
+        SyncOut: {
+            /** Created */
+            created: number;
+            /**
+             * Last Synced At
+             * Format: date-time
+             */
+            last_synced_at: string;
+            /** Unchanged */
+            unchanged: number;
+            /** Updated */
+            updated: number;
         };
         /** TimelineEntryOut */
         TimelineEntryOut: {
@@ -1483,6 +1964,140 @@ export interface operations {
             };
         };
     };
+    submitEvent: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EventCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunRef"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    explore_api_v1_explore_get: {
+        parameters: {
+            query: {
+                trip_id: string;
+                category?: components["schemas"]["PlaceKind"] | null;
+                query?: string | null;
+                radius_m?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExploreOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    explore_basemap_api_v1_explore_basemap_get: {
+        parameters: {
+            query: {
+                trip_id: string;
+                radius_m?: number;
+                lat?: number | null;
+                lng?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BasemapOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    geocode_api_v1_geocode_get: {
+        parameters: {
+            query: {
+                query: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedLocationOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
     get_me_api_v1_me_get: {
         parameters: {
             query?: never;
@@ -1623,6 +2238,128 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SourcesOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    disconnect_source_api_v1_me_sources__kind__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: components["schemas"]["SourceKind"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    connect_callback_api_v1_me_sources__kind__callback_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: components["schemas"]["SourceKind"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    connect_source_api_v1_me_sources__kind__connect_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: components["schemas"]["SourceKind"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    sync_connected_source_api_v1_me_sources__kind__sync_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: components["schemas"]["SourceKind"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncOut"];
                 };
             };
             /** @description Problem details (RFC 9457) */
@@ -1856,6 +2593,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TripOut"];
+                };
+            };
+            /** @description Problem details (RFC 9457) */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemOut"];
+                };
+            };
+        };
+    };
+    askAssistant: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantAsk"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantTurnOut"];
                 };
             };
             /** @description Problem details (RFC 9457) */

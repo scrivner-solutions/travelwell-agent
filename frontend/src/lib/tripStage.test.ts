@@ -31,7 +31,9 @@ function item(over: Partial<PlanItem> = {}): PlanItem {
   return {
     id: 'i1',
     kind: 'activity',
-    status: 'suggested',
+    // `awaiting_user`, not `suggested`: these fixtures sit in a `proposed`
+    // plan, and an item is only `suggested` while its plan is a draft.
+    status: 'awaiting_user',
     title: 'Morning swim',
     starts_at: '2026-09-13T12:00:00Z',
     needs_reservation: false,

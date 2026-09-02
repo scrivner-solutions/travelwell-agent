@@ -1,18 +1,33 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useRouter } from '@tanstack/react-router'
+import { useRouter, useSearch } from '@tanstack/react-router'
+import { useMemo, useState } from 'react'
 import {
+  disconnectSource,
   logout,
   meQueryOptions,
   preferencesQueryOptions,
   sourcesQueryOptions,
+  syncSource,
   tripsQueryOptions,
   updatePreferences,
   type Preferences,
   type PreferencesUpdate,
 } from '@/api/queries'
+import { Button } from '@/components/ui/Button'
 import { LoadingState, DegradedState } from '@/components/ui/ScreenState'
+import { apiUrl } from '@/lib/config'
 import { formatAgo } from '@/lib/time'
-import { SOURCE_META, SOURCE_STATE } from '@/lib/sources'
+import {
+  CONNECT_ERROR_COPY,
+  SOURCE_ACTION_LABEL,
+  SOURCE_META,
+  SOURCE_STATE,
+  canGoBackInApp,
+  sourceAction,
+  sourceName,
+  syncFailureMessage,
+  syncOutcomeMessage,
+} from '@/lib/sources'
 import { travelStats } from '@/lib/trips'
 
 /**
@@ -120,7 +135,6 @@ const PERMS: Perm[] = [
   },
 ]
 
-// source_kind -> the profile row's tag box and display copy.
 function initials(name: string): string {
   return name
     .split(/\s+/)
@@ -223,6 +237,48 @@ export function ProfileScreen() {
   })
   const patch = (update: PreferencesUpdate) => mutation.mutate(update)
 
+  const { connected, connect_error: connectError } = useSearch({ from: '/profile' })
+  const [confirming, setConfirming] = useState<string | null>(null)
+
+  const disconnect = useMutation({
+    mutationFn: disconnectSource,
+    onSuccess: () => {
+      setConfirming(null)
+      void queryClient.invalidateQueries({ queryKey: ['me', 'sources'] })
+    },
+  })
+
+  // One mutation serves every row, so an outcome is keyed to `variables` - the
+  // kind of the last run - and never paints onto a row that did not ask.
+  const sync = useMutation({
+    mutationFn: syncSource,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['me', 'sources'] })
+      // A sync that created events changes what the trips read, not just the
+      // freshness line above the button.
+      void queryClient.invalidateQueries({ queryKey: ['trips'] })
+    },
+  })
+
+  // The connect route answers with a 302 to Google, which fetch can neither
+  // follow (cross-origin) nor read (opaque), so this is a navigation.
+  const startConnect = async (kind: string) => {
+    window.location.assign(await apiUrl(`/me/sources/${kind}/connect`))
+  }
+
+  // Every connectable kind gets a row even with no grant behind it, or there
+  // is nowhere to put its Connect button.
+  const sourceRows = useMemo(() => {
+    const rows = sources.data?.sources ?? []
+    const seen = new Set(rows.map((row) => row.kind))
+    return [
+      ...rows.map((row) => ({ kind: row.kind, source: row })),
+      ...(sources.data?.connectable ?? [])
+        .filter((kind) => !seen.has(kind))
+        .map((kind) => ({ kind, source: null })),
+    ]
+  }, [sources.data])
+
   const signOut = useMutation({
     mutationFn: logout,
     onSuccess: () => {
@@ -234,7 +290,9 @@ export function ProfileScreen() {
   })
 
   const goBack = () => {
-    if (window.history.length > 1) router.history.back()
+    // The OAuth landing carries one of these two params and nothing else does.
+    const arrivedFromOAuth = connected !== undefined || connectError !== undefined
+    if (canGoBackInApp(arrivedFromOAuth, window.history.length)) router.history.back()
     else void router.navigate({ to: '/today' })
   }
 
@@ -358,6 +416,23 @@ export function ProfileScreen() {
             </div>
 
             <SectionLabel>Sources</SectionLabel>
+            {connected !== undefined && (
+              <p
+                role="status"
+                className="rounded-[14px] border border-border bg-card px-4 py-3 text-body-sm font-semibold text-primary-deep"
+              >
+                {sourceName(connected)} is connected.
+              </p>
+            )}
+            {connectError !== undefined && (
+              <p
+                role="alert"
+                className="rounded-[14px] border border-border bg-card px-4 py-3 text-body-sm text-state-failed"
+              >
+                {CONNECT_ERROR_COPY[connectError] ??
+                  'The connection did not complete. Try again.'}
+              </p>
+            )}
             {sources.isError ? (
               <DegradedState
                 title="Sources are unreachable"
@@ -366,43 +441,128 @@ export function ProfileScreen() {
               />
             ) : (
               <div className="overflow-hidden rounded-[18px] border border-border bg-card">
-                {(sources.data ?? []).map((source) => {
-                  const meta = SOURCE_META[source.kind] ?? {
-                    tag: 'SRC',
-                    name: source.kind,
-                  }
-                  const state = SOURCE_STATE[source.status]
-                  const sub =
-                    meta.sub ??
-                    (source.last_synced_at != null
-                      ? `Synced ${formatAgo(source.last_synced_at)}`
-                      : undefined)
+                {sourceRows.map(({ kind, source }) => {
+                  const meta = SOURCE_META[kind] ?? { tag: 'SRC', name: kind }
+                  const state = source ? SOURCE_STATE[source.status] : undefined
+                  const action = sourceAction(
+                    source?.status ?? null,
+                    (sources.data?.connectable ?? []).includes(kind),
+                  )
+                  const detail =
+                    source?.last_synced_at != null
+                      ? `synced ${formatAgo(source.last_synced_at)}`
+                      : meta.sub
+                  const ranHere = sync.variables === kind
                   return (
-                    <div
-                      key={source.id}
-                      className="flex items-center gap-3 border-b border-border-soft p-4 last:border-b-0"
-                    >
-                      <div className="grid size-8 flex-none place-items-center rounded-[10px] bg-state-neutral-soft font-mono text-[11px] font-semibold text-muted">
-                        {meta.tag}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-body-sm font-semibold leading-tight">
-                          {meta.name}
-                        </p>
-                        {sub !== undefined && (
-                          <p className="mt-0.5 text-caption text-muted-soft">{sub}</p>
+                    <div key={kind} className="border-b border-border-soft last:border-b-0">
+                      <div className="flex items-center gap-3 p-4">
+                        <div className="grid size-8 flex-none place-items-center rounded-[10px] bg-state-neutral-soft font-mono text-[11px] font-semibold text-muted">
+                          {meta.tag}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-body-sm font-semibold leading-tight">
+                            {meta.name}
+                          </p>
+                          {/* Each part unbreakable, the separator outside
+                              both: the button leaves this column narrow
+                              enough that a free break lands inside
+                              "1 hr ago", and the only good break is the dot. */}
+                          <p className="mt-0.5 text-caption">
+                            <span className={`whitespace-nowrap ${state?.ink ?? 'text-muted'}`}>
+                              {state?.text ?? 'Not connected'}
+                            </span>
+                            {detail !== undefined && (
+                              <>
+                                {' · '}
+                                <span className="whitespace-nowrap text-muted-soft">
+                                  {detail}
+                                </span>
+                              </>
+                            )}
+                          </p>
+                        </div>
+                        {action !== null && (
+                          <Button
+                            variant={action === 'disconnect' ? 'ghost' : 'secondary'}
+                            className="h-9 flex-none px-3 text-body-sm"
+                            onClick={() => {
+                              if (action === 'disconnect') setConfirming(kind)
+                              else void startConnect(kind)
+                            }}
+                          >
+                            {SOURCE_ACTION_LABEL[action]}
+                          </Button>
                         )}
                       </div>
-                      <span className={`flex-none text-label font-semibold ${state.ink}`}>
-                        {state.text}
-                      </span>
+                      {/* Hidden while the disconnect confirmation is open: that
+                          panel is a decision, and a second button under it is
+                          noise. */}
+                      {source?.status === 'connected' && confirming !== kind && (
+                        <div className="flex items-center gap-3 border-t border-border-soft px-4 py-3">
+                          <Button
+                            variant="secondary"
+                            className="h-9 flex-none px-3 text-body-sm"
+                            /* Every row's button, not just this one: the
+                               mutation is singular, so a second run in flight
+                               would silently retarget the first one's state. */
+                            disabled={sync.isPending}
+                            onClick={() => sync.mutate(kind)}
+                          >
+                            {ranHere && sync.isPending ? 'Syncing…' : 'Sync now'}
+                          </Button>
+                          {ranHere && sync.isError && (
+                            <p role="alert" className="text-caption text-state-failed">
+                              {syncFailureMessage(sync.error)}
+                            </p>
+                          )}
+                          {ranHere && sync.isSuccess && (
+                            <p role="status" className="text-caption text-muted">
+                              {syncOutcomeMessage(sync.data)}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {confirming === kind && (
+                        <div className="border-t border-border-soft bg-state-neutral-soft px-4 py-3">
+                          <p className="text-caption text-muted">
+                            Disconnecting deletes the access TravelWell stores for
+                            this account. Events already synced stay on your trips.
+                            Removing TravelWell from the account itself is done on
+                            Google&rsquo;s permissions page.
+                          </p>
+                          {disconnect.isError && (
+                            <p role="alert" className="mt-2 text-caption text-state-failed">
+                              Could not disconnect. Check your connection and retry.
+                            </p>
+                          )}
+                          <div className="mt-3 flex gap-2">
+                            <Button
+                              className="h-9 px-3 text-body-sm"
+                              disabled={disconnect.isPending}
+                              onClick={() => disconnect.mutate(kind)}
+                            >
+                              {disconnect.isPending ? 'Disconnecting…' : 'Disconnect'}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              className="h-9 px-3 text-body-sm"
+                              onClick={() => setConfirming(null)}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )
                 })}
-                {sources.data?.length === 0 && (
+                {sources.isPending && <LoadingState label="Loading your sources" />}
+                {/* Gated on the query having answered: an unresolved query and
+                    a genuinely empty one both give zero rows, and only one of
+                    them can be told the user as a fact. */}
+                {!sources.isPending && sourceRows.length === 0 && (
                   <p className="p-4 text-caption text-muted">
-                    Nothing connected yet. Calendar and email connections arrive
-                    with sign-in integrations.
+                    No sources can be connected in this build.
                   </p>
                 )}
               </div>

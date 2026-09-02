@@ -670,6 +670,43 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /trips/{tripId}/assistant:
+    post:
+      tags: [events]
+      operationId: askAssistant
+      summary: Say something about this trip's plan and have the agent act on it
+      description: |
+        The attended counterpart to /events. That spine is for producers that
+        drop a row and stop; this is for a person looking at the screen, so the
+        turn runs inside the request and the answer comes back with it.
+
+        It still writes an `agent_events` row as the trace root, so the event
+        log stays the record of everything the agent did. What it does not do is
+        classify: the trip is named in the path by the person who owns it, so
+        there is nothing to admit.
+
+        200 means the turn happened, not that anything changed. An utterance the
+        plan cannot express is a successful turn with an empty `applied` and a
+        reply saying so.
+      parameters:
+        - $ref: "#/components/parameters/TripId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssistantAsk"
+      responses:
+        "200":
+          description: The turn, and any plan items it moved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssistantTurn"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /runs/{runId}:
     get:
       tags: [events]
@@ -713,6 +750,10 @@ paths:
       tags: [explore]
       operationId: explore
       summary: Place candidates for the Explore map, filtered by category and preferences
+      description: >
+        Served from the places cache; no provider call happens inline, so the
+        map does not pan at a third party's latency. trip_id is required rather
+        than inferred: the client already decides which trip is in focus.
       parameters:
         - name: trip_id
           in: query
@@ -728,8 +769,19 @@ paths:
         - name: query
           in: query
           required: false
+          description: Free text over name, summary and address -- the fields the card shows.
           schema:
             type: string
+            maxLength: 120
+        - name: radius_m
+          in: query
+          required: false
+          description: Straight-line radius from the anchor.
+          schema:
+            type: integer
+            default: 8000
+            minimum: 250
+            maximum: 50000
       responses:
         "200":
           description: Surfaced candidates (cached server-side in places)
@@ -737,29 +789,111 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [places]
+                required: [trip_id, radius_m, kinds, places, route]
                 properties:
+                  trip_id:
+                    type: string
+                    format: uuid
+                  anchor:
+                    $ref: "#/components/schemas/ExploreAnchor"
+                  radius_m:
+                    type: integer
+                  kinds:
+                    type: array
+                    description: >
+                      Category chips. Counted over the whole radius rather than
+                      the current filter, so selecting one chip never moves the
+                      other chips' numbers.
+                    items:
+                      $ref: "#/components/schemas/ExploreKind"
                   places:
                     type: array
                     items:
                       $ref: "#/components/schemas/Place"
+                  route:
+                    $ref: "#/components/schemas/ExploreRoute"
         default:
           $ref: "#/components/responses/Problem"
 
-  /resolve_location:
+  /explore/basemap:
     get:
       tags: [explore]
-      operationId: resolveLocation
-      summary: Resolve a free-text location to coordinates (kept from the prototype)
+      operationId: exploreBasemap
+      summary: Street, water and park geometry for the area this trip's map covers
+      description: >
+        Coordinates rather than a rendered tile, so the client projects them
+        with the same maths it uses for pins and paints them in the product's
+        palette. Sourced from OpenStreetMap and cached server-side for months;
+        street grids do not move. Its own endpoint because it changes on a
+        scale of years while the rest of /explore changes per tap, and because
+        the map renders on plain ground without it.
+      parameters:
+        - name: trip_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: radius_m
+          in: query
+          required: false
+          description: >
+            The client's plot radius. Bucketed server-side so that filtering a
+            category reuses the cached area rather than fetching a near-duplicate.
+          schema:
+            type: integer
+            default: 2000
+            minimum: 250
+            maximum: 20000
+        - name: lat
+          in: query
+          required: false
+          description: >
+            Centre the area here instead of on the trip's anchor, for the expanded
+            map zoomed onto a district. Goes with `lng`; refused (422
+            `basemap_centre_too_far`) more than 30 km from the anchor, so the
+            endpoint is not a worldwide proxy for a donated server.
+          schema:
+            type: number
+            minimum: -90
+            maximum: 90
+        - name: lng
+          in: query
+          required: false
+          description: Goes with `lat`; one without the other is 422 `basemap_centre_incomplete`.
+          schema:
+            type: number
+            minimum: -180
+            maximum: 180
+      responses:
+        "200":
+          description: Geometry for the area, empty when the trip has no coordinates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Basemap"
+  /geocode:
+    get:
+      tags: [explore]
+      operationId: geocode
+      summary: Resolve free text to a point
+      description: >
+        Replaces the prototype's /resolve_location, which is not ported: it ran
+        synchronously and answered with hardcoded coordinates when no key was
+        configured, so a caller could not tell a real result from a fallback.
+        Here the outcomes stay distinct -- 404 no such place, 503 no provider
+        configured, 502 provider failure.
       parameters:
         - name: query
           in: query
           required: true
           schema:
             type: string
+            minLength: 1
+            maxLength: 200
       responses:
         "200":
-          description: Best-effort geocoding result
+          description: The best match
           content:
             application/json:
               schema:
@@ -813,12 +947,114 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [sources]
+                required: [sources, connectable]
                 properties:
                   sources:
                     type: array
                     items:
                       $ref: "#/components/schemas/ConnectedSource"
+                  connectable:
+                    type: array
+                    description: >
+                      Kinds this build can put through an OAuth handshake, so a
+                      client can offer Connect for a kind the user has no row
+                      for yet. Served rather than hardcoded client-side: the set
+                      grows as providers land, and a second copy drifts.
+                    items:
+                      $ref: "#/components/schemas/SourceKind"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /me/sources/{kind}/connect:
+    get:
+      tags: [profile]
+      operationId: connectSource
+      summary: Begin a durable calendar grant (server-side redirect flow)
+      description: >
+        Separate from sign-in and deliberately so. This asks Google for a
+        refresh token (access_type=offline, prompt=consent) and for the
+        calendar read scope alone, so revoking the calendar cannot take
+        sign-in with it. Only google_calendar is connectable; the other kinds
+        are schema vocabulary and answer 404.
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/SourceKind"
+      responses:
+        "302":
+          description: Redirect to Google's consent screen
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /me/sources/{kind}/callback:
+    get:
+      tags: [profile]
+      operationId: connectSourceCallback
+      summary: Google's redirect target; stores the grant on success
+      description: >
+        Identified by the session cookie, which SameSite=Lax sends on this
+        top-level navigation. A grant that arrives without a refresh token, or
+        with the scope unchecked, is refused rather than stored: both look
+        like success at this point and fail at the first sync.
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/SourceKind"
+      responses:
+        "302":
+          description: >
+            Redirect back into the app: to /profile?connected={kind}, or to
+            /profile?connect_error=oauth_failed|scope_declined|no_refresh_token|token_store_unconfigured.
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /me/sources/{kind}/sync:
+    post:
+      tags: [profile]
+      operationId: syncConnectedSource
+      summary: Pull a window of the calendar into the cache now
+      description: >
+        Yesterday forward ninety days. Explicit rather than scheduled because
+        there is no scheduler yet; whatever runs this on a timer later calls
+        the same service. Cancelled events are stored, not dropped, so a
+        removed commitment is distinguishable from one that never synced.
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/SourceKind"
+      responses:
+        "200":
+          description: What the run wrote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncResult"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /me/sources/{kind}:
+    delete:
+      tags: [profile]
+      operationId: disconnectSource
+      summary: Forget the stored token and mark the grant revoked
+      description: >
+        The row survives so /me/sources can say revoked rather than showing
+        nothing, which is a different fact. Idempotent.
+      parameters:
+        - name: kind
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/SourceKind"
+      responses:
+        "204":
+          description: Disconnected
         default:
           $ref: "#/components/responses/Problem"
 
@@ -1395,7 +1631,12 @@ components:
 
     Place:
       type: object
-      required: [id, kind, name]
+      description: >
+        A cached venue plus the four fields derived per request. `rating` and
+        `external_url` were designed here and are not served: no column backs a
+        rating, and "book it yourself" is Reservation.external_url, which means
+        something more precise than a link on a discovery card.
+      required: [id, kind, name, matched_preferences, unknown_notes]
       properties:
         id:
           type: string
@@ -1404,24 +1645,211 @@ components:
           $ref: "#/components/schemas/PlaceKind"
         name:
           type: string
-        rating:
-          type: number
-        distance_meters:
-          type: integer
-        walk_minutes:
-          type: integer
-        price_level:
-          type: integer
+        summary:
+          type: string
+        address:
+          type: string
         lat:
           type: number
         lng:
           type: number
+        price_level:
+          type: integer
+        day_pass_cents:
+          type: integer
+          description: >
+            0 means free or included with a membership. Absent means the
+            provider did not price it, which is not the same as cheap: it is
+            the value a budget filter is not allowed to judge.
+        amenities:
+          type: array
+          description: >
+            Absent means the provider has no amenities field or did not answer;
+            `[]` means it answered "none". Not required, and that is the point:
+            Google supplies no amenities at all, so a required array would make
+            every live row assert that its venue has none.
+          items:
+            type: string
+        hours:
+          type: object
+          description: >
+            Day name (`mon`..`sun`) to `[open, close]` in minutes past
+            midnight; a venue open past midnight closes at 1440 rather than
+            wrapping. A day absent from a map that is itself present means
+            shut that day, which is not the same as an absent map: that means
+            the provider never told us, and the card shows no hours at all.
+          additionalProperties:
+            type: array
+            items:
+              type: integer
         photo_url:
           type: string
           format: uri
-        external_url:
+        reservable_via:
+          $ref: "#/components/schemas/ReservationProvider"
+        matched_preferences:
+          type: array
+          description: >
+            Display labels, not slugs -- ProvenanceSheet renders them verbatim.
+            Derived per request from the caller's own preferences row.
+          items:
+            type: string
+        unknown_notes:
+          type: array
+          description: >
+            What could not be judged about this place, phrased for the user and
+            only for fields their preferences make relevant. Always present,
+            usually empty. Read next to matched_preferences: two chips out of
+            four preferences means something different when the other two were
+            unanswerable rather than unmet. The strings come from the shared
+            matcher so this surface and the plan describe the same missing
+            field with the same words.
+          items:
+            type: string
+        over_budget_reason:
           type: string
-          format: uri
+          description: >
+            Why this sits outside what the user said. Returned instead of
+            filtering the place away: a candidate that vanishes silently cannot
+            be argued with.
+        distance_meters:
+          type: integer
+          description: Straight-line from the anchor. Measured, not routed.
+        walk_minutes:
+          type: integer
+          description: A walking-pace estimate over that straight line.
+
+    ExploreAnchor:
+      type: object
+      description: >
+        Where the map opens and what distances are measured from. Absent when
+        the trip has neither hotel nor destination coordinates.
+      required: [name, is_hotel]
+      properties:
+        name:
+          type: string
+        is_hotel:
+          type: boolean
+          description: False when falling back to the destination centre.
+        lat:
+          type: number
+        lng:
+          type: number
+
+    ExploreKind:
+      type: object
+      required: [kind, count]
+      properties:
+        kind:
+          $ref: "#/components/schemas/PlaceKind"
+        count:
+          type: integer
+
+    Basemap:
+      type: object
+      description: >
+        The ground under the pins: real streets, water and parks, as
+        coordinates rather than a rendered image. Each way is one flat
+        [lat, lng, lat, lng, ...] run -- nested pairs describe the same thing
+        for about a third more bytes. Sourced from OpenStreetMap.
+      required: [radius_m, lat, lng, attribution, roads_major, roads_minor, water, parks, buildings]
+      properties:
+        radius_m:
+          type: integer
+          description: >
+            The cached bucket actually served, which may be coarser than the
+            radius asked for.
+        lat:
+          type: number
+          nullable: true
+          description: >
+            Where the area is actually centred: the requested centre snapped to
+            the cache grid (half the radius). Null when the trip has no coordinates.
+        lng:
+          type: number
+          nullable: true
+        attribution:
+          type: string
+          description: >
+            ODbL credit for the geometry. Carried with the data rather than
+            left for a renderer to remember.
+        roads_major:
+          type: array
+          description: Motorway, trunk and primary.
+          items:
+            type: array
+            items:
+              type: number
+        roads_minor:
+          type: array
+          description: Secondary and tertiary. Dropped whole when an area is too dense to be worth the bytes.
+          items:
+            type: array
+            items:
+              type: number
+        water:
+          type: array
+          description: Closed rings.
+          items:
+            type: array
+            items:
+              type: number
+        parks:
+          type: array
+          description: Closed rings.
+          items:
+            type: array
+            items:
+              type: number
+        buildings:
+          type: array
+          description: >
+            Closed rings. Empty above the closest buckets, where a footprint is
+            a speck and a city of them is a haze rather than a map.
+          items:
+            type: array
+            items:
+              type: number
+
+    ExploreRoute:
+      type: object
+      description: >
+        Today's decided stops as a path, for the map's line and the strip that
+        reads it back as a walk. Empty stops is the ordinary case, not an
+        error: nothing scheduled today, or planned places with no coordinates.
+      required: [stops]
+      properties:
+        stops:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExploreRouteStop"
+        total_minutes:
+          type: integer
+          description: >
+            Sum of the legs, absent exactly when there is no leg to add up.
+
+    ExploreRouteStop:
+      type: object
+      description: >
+        One stop, in schedule order. Carries its own coordinates rather than a
+        place id: the line must survive a category filter, and a dinner stop is
+        not in places while the Workout chip is selected.
+      required: [name, lat, lng, is_anchor]
+      properties:
+        name:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+        is_anchor:
+          type: boolean
+          description: The point the day starts from, not a planned stop.
+        walk_minutes:
+          type: integer
+          description: >
+            From the previous stop, absent on the first. Straight-line at a
+            walking pace, like Place.distance_meters -- measured, not routed.
 
     ResolvedLocation:
       type: object
@@ -1547,6 +1975,52 @@ components:
           type: object
           description: Kind-specific payload (transcript text, UI intent name, etc.).
           additionalProperties: true
+
+    AssistantAsk:
+      type: object
+      required: [utterance]
+      properties:
+        utterance:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: What the traveler said, verbatim. Voice is transcribed client-side.
+
+    AssistantChange:
+      type: object
+      required: [item_id, name, status]
+      properties:
+        item_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: The item as the traveler sees it, from the selected option.
+        status:
+          type: string
+          description: >-
+            What the item was moved to. Only `skipped` is reachable from an
+            utterance: `removed` is a tombstone with no way back, which is more
+            than a sentence should be able to decide.
+
+    AssistantTurn:
+      type: object
+      required: [run_id, reply, applied]
+      properties:
+        run_id:
+          type: string
+          format: uuid
+        reply:
+          type: string
+          description: >-
+            One plain sentence for the traveler. Never empty, and never in the
+            first person - if the model writes as "I", the sentence is
+            regenerated from the rows that actually moved.
+        applied:
+          type: array
+          description: Plan items this turn moved. Empty when nothing matched.
+          items:
+            $ref: "#/components/schemas/AssistantChange"
 
     RunRef:
       type: object
@@ -1726,6 +2200,23 @@ components:
         connected_at:
           type: string
           format: date-time
+        last_synced_at:
+          type: string
+          format: date-time
+
+    SyncResult:
+      type: object
+      required: [created, updated, unchanged, last_synced_at]
+      description: >
+        Counts rather than a bare ok: "nothing changed" and "nothing was
+        returned" are different answers and only one of them is a problem.
+      properties:
+        created:
+          type: integer
+        updated:
+          type: integer
+        unchanged:
+          type: integer
         last_synced_at:
           type: string
           format: date-time

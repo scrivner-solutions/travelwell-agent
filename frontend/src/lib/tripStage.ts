@@ -13,11 +13,13 @@ import { isPast } from './trips'
  */
 export type TripStage = 'waiting' | 'proposed' | 'accepted' | 'done'
 
-/** Items still waiting on a decision. The same test `PlanSection` applies. */
+/** Items still waiting on a decision. The same test `PlanSection` applies.
+ *
+ * One status, not two: `suggested` is the state of an item inside a draft plan
+ * and no read returns drafts, so it never reaches this filter.
+ */
 export function openPlanItems(plan: Plan): PlanItem[] {
-  return plan.items.filter(
-    (item) => item.status === 'suggested' || item.status === 'awaiting_user',
-  )
+  return plan.items.filter((item) => item.status === 'awaiting_user')
 }
 
 export function tripStage(trip: Trip, plan?: Plan): TripStage {

@@ -235,7 +235,7 @@ async def _build_trip(
     session.add(trip)
     await session.flush()
 
-    await _add_calendar_events(session, user, trip, spec, sources, at)
+    await _add_calendar_events(session, user, spec, sources, at)
     windows = _add_windows(session, trip, spec, at)
     await session.flush()
 
@@ -253,24 +253,23 @@ def data_place(key: str | None):
     return next(p for p in data.PLACES if p.key == key)
 
 
-async def _add_calendar_events(session, user, trip, spec, sources, at) -> None:
+async def _add_calendar_events(session, user, spec, sources, at) -> None:
     source_id = sources["calendar"].source_id
     for event in spec.calendar_events:
         await session.execute(
             text(
                 """
                 insert into calendar_events
-                  (user_id, source_id, trip_id, external_id, title, location,
+                  (user_id, source_id, external_id, title, location,
                    starts_at, ends_at, status, content_hash)
                 values
-                  (:uid, :sid, :tid, :ext, :title, :loc, :starts, :ends,
+                  (:uid, :sid, :ext, :title, :loc, :starts, :ends,
                    :status, :hash)
                 """
             ),
             {
                 "uid": user.user_id,
                 "sid": source_id,
-                "tid": trip.trip_id,
                 # External ids are unique per source and every demo account gets
                 # its own sources, so the trip-scoped key cannot collide.
                 "ext": f"evt_{event.key}",

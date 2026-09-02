@@ -14,6 +14,13 @@ export type ItemStatus = components['schemas']['ItemStatus']
 export type TimelineEntry = components['schemas']['TimelineEntryOut']
 export type CalendarEventSummary = components['schemas']['CalendarEventSummaryOut']
 export type WellnessWindow = components['schemas']['WellnessWindowOut']
+export type Explore = components['schemas']['ExploreOut']
+export type ExplorePlace = components['schemas']['ExplorePlaceOut']
+export type ExploreAnchor = components['schemas']['ExploreAnchorOut']
+export type ExploreRoute = components['schemas']['ExploreRouteOut']
+export type Basemap = components['schemas']['BasemapOut']
+export type ExploreRouteStop = components['schemas']['ExploreRouteStopOut']
+export type PlaceKind = components['schemas']['PlaceKind']
 
 export function meQueryOptions() {
   return queryOptions({
@@ -309,6 +316,24 @@ export async function dismissTrip(tripId: string, updatedAt: string): Promise<Tr
   )
 }
 
+/** Deletes our stored token and marks the grant revoked. The row survives, so
+ * the profile can say "disconnected" rather than silently showing nothing. */
+export async function disconnectSource(kind: SourceKind): Promise<void> {
+  const client = await api()
+  throwOnError(
+    await client.DELETE('/me/sources/{kind}', { params: { path: { kind } } }),
+  )
+}
+
+/** Pulls a window of the calendar into our cache now. The endpoint has existed
+ * since connect shipped; until this, nothing called it. */
+export async function syncSource(kind: SourceKind): Promise<SyncResult> {
+  const client = await api()
+  return throwOnError<SyncResult>(
+    await client.POST('/me/sources/{kind}/sync', { params: { path: { kind } } }),
+  )
+}
+
 export async function logout(): Promise<void> {
   const client = await api()
   throwOnError(await client.POST('/auth/logout'))
@@ -317,6 +342,8 @@ export async function logout(): Promise<void> {
 export type Preferences = components['schemas']['PreferencesOut']
 export type PreferencesUpdate = components['schemas']['PreferencesUpdateIn']
 export type ConnectedSource = components['schemas']['ConnectedSourceOut']
+export type SourceKind = ConnectedSource['kind']
+export type SyncResult = components['schemas']['SyncOut']
 
 export function preferencesQueryOptions() {
   return queryOptions({
@@ -333,7 +360,9 @@ export function sourcesQueryOptions() {
     queryKey: ['me', 'sources'],
     queryFn: async () => {
       const client = await api()
-      return throwOnError(await client.GET('/me/sources')).sources
+      // The whole payload, not just the rows: `connectable` is what says a
+      // Connect button may be offered for a kind the user has no row for.
+      return throwOnError(await client.GET('/me/sources'))
     },
   })
 }
@@ -344,5 +373,110 @@ export async function updatePreferences(
   const client = await api()
   return throwOnError<Preferences>(
     await client.PATCH('/me/preferences', { body: patch }),
+  )
+}
+
+/** How many basemap areas one trip may fetch in a session. Each is a call to
+ *  a donated server, so the expanded map stops asking for finer detail past
+ *  this and says nothing: the coarser layer it already has is still right. */
+export const BASEMAP_FETCH_CAP = 12
+const basemapFetches = new Map<string, number>()
+
+export function basemapFetchesLeft(tripId: string): number {
+  return BASEMAP_FETCH_CAP - (basemapFetches.get(tripId) ?? 0)
+}
+
+/** One cache cell of ground, as `areas.ts` names it: the centre snapped to
+ *  the server's grid and the radius on its ladder. */
+export interface BasemapArea {
+  lat: number
+  lng: number
+  radius_m: number
+}
+
+/** The ground under the pins: real streets, water and parks.
+
+ *  Its own query rather than a field on Explore because the two age nothing
+ *  alike. Category chips re-read Explore constantly; this changes on a scale
+ *  of years, so it is held for the session and never refetched on focus. A
+ *  failure is not surfaced: the map draws on plain ground without it.
+ *
+ *  Keyed by the cell, so a view that returns to a cell it has seen is served
+ *  from memory, and counted only when the request actually leaves. */
+export function basemapQueryOptions(tripId: string, area: BasemapArea) {
+  return queryOptions({
+    queryKey: ['trips', tripId, 'basemap', area.radius_m, area.lat, area.lng],
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: false,
+    queryFn: async () => {
+      basemapFetches.set(tripId, (basemapFetches.get(tripId) ?? 0) + 1)
+      const client = await api()
+      return throwOnError<Basemap>(
+        await client.GET('/explore/basemap', {
+          params: {
+            query: { trip_id: tripId, radius_m: area.radius_m, lat: area.lat, lng: area.lng },
+          },
+        }),
+      )
+    },
+  })
+}
+
+export interface ExploreFilters {
+  category?: PlaceKind
+  query?: string
+  radiusM?: number
+}
+
+/** Explore for one trip. The filters are in the key, so switching a category
+ *  chip reads from cache on the way back rather than re-fetching. */
+export function exploreQueryOptions(tripId: string, filters: ExploreFilters = {}) {
+  const { category, query, radiusM } = filters
+  return queryOptions({
+    queryKey: ['trips', tripId, 'explore', category ?? 'all', query ?? '', radiusM ?? 0],
+    queryFn: async () => {
+      const client = await api()
+      return throwOnError<Explore>(
+        await client.GET('/explore', {
+          params: {
+            query: {
+              trip_id: tripId,
+              ...(category ? { category } : {}),
+              ...(query ? { query } : {}),
+              ...(radiusM ? { radius_m: radiusM } : {}),
+            },
+          },
+        }),
+      )
+    },
+  })
+}
+
+// --- Assistant (one utterance, applied to this trip's plan) ---------------
+
+export type AssistantTurn = components['schemas']['AssistantTurnOut']
+
+/**
+ * Say something about a trip's plan and have the agent act on it.
+ *
+ * The key is the caller's, not generated here: a retry of a lost response has
+ * to send the same one, or the traveler pays for a second model call and may
+ * get a second answer to a question they asked once.
+ */
+export async function askAssistant(
+  tripId: string,
+  utterance: string,
+  idempotencyKey: string,
+): Promise<AssistantTurn> {
+  const client = await api()
+  return throwOnError<AssistantTurn>(
+    await client.POST('/trips/{trip_id}/assistant', {
+      params: {
+        path: { trip_id: tripId },
+        header: { 'Idempotency-Key': idempotencyKey },
+      },
+      body: { utterance },
+    }),
   )
 }

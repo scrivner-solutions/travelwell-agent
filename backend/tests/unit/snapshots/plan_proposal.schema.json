@@ -1,0 +1,147 @@
+{
+  "$defs": {
+    "ProposedItem": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+          "title": "End",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "activity",
+            "meal"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/ProposedOption"
+          },
+          "minItems": 1,
+          "title": "Options",
+          "type": "array"
+        },
+        "start": {
+          "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+          "title": "Start",
+          "type": "string"
+        },
+        "window_id": {
+          "maxLength": 64,
+          "title": "Window Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "window_id",
+        "kind",
+        "start",
+        "end",
+        "options"
+      ],
+      "title": "ProposedItem",
+      "type": "object"
+    },
+    "ProposedOption": {
+      "additionalProperties": false,
+      "description": "Field order is deliberate: justification precedes verdict.\n\n`rejection_reason` is an empty string rather than null when absent. That\nkeeps the JSON schema flat - a nullable field costs an `anyOf` the provider\nthen has to reason about - and Bind writes NULL for the empty string, which\nis what the `plan_item_options` CHECK expects.",
+      "properties": {
+        "candidate_id": {
+          "maxLength": 64,
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "matched_preferences": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Matched Preferences",
+          "type": "array"
+        },
+        "rank": {
+          "maximum": 4,
+          "minimum": 1,
+          "title": "Rank",
+          "type": "integer"
+        },
+        "reason": {
+          "default": "",
+          "maxLength": 280,
+          "title": "Reason",
+          "type": "string"
+        },
+        "rejection_reason": {
+          "default": "",
+          "maxLength": 280,
+          "title": "Rejection Reason",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "selected",
+            "alternative",
+            "rejected"
+          ],
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "state",
+        "rank"
+      ],
+      "title": "ProposedOption",
+      "type": "object"
+    },
+    "WindowNote": {
+      "additionalProperties": false,
+      "properties": {
+        "gap_explanation": {
+          "default": "",
+          "maxLength": 200,
+          "title": "Gap Explanation",
+          "type": "string"
+        },
+        "window_id": {
+          "maxLength": 64,
+          "title": "Window Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "window_id"
+      ],
+      "title": "WindowNote",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "headline": {
+      "default": "",
+      "maxLength": 120,
+      "title": "Headline",
+      "type": "string"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/ProposedItem"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "window_notes": {
+      "items": {
+        "$ref": "#/$defs/WindowNote"
+      },
+      "title": "Window Notes",
+      "type": "array"
+    }
+  },
+  "title": "PlanProposal",
+  "type": "object"
+}

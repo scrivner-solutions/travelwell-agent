@@ -22,6 +22,7 @@ from app.db.models import (
     ItemStatus,
     OptionState,
     PendingAction,
+    PlaceKind,
     Plan,
     PlanItem,
     PlanItemOption,
@@ -39,6 +40,7 @@ from app.db.models import (
     WellnessWindow,
     WindowStatus,
 )
+from app.services.places.matching import RankedPlace
 
 
 class EmailCodeRequest(BaseModel):
@@ -339,6 +341,20 @@ class ConnectedSourceOut(BaseModel):
 
 class SourcesOut(BaseModel):
     sources: list[ConnectedSourceOut]
+    # Which kinds this build can actually put through an OAuth handshake, so the
+    # client can offer Connect for a kind the user has no row for yet.
+    connectable: list[SourceKind]
+
+
+class SyncOut(BaseModel):
+    """What one sync run did. Counts rather than a bare ok, because "nothing
+    changed" and "nothing was returned" are different answers and only one of
+    them is a problem."""
+
+    created: int
+    updated: int
+    unchanged: int
+    last_synced_at: datetime
 
 
 def preferences_to_out(prefs: UserPreferences) -> PreferencesOut:
@@ -618,3 +634,177 @@ def pending_action_to_out(
         reservation=reservation_to_out(reservation) if reservation else None,
         updated_at=action_updated_at(action),
     )
+
+
+class ExplorePlaceOut(BaseModel):
+    """One card and one pin: the list and the map read the same row.
+
+    The first four derived fields are computed per request against this user's
+    preferences and this trip's anchor, so two users looking at the same cached
+    place see different reasons for it.
+    """
+
+    id: uuid.UUID
+    kind: PlaceKind
+    name: str
+    summary: str | None = None
+    address: str | None = None
+    # Null together. A cached place without a point still earns a card; it just
+    # cannot be pinned, and the map must not invent a location for it.
+    lat: float | None = None
+    lng: float | None = None
+    price_level: int | None = None
+    day_pass_cents: int | None = None
+    # Absent means the provider never told us; `[]` means it has none. The
+    # default is load-bearing rather than dead: `ApiRoute` omits None, so
+    # without it the schema would declare a field the response drops.
+    amenities: list[str] | None = None
+    # Day name -> [open, close] in minutes past midnight; close may be 1440.
+    # Null like `amenities`: absent means the provider never told us, and the
+    # default is what keeps the field in the schema the frontend types from.
+    hours: dict[str, list[int]] | None = None
+    photo_url: str | None = None
+    reservable_via: ReservationProvider | None = None
+    matched_preferences: list[str]
+    # What could not be judged about this place, phrased for the user. Always
+    # present, usually empty. Read it next to `matched_preferences`: two chips
+    # out of four preferences means something different when the other two were
+    # unanswerable rather than unmet.
+    unknown_notes: list[str]
+    # Why this sits outside what the user said, rather than dropping it. A
+    # candidate that vanishes silently cannot be argued with.
+    over_budget_reason: str | None = None
+    # Measured; the minutes are a walking-pace estimate over a straight line.
+    distance_meters: int | None = None
+    walk_minutes: int | None = None
+
+
+class ExploreAnchorOut(BaseModel):
+    """Where the map opens and what distances are measured from."""
+
+    name: str
+    # The hotel when the trip has one, else the destination centre.
+    is_hotel: bool
+    lat: float | None = None
+    lng: float | None = None
+
+
+class ExploreKindOut(BaseModel):
+    """A category chip. The count is over the whole radius, not the filter, so
+    switching chips never changes the other chips' numbers."""
+
+    kind: PlaceKind
+    count: int
+
+
+class ExploreRouteStopOut(BaseModel):
+    """One stop on today's walking route, in schedule order.
+
+    Carries its own coordinates rather than a place id the client would look
+    up in `places`: the route must survive a category filter, and a dinner stop
+    is not in the list while the Workout chip is selected.
+    """
+
+    name: str
+    lat: float
+    lng: float
+    # The anchor the day starts from, not a planned stop.
+    is_anchor: bool
+    # Walking minutes from the previous stop. Absent on the first, which has no
+    # previous: ApiRoute strips None from the wire, so this is optional rather
+    # than nullable, like every other omissible field on the surface.
+    walk_minutes: int | None = None
+
+
+class ExploreRouteOut(BaseModel):
+    """Today's plan as a path, for the map's line and its summary strip.
+
+    Empty `stops` is the ordinary case, not an error: a trip with nothing
+    scheduled today, or one whose planned places have no coordinates.
+    """
+
+    stops: list[ExploreRouteStopOut]
+    # Sum of the legs, absent exactly when there is no leg to add up.
+    total_minutes: int | None = None
+
+
+class ExploreOut(BaseModel):
+    trip_id: uuid.UUID
+    # Absent when the trip has neither hotel nor destination coordinates: the
+    # cards still rank, and every distance is null.
+    anchor: ExploreAnchorOut | None = None
+    radius_m: int
+    kinds: list[ExploreKindOut]
+    places: list[ExplorePlaceOut]
+    route: ExploreRouteOut
+
+
+class BasemapOut(BaseModel):
+    """The ground the Explore map is drawn on: real streets, water and parks.
+
+    Coordinates, not an image. The client projects them with the same maths it
+    already uses for pins, so the basemap rescales with the plot instead of
+    going stale the moment a category chip changes what is on screen -- and it
+    arrives in our palette because we paint it, which a rendered tile could
+    never do.
+
+    Each way is a flat `[lat, lng, lat, lng, ...]` run. Nested pairs described
+    the same thing and cost roughly a third more bytes.
+    """
+
+    # The bucket actually served, which is not necessarily the radius asked
+    # for: areas are cached at fixed sizes so that panning and filtering reuse
+    # one fetch. Echoed so a client can tell it got a coarser area than it
+    # requested rather than inferring it from the geometry.
+    radius_m: int
+    # The centre the geometry was fetched around, which is the requested one
+    # snapped to the cache grid. Null only when the trip has nowhere to centre
+    # on. A client drawing this area over a wider one needs to know where it
+    # actually is, not where it asked for.
+    lat: float | None
+    lng: float | None
+    # ODbL requires the credit, so it travels with the data rather than being
+    # left for a renderer to remember.
+    attribution: str
+    roads_major: list[list[float]]
+    roads_minor: list[list[float]]
+    water: list[list[float]]
+    parks: list[list[float]]
+    # Empty above the closest buckets, where a footprint is a speck and a city
+    # of them is a haze rather than a map.
+    buildings: list[list[float]]
+
+
+def explore_place_to_out(ranked: RankedPlace) -> ExplorePlaceOut:
+    place = ranked.place
+    return ExplorePlaceOut(
+        id=place.place_id,
+        kind=place.kind,
+        name=place.name,
+        summary=place.summary,
+        address=place.address,
+        lat=place.lat,
+        lng=place.lng,
+        price_level=place.price_level,
+        day_pass_cents=place.day_pass_cents,
+        amenities=None if place.amenities is None else list(place.amenities),
+        hours=None if place.hours is None else dict(place.hours),
+        photo_url=place.photo_url,
+        reservable_via=place.reservable_via,
+        matched_preferences=ranked.matched_preferences,
+        unknown_notes=ranked.unknown_notes,
+        over_budget_reason=ranked.over_budget_reason,
+        distance_meters=ranked.distance_meters,
+        walk_minutes=ranked.walk_minutes,
+    )
+
+
+class ResolvedLocationOut(BaseModel):
+    """Free text resolved to a point. `query` is echoed so a client that fired
+    several lookups can tell the answers apart."""
+
+    query: str
+    name: str
+    lat: float
+    lng: float
+    timezone: str | None = None

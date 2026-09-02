@@ -57,4 +57,10 @@ docs/FRONTEND_IMPLEMENTATION_PLAN.md
 docs/RESERVATIONS.md
 docs/TRACKS.md
 docs/UX_DESIGN_BRIEF.md
-infra
+
+# infra/ is TRACKED. It holds logic and shared names only. A filled-in
+# environment file holds the identifiers for one deployment and must stay
+# outside the repo, so ignore any .env here except the two that belong:
+# config.env (names used in every environment) and the .example template.
+infra/*.env
+!infra/config.env

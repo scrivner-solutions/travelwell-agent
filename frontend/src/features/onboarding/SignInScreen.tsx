@@ -3,7 +3,7 @@ import { useMutation } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Button } from '@/components/ui/Button'
 import { api, throwOnError, ApiError } from '@/api/client'
-import { loadRuntimeConfig } from '@/lib/config'
+import { apiUrl } from '@/lib/config'
 import { InstallPrompt } from '@/components/ui/InstallPrompt'
 
 function errorCopy(error: unknown): string {
@@ -68,10 +68,7 @@ export function SignInScreen() {
   })
 
   const startOauth = async (provider: 'google') => {
-    // Same-origin fallback if config.json is unreachable; that is the
-    // deployed default anyway.
-    const { apiBaseUrl } = await loadRuntimeConfig().catch(() => ({ apiBaseUrl: '' }))
-    window.location.href = `${apiBaseUrl}/api/v1/auth/oauth/${provider}/start`
+    window.location.href = await apiUrl(`/auth/oauth/${provider}/start`)
   }
 
   const codeSent = requestCode.isSuccess

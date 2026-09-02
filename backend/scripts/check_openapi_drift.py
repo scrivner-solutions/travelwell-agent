@@ -76,17 +76,11 @@ HTTP_METHODS = ("get", "put", "post", "delete", "patch", "options", "head", "tra
 UNIMPLEMENTED: dict[tuple[str, str], str] = {
     ("/runs/{}", "get"): "Slice 2: agent runs",
     ("/runs/{}/events", "get"): "Slice 2: agent runs",
-    ("/events", "post"): "Slice 5: calendar/event ingestion",
-    ("/explore", "get"): "not started; no slice claims it yet",
     ("/notifications", "get"): "not started; no slice claims it yet",
     ("/notifications/{}/opened", "post"): "not started; no slice claims it yet",
     ("/config", "get"): (
         "served at the app root as /api/config, not under /api/v1; "
         "the spec places it in the versioned surface it has not moved to"
-    ),
-    ("/resolve_location", "get"): (
-        "legacy prototype endpoint served at the app root; retires with the "
-        "rest of the prototype surface rather than moving under /api/v1"
     ),
 }
 

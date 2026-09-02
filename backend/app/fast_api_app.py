@@ -58,8 +58,8 @@ AGENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    from app.agent import app as adk_app
-    from app.agent import root_agent
+    from app.legacy_agent import app as adk_app
+    from app.legacy_agent import root_agent
 
     runner = Runner(
         app=adk_app,
@@ -80,10 +80,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # still watching the screen, so the executor runs here rather than off the
     # back of a request. Safe on more than one instance: it claims rows with
     # FOR UPDATE SKIP LOCKED.
+    from app.agent import worker as agent_worker
     from app.db.engine import SessionFactory
     from app.services.actions import runner as actions_runner
 
-    async with actions_runner.running(SessionFactory):
+    # The agent worker is off unless AGENT_WORKER says otherwise: it calls a
+    # model, and a loop that spends should not be acquired by deploying.
+    async with actions_runner.running(SessionFactory), agent_worker.running(
+        SessionFactory
+    ):
         yield
     from app.db.engine import engine as db_engine
     await db_engine.dispose()
@@ -168,14 +173,6 @@ def collect_feedback(feedback: Feedback, _user: CurrentUser) -> dict[str, str]:
     # Nested so a Feedback field can never collide with a LogRecord attribute.
     logger.info("feedback", extra={"feedback": feedback.model_dump()})
     return {"status": "success"}
-
-
-@app.get("/api/config")
-def get_config(_user: CurrentUser):
-    """Returns dynamic runtime configuration including Google Maps API Key."""
-    return {
-        "mapsApiKey": os.getenv("GOOGLE_MAPS_API_KEY", "")
-    }
 
 
 @app.get("/resolve_location")

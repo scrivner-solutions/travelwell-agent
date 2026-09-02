@@ -105,6 +105,75 @@
         "title": "ApproveIn",
         "type": "object"
       },
+      "AssistantAsk": {
+        "properties": {
+          "utterance": {
+            "description": "What the traveler said, verbatim. Voice is transcribed client-side.",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Utterance",
+            "type": "string"
+          }
+        },
+        "required": [
+          "utterance"
+        ],
+        "title": "AssistantAsk",
+        "type": "object"
+      },
+      "AssistantChangeOut": {
+        "properties": {
+          "item_id": {
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "item_id",
+          "name",
+          "status"
+        ],
+        "title": "AssistantChangeOut",
+        "type": "object"
+      },
+      "AssistantTurnOut": {
+        "properties": {
+          "applied": {
+            "description": "Plan items this turn actually moved, in the order they were applied.",
+            "items": {
+              "$ref": "#/components/schemas/AssistantChangeOut"
+            },
+            "title": "Applied",
+            "type": "array"
+          },
+          "reply": {
+            "description": "One sentence for the traveler. Never empty.",
+            "title": "Reply",
+            "type": "string"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "reply",
+          "applied"
+        ],
+        "title": "AssistantTurnOut",
+        "type": "object"
+      },
       "AuthProvider": {
         "enum": [
           "google",
@@ -113,6 +182,104 @@
         ],
         "title": "AuthProvider",
         "type": "string"
+      },
+      "BasemapOut": {
+        "description": "The ground the Explore map is drawn on: real streets, water and parks.\n\nCoordinates, not an image. The client projects them with the same maths it\nalready uses for pins, so the basemap rescales with the plot instead of\ngoing stale the moment a category chip changes what is on screen -- and it\narrives in our palette because we paint it, which a rendered tile could\nnever do.\n\nEach way is a flat `[lat, lng, lat, lng, ...]` run. Nested pairs described\nthe same thing and cost roughly a third more bytes.",
+        "properties": {
+          "attribution": {
+            "title": "Attribution",
+            "type": "string"
+          },
+          "buildings": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Buildings",
+            "type": "array"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lng"
+          },
+          "parks": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Parks",
+            "type": "array"
+          },
+          "radius_m": {
+            "title": "Radius M",
+            "type": "integer"
+          },
+          "roads_major": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Roads Major",
+            "type": "array"
+          },
+          "roads_minor": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Roads Minor",
+            "type": "array"
+          },
+          "water": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Water",
+            "type": "array"
+          }
+        },
+        "required": [
+          "radius_m",
+          "lat",
+          "lng",
+          "attribution",
+          "roads_major",
+          "roads_minor",
+          "water",
+          "parks",
+          "buildings"
+        ],
+        "title": "BasemapOut",
+        "type": "object"
       },
       "CalendarEventSummaryOut": {
         "properties": {
@@ -233,6 +400,419 @@
           "code"
         ],
         "title": "EmailCodeVerify",
+        "type": "object"
+      },
+      "EventCreate": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/EventKind"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "description": "Kind-specific payload (transcript text, UI intent name, etc.).",
+            "title": "Payload",
+            "type": "object"
+          },
+          "trip_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Id"
+          }
+        },
+        "required": [
+          "kind",
+          "payload"
+        ],
+        "title": "EventCreate",
+        "type": "object"
+      },
+      "EventKind": {
+        "enum": [
+          "scheduled_activation",
+          "scheduled_daily",
+          "user_text",
+          "user_voice",
+          "ui_action",
+          "calendar_changed",
+          "trip_changed",
+          "reservation_changed",
+          "external_context"
+        ],
+        "title": "EventKind",
+        "type": "string"
+      },
+      "ExploreAnchorOut": {
+        "description": "Where the map opens and what distances are measured from.",
+        "properties": {
+          "is_hotel": {
+            "title": "Is Hotel",
+            "type": "boolean"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lng"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "is_hotel"
+        ],
+        "title": "ExploreAnchorOut",
+        "type": "object"
+      },
+      "ExploreKindOut": {
+        "description": "A category chip. The count is over the whole radius, not the filter, so\nswitching chips never changes the other chips' numbers.",
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PlaceKind"
+          }
+        },
+        "required": [
+          "kind",
+          "count"
+        ],
+        "title": "ExploreKindOut",
+        "type": "object"
+      },
+      "ExploreOut": {
+        "properties": {
+          "anchor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExploreAnchorOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kinds": {
+            "items": {
+              "$ref": "#/components/schemas/ExploreKindOut"
+            },
+            "title": "Kinds",
+            "type": "array"
+          },
+          "places": {
+            "items": {
+              "$ref": "#/components/schemas/ExplorePlaceOut"
+            },
+            "title": "Places",
+            "type": "array"
+          },
+          "radius_m": {
+            "title": "Radius M",
+            "type": "integer"
+          },
+          "route": {
+            "$ref": "#/components/schemas/ExploreRouteOut"
+          },
+          "trip_id": {
+            "format": "uuid",
+            "title": "Trip Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "trip_id",
+          "radius_m",
+          "kinds",
+          "places",
+          "route"
+        ],
+        "title": "ExploreOut",
+        "type": "object"
+      },
+      "ExplorePlaceOut": {
+        "description": "One card and one pin: the list and the map read the same row.\n\nThe first four derived fields are computed per request against this user's\npreferences and this trip's anchor, so two users looking at the same cached\nplace see different reasons for it.",
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "amenities": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amenities"
+          },
+          "day_pass_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day Pass Cents"
+          },
+          "distance_meters": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Meters"
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PlaceKind"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lng"
+          },
+          "matched_preferences": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Matched Preferences",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "over_budget_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Over Budget Reason"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
+          },
+          "price_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Level"
+          },
+          "reservable_via": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReservationProvider"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "unknown_notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unknown Notes",
+            "type": "array"
+          },
+          "walk_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Walk Minutes"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "matched_preferences",
+          "unknown_notes"
+        ],
+        "title": "ExplorePlaceOut",
+        "type": "object"
+      },
+      "ExploreRouteOut": {
+        "description": "Today's plan as a path, for the map's line and its summary strip.\n\nEmpty `stops` is the ordinary case, not an error: a trip with nothing\nscheduled today, or one whose planned places have no coordinates.",
+        "properties": {
+          "stops": {
+            "items": {
+              "$ref": "#/components/schemas/ExploreRouteStopOut"
+            },
+            "title": "Stops",
+            "type": "array"
+          },
+          "total_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Minutes"
+          }
+        },
+        "required": [
+          "stops"
+        ],
+        "title": "ExploreRouteOut",
+        "type": "object"
+      },
+      "ExploreRouteStopOut": {
+        "description": "One stop on today's walking route, in schedule order.\n\nCarries its own coordinates rather than a place id the client would look\nup in `places`: the route must survive a category filter, and a dinner stop\nis not in the list while the Workout chip is selected.",
+        "properties": {
+          "is_anchor": {
+            "title": "Is Anchor",
+            "type": "boolean"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lng": {
+            "title": "Lng",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "walk_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Walk Minutes"
+          }
+        },
+        "required": [
+          "name",
+          "lat",
+          "lng",
+          "is_anchor"
+        ],
+        "title": "ExploreRouteStopOut",
         "type": "object"
       },
       "ItemKind": {
@@ -367,6 +947,17 @@
         ],
         "title": "PendingActionOut",
         "type": "object"
+      },
+      "PlaceKind": {
+        "enum": [
+          "workout",
+          "food",
+          "outdoor",
+          "recovery",
+          "lodging"
+        ],
+        "title": "PlaceKind",
+        "type": "string"
       },
       "PlanItemOptionOut": {
         "properties": {
@@ -1037,6 +1628,73 @@
         "title": "ReservationStatus",
         "type": "string"
       },
+      "ResolvedLocationOut": {
+        "description": "Free text resolved to a point. `query` is echoed so a client that fired\nseveral lookups can tell the answers apart.",
+        "properties": {
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lng": {
+            "title": "Lng",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone"
+          }
+        },
+        "required": [
+          "query",
+          "name",
+          "lat",
+          "lng"
+        ],
+        "title": "ResolvedLocationOut",
+        "type": "object"
+      },
+      "RunRef": {
+        "properties": {
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Present when the event started (or joined) an agent run.",
+            "title": "Run Id"
+          }
+        },
+        "required": [
+          "event_id"
+        ],
+        "title": "RunRef",
+        "type": "object"
+      },
       "SelectOptionIn": {
         "properties": {
           "option_id": {
@@ -1097,6 +1755,13 @@
       },
       "SourcesOut": {
         "properties": {
+          "connectable": {
+            "items": {
+              "$ref": "#/components/schemas/SourceKind"
+            },
+            "title": "Connectable",
+            "type": "array"
+          },
           "sources": {
             "items": {
               "$ref": "#/components/schemas/ConnectedSourceOut"
@@ -1106,9 +1771,40 @@
           }
         },
         "required": [
-          "sources"
+          "sources",
+          "connectable"
         ],
         "title": "SourcesOut",
+        "type": "object"
+      },
+      "SyncOut": {
+        "description": "What one sync run did. Counts rather than a bare ok, because \"nothing\nchanged\" and \"nothing was returned\" are different answers and only one of\nthem is a problem.",
+        "properties": {
+          "created": {
+            "title": "Created",
+            "type": "integer"
+          },
+          "last_synced_at": {
+            "format": "date-time",
+            "title": "Last Synced At",
+            "type": "string"
+          },
+          "unchanged": {
+            "title": "Unchanged",
+            "type": "integer"
+          },
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "created",
+          "updated",
+          "unchanged",
+          "last_synced_at"
+        ],
+        "title": "SyncOut",
         "type": "object"
       },
       "TimelineEntryOut": {
@@ -2087,6 +2783,285 @@
         ]
       }
     },
+    "/events": {
+      "post": {
+        "description": "202, not 201: the row exists, and whether it becomes a run is the\nworker's decision, not this request's.\n\nA repeated Idempotency-Key returns the event that already exists rather\nthan a second one, which for `scheduled_activation` is the difference\nbetween a retry and a second paid run.",
+        "operationId": "submitEvent",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunRef"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Problem details (RFC 9457)"
+          }
+        },
+        "summary": "Submit a user event (voice, text, or UI intent) to the agent event spine",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/explore": {
+      "get": {
+        "operationId": "explore_api_v1_explore_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "trip_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Trip Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PlaceKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Query"
+            }
+          },
+          {
+            "in": "query",
+            "name": "radius_m",
+            "required": false,
+            "schema": {
+              "default": 8000,
+              "maximum": 50000,
+              "minimum": 250,
+              "title": "Radius M",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExploreOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Problem details (RFC 9457)"
+          }
+        },
+        "summary": "Explore",
+        "tags": [
+          "explore"
+        ]
+      }
+    },
+    "/explore/basemap": {
+      "get": {
+        "description": "Street geometry for the area this trip's map covers.\n\nIts own endpoint rather than a field on `/explore` for two reasons. It\nchanges on a scale of years while the rest of that payload changes per tap,\nso bundling them would re-send a city every time a chip is pressed. And it\nis the one part of the surface that may legitimately arrive late or not at\nall: the map renders on plain ground without it, exactly as it did before.\n\n`radius_m` is the client's plot radius, which is computed from what is on\nscreen. The server buckets it, so filtering a category usually reuses the\narea already cached rather than fetching a slightly different one.\n\n`lat`/`lng` centre the area somewhere other than the trip's anchor: the\nexpanded map asks for finer geometry around wherever it has been zoomed\nto. Both or neither, and never far from the anchor.",
+        "operationId": "explore_basemap_api_v1_explore_basemap_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "trip_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Trip Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "radius_m",
+            "required": false,
+            "schema": {
+              "default": 2000,
+              "maximum": 20000,
+              "minimum": 250,
+              "title": "Radius M",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lat",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 90,
+                  "minimum": -90,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lat"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lng",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 180,
+                  "minimum": -180,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lng"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BasemapOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Problem details (RFC 9457)"
+          }
+        },
+        "summary": "Explore Basemap",
+        "tags": [
+          "explore"
+        ]
+      }
+    },
+    "/geocode": {
+      "get": {
+        "description": "Resolve free text to a point.\n\nWritten fresh rather than ported: the prototype's /resolve_location is\nsynchronous and answers with hardcoded Skokie coordinates when no key is\nconfigured, which is worse than an error because the caller cannot tell.\nHere the three outcomes stay distinct -- no such place is 404, no key is\n503, and a provider failure is 502 -- so nobody plans a trip around a\nfallback.",
+        "operationId": "geocode_api_v1_geocode_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "query",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Query",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedLocationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Problem details (RFC 9457)"
+          }
+        },
+        "summary": "Geocode",
+        "tags": [
+          "explore"
+        ]
+      }
+    },
     "/me": {
       "get": {
         "operationId": "get_me_api_v1_me_get",
@@ -2254,6 +3229,161 @@
           }
         },
         "summary": "List Connected Sources",
+        "tags": [
+          "profile"
+        ]
+      }
+    },
+    "/me/sources/{kind}": {
+      "delete": {
+        "description": "Forget the token and mark the grant revoked, keeping the row.\n\nThe row is the record that a connection existed, which is what lets\n/me/sources say \"disconnected\" instead of silently showing nothing, and what\nexplains the calendar_events still in the cache.\n\nRevoking at Google's end is deliberately not done here. It is an outbound\nHTTP call, and the seam that owns outbound calls to Google is the calendar\nclient, which does not exist yet. Until then the local token is destroyed,\nso the grant is unusable by us whether or not Google still lists it.",
+        "operationId": "disconnect_source_api_v1_me_sources__kind__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SourceKind"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Problem details (RFC 9457)"
+          }
+        },
+        "summary": "Disconnect Source",
+        "tags": [
+          "profile"
+        ]
+      }
+    },
+    "/me/sources/{kind}/callback": {
+      "get": {
+        "operationId": "connect_callback_api_v1_me_sources__kind__callback_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SourceKind"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Problem details (RFC 9457)"
+          }
+        },
+        "summary": "Connect Callback",
+        "tags": [
+          "profile"
+        ]
+      }
+    },
+    "/me/sources/{kind}/connect": {
+      "get": {
+        "operationId": "connect_source_api_v1_me_sources__kind__connect_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SourceKind"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Problem details (RFC 9457)"
+          }
+        },
+        "summary": "Connect Source",
+        "tags": [
+          "profile"
+        ]
+      }
+    },
+    "/me/sources/{kind}/sync": {
+      "post": {
+        "description": "Pull a window of the calendar into the cache, now.\n\nExplicit rather than scheduled, because there is no scheduler yet and a\nfeature nobody can trigger cannot be shown to work. Whatever runs this on a\ntimer later calls the same service.",
+        "operationId": "sync_connected_source_api_v1_me_sources__kind__sync_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SourceKind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Problem details (RFC 9457)"
+          }
+        },
+        "summary": "Sync Connected Source",
         "tags": [
           "profile"
         ]
@@ -2605,6 +3735,70 @@
         "summary": "Get Trip",
         "tags": [
           "trips"
+        ]
+      }
+    },
+    "/trips/{trip_id}/assistant": {
+      "post": {
+        "description": "One utterance, interpreted against this trip's plan, applied, answered.\n\nThe 200 means the turn happened, not that anything changed: \"nothing here\nmatches that\" is a successful turn with an empty `applied`. A caller that\nwants to know whether the plan moved reads `applied`, not the status code.",
+        "operationId": "askAssistant",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trip_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Trip Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantAsk"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantTurnOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemOut"
+                }
+              }
+            },
+            "description": "Problem details (RFC 9457)"
+          }
+        },
+        "summary": "Say something about this trip's plan and have the agent act on it",
+        "tags": [
+          "agent"
         ]
       }
     },

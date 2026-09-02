@@ -8,7 +8,8 @@ tables stay textual SQL, mirroring ADR-001 point 3).
 
 DATABASE_URL is forced to the test database before any app import, so the
 suite can never touch the dev database. Point TEST_DATABASE_URL elsewhere to
-override; the database name must end in `_test` because it gets dropped.
+override (backend/.env is read, so a worktree can keep its own); the database
+name must end in `_test` because it gets dropped.
 """
 
 import os
@@ -23,11 +24,17 @@ import pytest_asyncio
 import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
+from dotenv import load_dotenv
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
+
+# Parallel worktrees would otherwise all drop and recreate one shared
+# `travelwell_test`, failing each other's runs. Reading .env lets each keep
+# its own; a real environment variable still wins.
+load_dotenv()
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
@@ -44,15 +51,36 @@ if not (make_url(TEST_DATABASE_URL).database or "").endswith("_test"):
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 # Sessions fail hard without a secret outside dev/test (sessions.py).
 os.environ.setdefault("APP_ENV", "test")
+# Pinned rather than defaulted: migrations/env.py calls load_dotenv(), so a
+# worktree's backend/.env would otherwise decide what the redirect tests assert.
+os.environ["PUBLIC_BASE_URL"] = "http://localhost:5173"
 
-# Everything the initial migration creates, modeled or not. Truncated together
-# so FK order never matters; CASCADE covers any table a future migration adds.
-ALL_TABLES = (
-    "users, user_preferences, login_codes, connected_sources, trips, "
-    "trip_evidence, calendar_events, places, wellness_windows, plans, "
-    "plan_items, plan_item_options, pending_actions, reservations, "
-    "agent_runs, agent_events, notifications"
-)
+def all_tables() -> str:
+    """Every modeled table, derived rather than listed.
+
+    This was a hand-written list, under a comment claiming CASCADE would reach
+    any table a future migration added. The real rule is narrower, and both
+    convenient summaries of it are wrong: an unlisted table is truncated if and
+    only if it has a foreign key INTO a listed table. `stored_secrets` was
+    missing from the list and truncated anyway, through `user_id -> users`.
+    `area_fills` has no foreign key in either direction, so nothing reached it,
+    and tests read each other's rows.
+
+    The failure is silent. It surfaces as an assertion inside whichever test
+    happens to run second, which reads as a bug in that test rather than here.
+
+    Deriving from `Base.metadata` is not a new mechanism. The repo already
+    treats the ORM models as the schema source and generates `docs/schema.sql`
+    from this same metadata, so the hand-written list was a second copy of a
+    list the repo already maintains. That is the load-bearing assumption: a
+    table created by a migration but never modeled would still be missed, and
+    `alembic check` is what keeps that from existing.
+    """
+    # Imported here, not at module scope: this file forces DATABASE_URL before
+    # anything under `app` is allowed to load.
+    from app.db.models import Base
+
+    return ", ".join(sorted(t.name for t in Base.metadata.sorted_tables))
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -91,7 +119,7 @@ async def clean_tables(database):
     import app.db.engine as db
 
     async with db.engine.begin() as conn:
-        await conn.execute(sa.text(f"truncate {ALL_TABLES} cascade"))
+        await conn.execute(sa.text(f"truncate {all_tables()} cascade"))
 
 
 @pytest_asyncio.fixture
@@ -355,8 +383,10 @@ async def scene(user):
             OptionState.alternative,
             OptionState.rejected,
         )
+        # `awaiting_user`, not `suggested`: this plan is `proposed`, and an item
+        # is only `suggested` while its plan is a draft, which no read returns.
         workout = item(
-            w_open, ItemKind.activity, ItemStatus.suggested,
+            w_open, ItemKind.activity, ItemStatus.awaiting_user,
             at(today, 17, 30), at(today, 18, 45),
             [
                 (sel, {
@@ -392,7 +422,7 @@ async def scene(user):
             needs_res=True,
         )
         run = item(
-            None, ItemKind.activity, ItemStatus.suggested,
+            None, ItemKind.activity, ItemStatus.awaiting_user,
             at(tomorrow, 6, 45), at(tomorrow, 7, 30),
             [(sel, {"display_name": "Lakefront Trail", "distance_minutes": 12})],
         )
@@ -407,8 +437,8 @@ async def scene(user):
             await session.execute(
                 sa.text(
                     """
-                    insert into connected_sources (user_id, kind, status)
-                    values (:uid, 'google_calendar', 'connected')
+                    insert into connected_sources (user_id, kind, status, secret_ref)
+                    values (:uid, 'google_calendar', 'connected', 'mem:placeholder')
                     returning source_id
                     """
                 ),
@@ -425,16 +455,15 @@ async def scene(user):
                 sa.text(
                     """
                     insert into calendar_events
-                      (user_id, source_id, trip_id, external_id, title, location,
+                      (user_id, source_id, external_id, title, location,
                        starts_at, ends_at, content_hash)
                     values
-                      (:uid, :sid, :tid, :ext, :title, :loc, :starts, :ends, :hash)
+                      (:uid, :sid, :ext, :title, :loc, :starts, :ends, :hash)
                     """
                 ),
                 {
                     "uid": user.user_id,
                     "sid": source_id,
-                    "tid": trip.trip_id,
                     "ext": f"test_evt_{i}",
                     "title": title,
                     "loc": location,

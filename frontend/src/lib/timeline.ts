@@ -14,7 +14,7 @@ import type { ItemStatus, PlanItem, ReservationStatus } from '@/api/queries'
  * and the point of the slice is that they cannot disagree.
  */
 export type RowChrome = {
-  /** Border and fill. Border *style* rides along: dashed means not real yet. */
+  /** Border and fill, including border style. Nothing dashes any more. */
   frame: string
   dot: string
   name: string
@@ -39,16 +39,16 @@ export const commitmentChrome: RowChrome = {
  * All 1px: Blink floors fractional widths, so the 1.5px these used to declare
  * painted exactly like a card's border. `--border-row-suggested` is the one
  * row-scale token left, darker rather than thicker to carry the same
- * distinction. Two of these are load-bearing beyond decoration - dashed
- * says a suggestion is not real yet, and full-ink says this one needs you,
- * which is the only marker `awaiting_user` has now that its badge is gone.
+ * distinction. One of these is load-bearing beyond decoration: full-ink says
+ * this one needs you, which is the only marker `awaiting_user` has now that its
+ * badge is gone.
  */
 const chromeByStatus: Record<ItemStatus, RowChrome> = {
-  suggested: {
-    frame: 'border-dashed border-border-row-suggested bg-card',
-    dot: 'bg-state-suggested',
-    name: 'text-ink',
-  },
+  // Unreachable: `suggested` is the state of an item inside a draft plan and no
+  // read returns drafts. The key stays because the record is exhaustive on
+  // purpose, so a new contract status fails the typecheck instead of rendering
+  // blank. It renders as `awaiting_user` because that is what it becomes.
+  suggested: { frame: 'border-ink bg-card', dot: 'bg-ink', name: 'text-ink' },
   awaiting_user: { frame: 'border-ink bg-card', dot: 'bg-ink', name: 'text-ink' },
   planned: {
     frame: 'border-border-confirmed bg-card',
@@ -95,8 +95,8 @@ export type ItemBadge = { label: string; className: string }
  * A badge earns its place by saying something true that the user cannot act on
  * and would not otherwise know - which is why the three open statuses carry
  * none. An open gate is a place, not a label: it renders as a row you can tap
- * and a button you can press, and adding the word "Suggested" beside a dashed
- * card that is plainly a suggestion only repeats the card.
+ * and a button you can press, and adding the word "Suggested" beside a card
+ * that is plainly a suggestion only repeats the card.
  *
  * The keys stay complete rather than being dropped, so a new contract value
  * still fails the typecheck instead of silently rendering nothing.

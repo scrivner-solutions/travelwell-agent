@@ -37,6 +37,8 @@ create extension if not exists citext;
 -- Enums
 -- ---------------------------------------------------------------------------
 
+CREATE TYPE area_fill_outcome AS ENUM ('ok', 'error', 'unavailable');
+
 CREATE TYPE place_kind AS ENUM ('workout', 'food', 'outdoor', 'recovery', 'lodging');
 
 CREATE TYPE reservation_provider AS ENUM ('travelwell', 'opentable', 'external_link');
@@ -115,13 +117,53 @@ CREATE TABLE places (
     lng DOUBLE PRECISION,
     price_level SMALLINT,  -- $..$$$$ for food
     day_pass_cents INTEGER,  -- 0 = free / membership
-    amenities TEXT[] DEFAULT '{}'::text[] NOT NULL,
+    amenities TEXT[],
     hours JSONB,  -- per-weekday open/close minutes
     photo_url TEXT,
     reservable_via reservation_provider,
     fetched_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
     PRIMARY KEY (place_id),
     UNIQUE (provider_ref)
+);
+
+-- One area, and the last attempt to fill it from the provider.
+-- `places.fetched_at` makes staleness a property of a ROW, which cannot
+-- answer the question that costs money: has anyone ever looked here? An area
+-- with no rows and an area that is genuinely empty are the same absence, so
+-- the cheap proxy "is there a fresh row near this point" refetches an empty
+-- neighbourhood on every planning run forever. Written only when a fetch was
+-- actually attempted. A declined fetch leaves no row, because a row here is
+-- a claim about the provider, not about us.
+CREATE TABLE area_fills (
+    area_fill_id UUID DEFAULT gen_random_uuid() NOT NULL,
+    area_key TEXT NOT NULL,  -- rounded lat/lng, radius, kinds
+    outcome area_fill_outcome NOT NULL,
+    result_count SMALLINT DEFAULT 0 NOT NULL,
+    fetched_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    PRIMARY KEY (area_fill_id),
+    UNIQUE (area_key)
+);
+
+-- Street, water and park geometry for one area, cached as drawn. The Explore
+-- map is a real map or it is a diagram of dots, and the difference is this
+-- table. OpenStreetMap gives the geometry away, so unlike `area_fills` the
+-- ceiling here is politeness to a community server rather than money --
+-- which is why there is no outcome enum: nothing bills, so a failed attempt
+-- costs only the retry. Geometry is stored in degrees, not pixels. The map's
+-- scale is content-dependent -- it changes the moment a category chip hides
+-- the furthest pin -- so a cached projection would be stale before the first
+-- tap.
+CREATE TABLE basemap_areas (
+    basemap_area_id UUID DEFAULT gen_random_uuid() NOT NULL,
+    area_key TEXT NOT NULL,  -- rounded lat/lng and radius
+    roads_major JSONB NOT NULL,  -- motorway/trunk/primary
+    roads_minor JSONB NOT NULL,  -- secondary/tertiary
+    water JSONB NOT NULL,  -- closed rings
+    parks JSONB NOT NULL,  -- closed rings
+    buildings JSONB NOT NULL,  -- closed rings, close zooms only
+    fetched_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    PRIMARY KEY (basemap_area_id),
+    UNIQUE (area_key)
 );
 
 -- One row per user. Drives Explore filters, plan ranking, and the "Matched
@@ -141,22 +183,42 @@ CREATE TABLE user_preferences (
     watch_schedule BOOLEAN DEFAULT true NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
     preferred_times TEXT[] DEFAULT '{}'::text[] NOT NULL,  -- {'mornings'}
+    target_sessions SMALLINT,  -- how many sessions the traveler wants across a trip, not per day
     PRIMARY KEY (user_id),
     FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE
 );
 
--- OAuth grants. Tokens live in Secret Manager; only the reference is here.
+-- OAuth grants. The token itself is held by the token store; only its
+-- reference is here, so the storage backend can change without a migration.
 CREATE TABLE connected_sources (
     source_id UUID DEFAULT gen_random_uuid() NOT NULL,
     user_id UUID NOT NULL,
     kind source_kind NOT NULL,
-    status source_status DEFAULT 'connected'::source_status NOT NULL,
+    status source_status NOT NULL,
     scopes TEXT[] DEFAULT '{}'::text[] NOT NULL,
-    secret_ref TEXT,  -- Secret Manager resource name
+    secret_ref TEXT,  -- Opaque token-store reference; only the store that minted it may parse it
     last_synced_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
     PRIMARY KEY (source_id),
     CONSTRAINT connected_sources_user_id_kind_key UNIQUE (user_id, kind),
+    CONSTRAINT connected_sources_check CHECK (status <> 'connected'::source_status or secret_ref is not null),
+    FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE
+);
+
+-- Long-lived secrets, encrypted at rest, addressed only by reference. A
+-- separate table rather than a column on `connected_sources` because the
+-- reference has to stay meaningful when the backend is not this table: a
+-- caller holding `secret_ref` must not care which store answers it.
+CREATE TABLE stored_secrets (
+    secret_id UUID DEFAULT gen_random_uuid() NOT NULL,
+    user_id UUID NOT NULL,
+    kind TEXT NOT NULL,  -- What the secret is for, e.g. google_refresh_token
+    nonce BYTEA NOT NULL,  -- AES-GCM nonce, freshly generated on every write
+    ciphertext BYTEA NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    PRIMARY KEY (secret_id),
+    CONSTRAINT stored_secrets_user_id_kind_key UNIQUE (user_id, kind),
     FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE
 );
 
@@ -232,12 +294,14 @@ CREATE TABLE trip_evidence (
 
 CREATE INDEX trip_evidence_trip_idx ON trip_evidence (trip_id);
 
--- Trip-relevant calendar cache: derived display fields, no raw payloads.
+-- Calendar cache: derived display fields, no raw payloads. No trip column.
+-- Which trip an event belongs to is detection's judgement and lives in
+-- `trip_evidence`; which events fall inside a trip is arithmetic on the
+-- trip's dates, done in `services/calendar/overlap.py`.
 CREATE TABLE calendar_events (
     cal_event_id UUID DEFAULT gen_random_uuid() NOT NULL,
     user_id UUID NOT NULL,
     source_id UUID NOT NULL,
-    trip_id UUID,
     external_id TEXT NOT NULL,  -- provider event id
     title TEXT NOT NULL,
     location TEXT,
@@ -246,14 +310,14 @@ CREATE TABLE calendar_events (
     status TEXT DEFAULT 'confirmed'::text NOT NULL,  -- provider status
     content_hash TEXT NOT NULL,  -- change detection on sync
     last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    busy BOOLEAN,  -- Does this block time? NULL = not yet classified, which is not 'free'
     PRIMARY KEY (cal_event_id),
     CONSTRAINT calendar_events_source_id_external_id_key UNIQUE (source_id, external_id),
     FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE,
-    FOREIGN KEY(source_id) REFERENCES connected_sources (source_id) ON DELETE CASCADE,
-    FOREIGN KEY(trip_id) REFERENCES trips (trip_id) ON DELETE CASCADE
+    FOREIGN KEY(source_id) REFERENCES connected_sources (source_id) ON DELETE CASCADE
 );
 
-CREATE INDEX calendar_events_trip_time_idx ON calendar_events (trip_id, starts_at);
+CREATE INDEX calendar_events_user_time_idx ON calendar_events (user_id, starts_at);
 
 -- Trace root: every inbound trigger lands here before anything runs.
 CREATE TABLE agent_events (
@@ -265,7 +329,9 @@ CREATE TABLE agent_events (
     disposition event_disposition DEFAULT 'pending'::event_disposition NOT NULL,
     occurred_at TIMESTAMP WITH TIME ZONE NOT NULL,
     received_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+    idempotency_key UUID,  -- client-generated; a retry lands on the event that already exists
     PRIMARY KEY (event_id),
+    CONSTRAINT agent_events_idempotency_uq UNIQUE (user_id, idempotency_key),
     FOREIGN KEY(user_id) REFERENCES users (user_id) ON DELETE CASCADE,
     FOREIGN KEY(trip_id) REFERENCES trips (trip_id) ON DELETE CASCADE
 );

@@ -8,6 +8,9 @@ authors = [
 
 dependencies = [
     "google-adk[gcp]>=2.0.0,<3.0.0",
+    # Direct: app/agent/gemini.py builds the Vertex client on it.
+    # Arrives transitively via google-adk, which is not a promise it will stay.
+    "google-genai>=2.10,<3.0",
     "a2a-sdk[http-server]~=0.3.22",
     "aiohttp>=3.13.4",
     "gcsfs>=2024.11.0",
@@ -19,6 +22,12 @@ dependencies = [
     "itsdangerous>=2.2.0,<3.0.0",
     "email-validator>=2.2.0,<3.0.0",
     "authlib>=1.6,<2.0",
+    # Direct: AES-GCM for stored secrets (app/services/tokens/crypto.py).
+    # Arrives transitively via authlib, which is not a promise it will stay.
+    "cryptography>=43,<50",
+    # Direct: ADC for Maps Platform (app/services/places/google.py). Arrives
+    # transitively via google-adk[gcp], which is not a promise it will stay.
+    "google-auth>=2.35,<3.0",
 ]
 requires-python = ">=3.11,<3.14"
 
@@ -97,6 +106,14 @@ build-backend = "hatchling.build"
 [tool.pytest.ini_options]
 pythonpath = "."
 asyncio_default_fixture_loop_scope = "function"
+# Registering a marker only silences the unknown-mark warning; it deselects
+# nothing without a `-m`. Until this line the live tests were excluded by
+# living in tests/integration, a directory no runner names, and the marker took
+# the credit - so the first marked test written in a collected directory went
+# red in CI. Default it off here rather than at one CI invocation: the reason to
+# skip (spends money, needs ADC) is true of a laptop too, and ci.yml already has
+# two pytest calls. Opt in with `-m integration_live`, which overrides this.
+addopts = "-m 'not integration_live'"
 markers = [
     "integration_live: marks tests as live integration tests requiring GCP/Vertex credentials (deselect with '-m \"not integration_live\"')"
 ]

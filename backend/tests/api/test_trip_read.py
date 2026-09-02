@@ -61,9 +61,10 @@ async def test_list_filters_by_state_and_counts_needs_you(
     assert r.status_code == 200
     trips = {t["destination_name"]: t for t in r.json()["trips"]}
     assert set(trips) == {"Chicago, IL", "Denver, CO"}
-    # One term per gate: Chicago's open ask is the scene's awaiting_user dinner,
-    # Denver's is the unanswered detection itself.
-    assert trips["Chicago, IL"]["needs_you_count"] == 1
+    # One term per gate. Chicago's open asks are its three undecided items -
+    # one gate, so nothing is counted quietly - and Denver's is the unanswered
+    # detection itself.
+    assert trips["Chicago, IL"]["needs_you_count"] == 3
     assert trips["Denver, CO"]["needs_you_count"] == 1
 
     r = await authed_client.get("/api/v1/trips", params={"state": "detected"})

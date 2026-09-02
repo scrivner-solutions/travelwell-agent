@@ -289,7 +289,9 @@ class TestAgainstTheRealSpec:
     ):
         # Implementing an endpoint must force its entry out of UNIMPLEMENTED,
         # or the list quietly becomes a record of things that were once true.
-        del spec["paths"]["/explore"]
+        # /explore used to stand here and no longer can: it is served now, so
+        # its exemption is gone. Any still-exempt path proves the same rule.
+        del spec["paths"]["/notifications"]
         code, out = self._run(tmp_path, monkeypatch, spec, capsys)
         assert code == 1
-        assert "Stale exemptions" in out and "/explore" in out
+        assert "Stale exemptions" in out and "/notifications" in out

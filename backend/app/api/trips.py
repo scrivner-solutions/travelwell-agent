@@ -44,6 +44,7 @@ from app.db.models import (
     WellnessWindow,
     WindowStatus,
 )
+from app.services.calendar import events_during, local_day
 
 router = APIRouter(tags=["trips"], route_class=ApiRoute)
 
@@ -61,7 +62,6 @@ TRIP_PROGRESS_SQL = text(
            case when t.state = 'detected' then 1 else 0 end as detection_n,
            coalesce(pi.awaiting_n, 0) as awaiting_n,
            coalesce(pi.working_n, 0) as working_n,
-           coalesce(pi.undecided_n, 0) as undecided_n,
            coalesce(pi.live_n, 0) as live_n,
            coalesce(pa.n, 0) as approval_n
     from trips t
@@ -69,9 +69,6 @@ TRIP_PROGRESS_SQL = text(
         select pi.trip_id,
                count(*) filter (where pi.status = 'awaiting_user') as awaiting_n,
                count(*) filter (where pi.status = 'working') as working_n,
-               count(*) filter (
-                   where pi.status in ('suggested', 'awaiting_user')
-               ) as undecided_n,
                count(*) as live_n
         from plan_items pi
         join plans p on p.plan_id = pi.plan_id
@@ -102,7 +99,9 @@ def _plan_progress(row) -> PlanProgress:
     if row.working_n:
         return PlanProgress.booking
     # An empty plan is not an accepted plan, so live_n has to be positive.
-    if row.live_n and not row.undecided_n:
+    # `awaiting_n` was `undecided_n` until `suggested` became pre-surfacing: this
+    # query already excludes drafts, so the two counts were the same number.
+    if row.live_n and not row.awaiting_n:
         return PlanProgress.planned
     return PlanProgress.none
 
@@ -175,19 +174,7 @@ _STATE_WORDS: dict[TripState, tuple[str, str | None]] = {
 
 # Timeline and Today never render these; skipped stays visible nowhere per the
 # prototype (removed is a backend tombstone).
-_HIDDEN_ITEM_STATUSES = (ItemStatus.skipped, ItemStatus.removed)
-
-CALENDAR_EVENTS_SQL = text(
-    """
-    select cal_event_id, title, location, starts_at, ends_at
-    from calendar_events
-    where trip_id = :trip_id
-      and (cast(:day as date) is null
-           or (starts_at at time zone :tz)::date = cast(:day as date))
-    order by starts_at
-    """
-)
-
+HIDDEN_ITEM_STATUSES = (ItemStatus.skipped, ItemStatus.removed)
 
 async def owned_trip(
     session, user, trip_id: uuid.UUID, *, with_evidence: bool = False
@@ -223,7 +210,7 @@ async def current_plan(session, trip_id: uuid.UUID) -> Plan | None:
     return (await session.execute(stmt)).scalar_one_or_none()
 
 
-def _local_today(tz: str) -> date:
+def local_today(tz: str) -> date:
     return datetime.now(ZoneInfo(tz)).date()
 
 
@@ -252,7 +239,7 @@ async def get_trip_today(
     trip_id: uuid.UUID, user: CurrentUser, session: SessionDep
 ) -> TodayViewOut:
     trip = await owned_trip(session, user, trip_id)
-    today = _local_today(trip.timezone)
+    today = local_today(trip.timezone)
     word, detail = _STATE_WORDS[trip.state]
     if detail is None and trip.activation_at is not None and trip.state in (
         TripState.confirmed,
@@ -279,7 +266,7 @@ async def get_trip_today(
     next_up = [
         plan_item_to_out(item)
         for item in (plan.items if plan else [])
-        if item.status not in _HIDDEN_ITEM_STATUSES
+        if item.status not in HIDDEN_ITEM_STATUSES
         and item.scheduled_start.astimezone(tz).date() == today
     ]
 
@@ -304,10 +291,10 @@ async def get_trip_timeline(
     trip = await owned_trip(session, user, trip_id)
     tz = ZoneInfo(trip.timezone)
 
-    rows = await session.execute(
-        CALENDAR_EVENTS_SQL,
-        {"trip_id": trip_id, "tz": trip.timezone, "day": day},
-    )
+    query = events_during(trip)
+    if day is not None:
+        query = query.where(local_day(trip) == day)
+    rows = (await session.execute(query)).scalars()
     entries = [
         TimelineEntryOut(
             entry_type="calendar_event",
@@ -329,7 +316,7 @@ async def get_trip_timeline(
             plan_item=plan_item_to_out(item),
         )
         for item in (plan.items if plan else [])
-        if item.status not in _HIDDEN_ITEM_STATUSES
+        if item.status not in HIDDEN_ITEM_STATUSES
         and (day is None or item.scheduled_start.astimezone(tz).date() == day)
     )
 

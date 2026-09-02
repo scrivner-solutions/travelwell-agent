@@ -7,7 +7,17 @@ slice by slice.
 
 from fastapi import APIRouter
 
-from app.api import actions, auth, plan, profile, trips
+from app.api import (
+    actions,
+    assistant,
+    auth,
+    events,
+    explore,
+    plan,
+    profile,
+    sources,
+    trips,
+)
 from app.api.problems import ProblemOut
 
 # Every error on this surface is an RFC 9457 problem document, but the handler
@@ -22,6 +32,14 @@ api_router = APIRouter(
 )
 api_router.include_router(auth.router)
 api_router.include_router(profile.router)
+# /me/sources/{kind}/... - the OAuth grant, separate from profile's read of it.
+api_router.include_router(sources.router)
 api_router.include_router(trips.router)
 api_router.include_router(plan.router)
 api_router.include_router(actions.router)
+api_router.include_router(explore.router)
+# /events - the agent's inbound surface; admission happens in the worker.
+api_router.include_router(events.router)
+# /trips/{id}/assistant - the attended half: one utterance, answered in the
+# same request. Writes its own event row, so the trace root stays complete.
+api_router.include_router(assistant.router)

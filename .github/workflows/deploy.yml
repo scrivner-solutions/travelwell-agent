@@ -1,13 +1,32 @@
 name: Deploy (staging)
 
+# THE deploy path for staging, and the only automated one. It holds WHEN to
+# deploy and WHO deploys; it holds no gcloud commands at all.
+#
+# WHAT to deploy and HOW lives in infra/deploy-staging.sh and
+# infra/deploy-frontend-staging.sh, which this workflow calls. Those same
+# scripts are what a human runs by hand, so the two paths cannot drift: there
+# is one implementation, not two that promise to match. An earlier version of
+# this file re-declared every flag and had already drifted - --min-instances 0
+# against the live 1, no --no-cpu-throttling, and no agent or Vertex settings.
+#
+# Config reaches the scripts the same way in both paths. Locally they source an
+# untracked environment file (TRAVELWELL_STAGING_ENV, default
+# ~/.travelwell-staging.env); here the `env:` block below plays that part,
+# using the identical variable names. Every value in the scripts is
+# ${VAR:-default}, and :- treats empty as unset, so a repository variable that
+# is not set falls through to the script's own default rather than blanking it.
+#
+# DORMANT until GCP_PROJECT_ID, GCP_WIF_PROVIDER and GCP_DEPLOYER_SA exist as
+# repository variables. Creating the Workload Identity pool needs project IAM
+# the repo owner does not hold, so the deploy jobs are SKIPPED rather than
+# failed: a red X on every merge trains people to ignore it. Setting the
+# variables turns deploys on with no change to this file. OWNER.md #39 asked
+# which of the two deploy paths survives; calling the scripts is that answer.
+
 # Fires on every merge to main. The PR's own CI proved the branch; `gates`
 # below re-runs it against the merge commit, which with merge-commit merges is
 # a tree no pull_request run has ever seen.
-#
-# The deploy jobs are skipped, not failed, until the three GCP_* repository
-# variables exist: creating the Workload Identity pool needs project IAM the
-# repo owner does not hold, and a red X on every merge would train people to
-# ignore it. Setting the variables turns deploys on with no change here.
 on:
   push:
     branches: [main]
@@ -22,16 +41,22 @@ concurrency:
 permissions:
   contents: read
 
+# The per-environment layer, and nothing else. These are exactly the names the
+# scripts read, so this block is the CI equivalent of the untracked env file a
+# human sources - not a second configuration system. Names that are the same in
+# every environment live in infra/config.env, which the scripts source
+# themselves; nothing shared belongs here.
+#
+# GOOGLE_CLIENT_ID is per-environment but not secret: it travels to Google in
+# the redirect URL. The client secret is never passed here at all - the scripts
+# reference it in Secret Manager by name.
 env:
-  REGION: us-central1
-  AR_HOST: us-central1-docker.pkg.dev
-  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-  RUNTIME_SA: travelwell-runtime@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
-  # DATABASE_URL alone selects the target (app/db/engine.py); only Cloud SQL
-  # also needs its instance attached to the revision. Staging currently runs
-  # against hosted Postgres over TCP, so external is the default.
-  DB_TARGET: ${{ vars.DB_TARGET || 'external' }}
-  CLOUDSQL_INSTANCE: ${{ vars.GCP_PROJECT_ID }}:us-central1:travelwell-staging
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.GCP_REGION }}
+  GCP_SQL_CONNECTION_NAME: ${{ vars.GCP_SQL_CONNECTION_NAME }}
+  DB_TARGET: ${{ vars.DB_TARGET }}
+  GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+  AGENT_WORKER: ${{ vars.AGENT_WORKER }}
 
 jobs:
   gates:
@@ -52,16 +77,19 @@ jobs:
           WIF: ${{ vars.GCP_WIF_PROVIDER }}
           DEPLOYER_SA: ${{ vars.GCP_DEPLOYER_SA }}
         run: |
-          if [[ -n "$WIF" && -n "$DEPLOYER_SA" && -n "$PROJECT_ID" ]]; then
+          if [[ -n "$WIF" && -n "$DEPLOYER_SA" && -n "$GCP_PROJECT_ID" ]]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
-            echo "Deploying ${GITHUB_SHA::7} to $PROJECT_ID." >> "$GITHUB_STEP_SUMMARY"
+            echo "Deploying ${GITHUB_SHA::7} to $GCP_PROJECT_ID." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
             {
               echo "### Deploy skipped, gates still ran"
               echo
               echo "Set the repository variables \`GCP_PROJECT_ID\`, \`GCP_WIF_PROVIDER\`"
-              echo "and \`GCP_DEPLOYER_SA\` to turn deploys on. See docs/GITHUB_ACTIONS_DEPLOYMENT.md."
+              echo "and \`GCP_DEPLOYER_SA\` to turn deploys on. Against Cloud SQL, set"
+              echo "\`DB_TARGET\` and \`GCP_SQL_CONNECTION_NAME\` in the same pass: the"
+              echo "scripts refuse rather than detaching a live instance."
+              echo "See docs/GITHUB_ACTIONS_DEPLOYMENT.md."
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
@@ -73,12 +101,13 @@ jobs:
     permissions:
       contents: read
       id-token: write # OIDC token for Workload Identity Federation (no stored keys)
-    outputs:
-      url: ${{ steps.deploy.outputs.url }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # Authentication is the one thing that genuinely differs between a laptop
+      # and CI, which is why it lives here and never in the scripts: they use
+      # whatever gcloud is already logged in as. Locally that is a human.
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -88,106 +117,11 @@ jobs:
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Configure docker for Artifact Registry
-        run: gcloud auth configure-docker "$AR_HOST" --quiet
-
-      # Short SHA, matching the tags the manual deploys already put in the
-      # registry. The checkout is the commit and nothing else, which is what
-      # the local script's git-archive export buys by hand.
-      - name: Resolve image tag
-        run: |
-          SHA=${GITHUB_SHA::7}
-          echo "SHA=$SHA" >> "$GITHUB_ENV"
-          echo "IMAGE=$AR_HOST/$PROJECT_ID/travelwell/backend:$SHA" >> "$GITHUB_ENV"
-
-      - name: Build and push image
-        working-directory: backend
-        run: |
-          docker build -t "$IMAGE" --build-arg COMMIT_SHA="$SHA" .
-          docker push "$IMAGE"
-
-      # Migrations run as a Cloud Run job from the exact image being deployed,
-      # before the new revision serves: a failed migration fails the deploy
-      # here instead of crash-looping instances at startup.
-      - name: Run migrations
-        run: |
-          if [[ "$DB_TARGET" == cloudsql ]]; then
-            DB_FLAGS=(--set-cloudsql-instances "$CLOUDSQL_INSTANCE")
-          else
-            # Clear rather than omit: an omitted flag keeps whatever the
-            # previous revision had attached. Jobs have no --clear-, so the
-            # empty list is how you detach.
-            DB_FLAGS=(--set-cloudsql-instances "")
-          fi
-          gcloud run jobs deploy travelwell-migrate \
-            --image "$IMAGE" \
-            --region "$REGION" \
-            --service-account "$RUNTIME_SA" \
-            "${DB_FLAGS[@]}" \
-            --set-secrets DATABASE_URL=travelwell-database-url:latest \
-            --command uv \
-            --args run,--no-sync,alembic,upgrade,head \
-            --max-retries 0
-          gcloud run jobs execute travelwell-migrate --region "$REGION" --wait
-
-      # No --allow-unauthenticated on purpose: the IAM policy lives on the
-      # service, not the revision, so it survives a redeploy untouched, and
-      # passing the flag would need setIamPolicy the deployer may not hold.
-      #
-      # The SPA is the browser-facing origin (nginx proxies /api to us), so
-      # OAuth redirects must point there rather than at this service. And ADK
-      # wraps the whole app in an origin guard: any non-GET carrying an Origin
-      # off this list gets a bare 403, our own /api/v1 routes included, so an
-      # empty list locks every real browser out while curl still works. Cloud
-      # Run answers on two hostnames and status.url reports only one, hence
-      # reading the full set from the urls annotation.
-      - name: Deploy service
-        id: deploy
-        run: |
-          FRONTEND_DESC=$(gcloud run services describe travelwell-frontend --region "$REGION" \
-            --format='value(status.url, metadata.annotations["run.googleapis.com/urls"])' \
-            2>/dev/null || true)
-          IFS=$'\t' read -r FRONTEND_URL FRONTEND_URLS <<<"$FRONTEND_DESC" || true
-          FRONTEND_URLS=$(printf '%s' "${FRONTEND_URLS:-}" | tr -d '[]"')
-          PUBLIC_BASE_URL="${FRONTEND_URL:-http://localhost:5173}"
-          ALLOWED_ORIGINS="${FRONTEND_URLS:-$PUBLIC_BASE_URL},http://localhost:5173,http://localhost:4173"
-          echo "Public base: $PUBLIC_BASE_URL"
-
-          if [[ "$DB_TARGET" == cloudsql ]]; then
-            DB_FLAGS=(--add-cloudsql-instances "$CLOUDSQL_INSTANCE")
-          else
-            DB_FLAGS=(--clear-cloudsql-instances)
-          fi
-          gcloud run deploy travelwell-backend \
-            --image "$IMAGE" \
-            --region "$REGION" \
-            --service-account "$RUNTIME_SA" \
-            "${DB_FLAGS[@]}" \
-            --set-secrets DATABASE_URL=travelwell-database-url:latest,SESSION_SECRET=travelwell-session-secret:latest \
-            --set-env-vars "^@^APP_ENV=staging@SESSION_COOKIE_SECURE=1@DEMO_LOGIN_ENABLED=1@PUBLIC_BASE_URL=$PUBLIC_BASE_URL@CORS_ALLOWED_ORIGINS=$ALLOWED_ORIGINS" \
-            --cpu-boost \
-            --min-instances 0 \
-            --max-instances 2 \
-            --memory 1Gi \
-            --cpu 1
-
-          URL=$(gcloud run services describe travelwell-backend --region "$REGION" --format 'value(status.url)')
-          echo "url=$URL" >> "$GITHUB_OUTPUT"
-
-      # /readyz is the one path the auth gate leaves open, which is exactly so
-      # this check can answer before any user exists.
-      - name: Smoke test /readyz
-        run: |
-          URL="${{ steps.deploy.outputs.url }}"
-          for i in $(seq 1 10); do
-            if curl -fsS "$URL/readyz" >/dev/null; then
-              echo "readyz OK: $URL"
-              exit 0
-            fi
-            sleep 5
-          done
-          echo "readyz never answered at $URL" >&2
-          exit 1
+      # Builds, pushes, migrates, deploys and smoke-tests /readyz. The script
+      # tags the image from `git rev-parse --short HEAD` and builds from a
+      # pristine export of HEAD, so the tag names exactly what was committed.
+      - name: Deploy backend
+        run: bash infra/deploy-staging.sh
 
   frontend:
     name: Deploy frontend
@@ -209,54 +143,8 @@ jobs:
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Configure docker for Artifact Registry
-        run: gcloud auth configure-docker "$AR_HOST" --quiet
-
-      - name: Resolve image tag
-        run: |
-          SHA=${GITHUB_SHA::7}
-          echo "IMAGE=$AR_HOST/$PROJECT_ID/travelwell/frontend:$SHA" >> "$GITHUB_ENV"
-
-      - name: Build and push image
-        working-directory: frontend
-        run: |
-          docker build -t "$IMAGE" .
-          docker push "$IMAGE"
-
-      # BACKEND_URL comes from the job above rather than a constant, so this
-      # cannot drift from the service that was just deployed. VITE_API_BASE_URL
-      # stays unset on purpose: an empty base keeps the SPA calling /api/v1 on
-      # its own origin, which is what keeps the session cookie first-party.
-      - name: Deploy service
-        id: deploy
-        run: |
-          gcloud run deploy travelwell-frontend \
-            --image "$IMAGE" \
-            --region "$REGION" \
-            --service-account "$RUNTIME_SA" \
-            --set-env-vars "BACKEND_URL=${{ needs.backend.outputs.url }}" \
-            --cpu-boost \
-            --min-instances 0 \
-            --max-instances 2 \
-            --memory 256Mi \
-            --cpu 1
-          URL=$(gcloud run services describe travelwell-frontend --region "$REGION" --format 'value(status.url)')
-          echo "url=$URL" >> "$GITHUB_OUTPUT"
-
-      - name: Smoke test
-        run: |
-          URL="${{ steps.deploy.outputs.url }}"
-          SHELL_CODE=$(curl -s -o /dev/null -w '%{http_code}' "$URL/" || true)
-          CONF_CODE=$(curl -s -o /dev/null -w '%{http_code}' "$URL/config.json" || true)
-          API_CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$URL/api/v1/auth/demo" || true)
-          echo "  SPA shell      : $SHELL_CODE"
-          echo "  /config.json   : $CONF_CODE"
-          echo "  /api via nginx : $API_CODE"
-          {
-            echo "### Deployed"
-            echo
-            echo "- backend: ${{ needs.backend.outputs.url }}"
-            echo "- frontend: $URL"
-          } >> "$GITHUB_STEP_SUMMARY"
-          [[ "$SHELL_CODE" == 200 && "$API_CODE" == 200 ]] || {
-            echo "frontend or its /api proxy is not serving" >&2; exit 1; }
+      # No BACKEND_URL is passed in: the script resolves it with
+      # `gcloud run services describe`, which is why this job needs the backend
+      # one rather than an output from it.
+      - name: Deploy frontend
+        run: bash infra/deploy-frontend-staging.sh

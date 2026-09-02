@@ -30,3 +30,15 @@ export function loadRuntimeConfig(): Promise<RuntimeConfig> {
   })
   return pending
 }
+
+/**
+ * Absolute API URL for a full-page navigation. OAuth starts with a 302 to
+ * Google, which fetch cannot follow (cross-origin) and cannot read (opaque),
+ * so those routes are reached by navigating rather than by the typed client.
+ */
+export async function apiUrl(path: string): Promise<string> {
+  // Same-origin fallback if config.json is unreachable; that is the deployed
+  // default anyway.
+  const { apiBaseUrl } = await loadRuntimeConfig().catch(() => ({ apiBaseUrl: '' }))
+  return `${apiBaseUrl}/api/v1${path}`
+}

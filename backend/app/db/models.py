@@ -64,6 +64,21 @@ class PlaceKind(enum.StrEnum):
     lodging = "lodging"
 
 
+class AreaFillOutcome(enum.StrEnum):
+    """What happened on one *attempted* fetch of an area.
+
+    Not a copy of the exception hierarchy for its own sake: the three values
+    earn different retry windows. `ok` reached the provider, and zero results
+    means the area is genuinely thin. `error` is an outage and must not consume
+    the freshness window a good fetch earns. `unavailable` means we never got as
+    far as a request.
+    """
+
+    ok = "ok"
+    error = "error"
+    unavailable = "unavailable"
+
+
 class WindowStatus(enum.StrEnum):
     open = "open"
     filled = "filled"
@@ -253,6 +268,13 @@ class UserPreferences(Base):
         server_default=sa.text("'{}'::text[]"),
         doc="{'mornings'}",
     )
+    # Last to match migration 0030's ADD COLUMN. Keep new columns below this
+    # line, not grouped with related ones - ADD COLUMN appends physically and
+    # `check_schema_drift.sh` diffs pg_dump, which is order-sensitive.
+    target_sessions: Mapped[int | None] = mapped_column(
+        sa.SmallInteger,
+        doc="how many sessions the traveler wants across a trip, not per day",
+    )
 
 
 class LoginCode(Base):
@@ -271,12 +293,19 @@ class LoginCode(Base):
 
 
 class ConnectedSource(Base):
-    """OAuth grants. Tokens live in Secret Manager; only the reference is here."""
+    """OAuth grants. The token itself is held by the token store; only its
+    reference is here, so the storage backend can change without a migration."""
 
     __tablename__ = "connected_sources"
     __table_args__ = (
         sa.UniqueConstraint(
             "user_id", "kind", name="connected_sources_user_id_kind_key"
+        ),
+        # A grant with no token reference cannot be acted on, so "connected"
+        # would be a claim nothing can honour.
+        sa.CheckConstraint(
+            "status <> 'connected'::source_status or secret_ref is not null",
+            name="connected_sources_check",
         ),
     )
 
@@ -287,16 +316,46 @@ class ConnectedSource(Base):
         sa.ForeignKey("users.user_id", ondelete="CASCADE")
     )
     kind: Mapped[SourceKind] = mapped_column(_pg_enum(SourceKind, "source_kind"))
-    status: Mapped[SourceStatus] = mapped_column(
-        _pg_enum(SourceStatus, "source_status"),
-        server_default=sa.text("'connected'::source_status"),
-    )
+    # No server default: none of the three members describes a row nobody has
+    # acted on, and NOT NULL then names the column a caller forgot to set.
+    status: Mapped[SourceStatus] = mapped_column(_pg_enum(SourceStatus, "source_status"))
     scopes: Mapped[list[str]] = mapped_column(
         pg.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]")
     )
-    secret_ref: Mapped[str | None] = mapped_column(doc="Secret Manager resource name")
+    secret_ref: Mapped[str | None] = mapped_column(
+        doc="Opaque token-store reference; only the store that minted it may parse it"
+    )
     last_synced_at: Mapped[datetime | None]
     created_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+
+
+
+class StoredSecret(Base):
+    """Long-lived secrets, encrypted at rest, addressed only by reference.
+
+    A separate table rather than a column on `connected_sources` because the
+    reference has to stay meaningful when the backend is not this table: a
+    caller holding `secret_ref` must not care which store answers it.
+    """
+
+    __tablename__ = "stored_secrets"
+    __table_args__ = (
+        sa.UniqueConstraint("user_id", "kind", name="stored_secrets_user_id_kind_key"),
+    )
+
+    secret_id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, server_default=sa.text("gen_random_uuid()")
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        sa.ForeignKey("users.user_id", ondelete="CASCADE")
+    )
+    kind: Mapped[str] = mapped_column(doc="What the secret is for, e.g. google_refresh_token")
+    nonce: Mapped[bytes] = mapped_column(
+        sa.LargeBinary, doc="AES-GCM nonce, freshly generated on every write"
+    )
+    ciphertext: Mapped[bytes] = mapped_column(sa.LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
 
 
 class Trip(Base):
@@ -686,7 +745,12 @@ class TripEvidence(Base):
 
 
 class CalendarEvent(Base):
-    """Trip-relevant calendar cache: derived display fields, no raw payloads."""
+    """Calendar cache: derived display fields, no raw payloads.
+
+    No trip column. Which trip an event belongs to is detection's judgement
+    and lives in `trip_evidence`; which events fall inside a trip is arithmetic
+    on the trip's dates, done in `services/calendar/overlap.py`.
+    """
 
     __tablename__ = "calendar_events"
     __table_args__ = (
@@ -695,7 +759,8 @@ class CalendarEvent(Base):
             "external_id",
             name="calendar_events_source_id_external_id_key",
         ),
-        sa.Index("calendar_events_trip_time_idx", "trip_id", "starts_at"),
+        # Both readers filter by owner and date overlap.
+        sa.Index("calendar_events_user_time_idx", "user_id", "starts_at"),
     )
 
     cal_event_id: Mapped[uuid.UUID] = mapped_column(
@@ -706,9 +771,6 @@ class CalendarEvent(Base):
     )
     source_id: Mapped[uuid.UUID] = mapped_column(
         sa.ForeignKey("connected_sources.source_id", ondelete="CASCADE")
-    )
-    trip_id: Mapped[uuid.UUID | None] = mapped_column(
-        sa.ForeignKey("trips.trip_id", ondelete="CASCADE")
     )
     external_id: Mapped[str] = mapped_column(doc="provider event id")
     title: Mapped[str]
@@ -721,6 +783,14 @@ class CalendarEvent(Base):
     # Change detection on sync.
     content_hash: Mapped[str] = mapped_column(doc="change detection on sync")
     last_seen_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+    # Declared last because migration 0011 adds it with ALTER TABLE ADD COLUMN,
+    # which appends. docs/schema.sql is generated from this class and diffed
+    # against the migrated database column-for-column, so declaration order
+    # here is physical order there. `alembic check` cannot see this: it
+    # compares presence and type, not position.
+    busy: Mapped[bool | None] = mapped_column(
+        doc="Does this block time? NULL = not yet classified, which is not 'free'"
+    )
 
 
 class Place(Base):
@@ -741,11 +811,14 @@ class Place(Base):
     price_level: Mapped[int | None] = mapped_column(
         sa.SmallInteger, doc="$..$$$$ for food"
     )
-    # 0 = free or membership-included.
+    # Three values, same rule as `amenities`: a number is the price, 0 is free
+    # or membership-included, NULL is unpriced by the provider. NULL must not
+    # be read as "cheap" -- it is the value a budget filter cannot judge.
     day_pass_cents: Mapped[int | None] = mapped_column(doc="0 = free / membership")
-    amenities: Mapped[list[str]] = mapped_column(
-        pg.ARRAY(sa.Text()), server_default=sa.text("'{}'::text[]")
-    )
+    # NULL is a third value and is load-bearing: the provider never told us.
+    # `{}` means we asked and the venue has none. Google supplies no amenities
+    # field at all, so every row it writes is NULL rather than empty.
+    amenities: Mapped[list[str] | None] = mapped_column(pg.ARRAY(sa.Text()))
     hours: Mapped[dict | None] = mapped_column(
         pg.JSONB, doc="per-weekday open/close minutes"
     )
@@ -756,11 +829,84 @@ class Place(Base):
     fetched_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
 
 
+class AreaFillRecord(Base):
+    """One area, and the last attempt to fill it from the provider.
+
+    `places.fetched_at` makes staleness a property of a ROW, which cannot answer
+    the question that costs money: has anyone ever looked here? An area with no
+    rows and an area that is genuinely empty are the same absence, so the cheap
+    proxy "is there a fresh row near this point" refetches an empty
+    neighbourhood on every planning run forever.
+
+    Written only when a fetch was actually attempted. A declined fetch leaves no
+    row, because a row here is a claim about the provider, not about us.
+    """
+
+    __tablename__ = "area_fills"
+
+    area_fill_id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, server_default=sa.text("gen_random_uuid()")
+    )
+    # Rounded coordinates, radius and kinds. Rounding is what makes two nearby
+    # requests one area; see `area_key()` in the places layer, which owns the
+    # format and is the only thing that may construct it.
+    area_key: Mapped[str] = mapped_column(unique=True, doc="rounded lat/lng, radius, kinds")
+    outcome: Mapped[AreaFillOutcome] = mapped_column(
+        _pg_enum(AreaFillOutcome, "area_fill_outcome")
+    )
+    # Meaningful only when outcome is `ok`; a failed attempt found nothing
+    # because it never asked, which is not the same as an empty area.
+    result_count: Mapped[int] = mapped_column(sa.SmallInteger, server_default=sa.text("0"))
+    fetched_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+
+
+class BasemapArea(Base):
+    """Street, water and park geometry for one area, cached as drawn.
+
+    The Explore map is a real map or it is a diagram of dots, and the
+    difference is this table. OpenStreetMap gives the geometry away, so unlike
+    `area_fills` the ceiling here is politeness to a community server rather
+    than money -- which is why there is no outcome enum: nothing bills, so a
+    failed attempt costs only the retry.
+
+    Geometry is stored in degrees, not pixels. The map's scale is
+    content-dependent -- it changes the moment a category chip hides the
+    furthest pin -- so a cached projection would be stale before the first tap.
+    """
+
+    __tablename__ = "basemap_areas"
+
+    basemap_area_id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, server_default=sa.text("gen_random_uuid()")
+    )
+    # Snapped centre and bucketed radius. `normalize()` in the basemap layer
+    # owns the format and is the only thing that may construct one.
+    area_key: Mapped[str] = mapped_column(unique=True, doc="rounded lat/lng and radius")
+    # Each way is one flat [lat, lng, lat, lng, ...] run. Flat rather than
+    # nested pairs because the payload is almost entirely numbers and the
+    # nesting cost more bytes than it explained.
+    roads_major: Mapped[list] = mapped_column(pg.JSONB, doc="motorway/trunk/primary")
+    roads_minor: Mapped[list] = mapped_column(pg.JSONB, doc="secondary/tertiary")
+    water: Mapped[list] = mapped_column(pg.JSONB, doc="closed rings")
+    parks: Mapped[list] = mapped_column(pg.JSONB, doc="closed rings")
+    # Only fetched for the closest buckets. At a 12.5 m pixel a footprint is a
+    # three-pixel speck, and a city of them is a grey haze over the streets.
+    buildings: Mapped[list] = mapped_column(pg.JSONB, doc="closed rings, close zooms only")
+    # An area with no geometry is a real answer -- open sea, a sparse suburb --
+    # so emptiness cannot be the signal to refetch. This timestamp is.
+    fetched_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+
+
 class AgentEvent(Base):
     """Trace root: every inbound trigger lands here before anything runs."""
 
     __tablename__ = "agent_events"
     __table_args__ = (
+        # NULLs are distinct in Postgres, so producer-written events need no
+        # exemption from this and every client retry lands on its own row.
+        sa.UniqueConstraint(
+            "user_id", "idempotency_key", name="agent_events_idempotency_uq"
+        ),
         sa.Index("agent_events_trip_time_idx", "trip_id", sa.text("occurred_at DESC")),
         sa.Index(
             "agent_events_disposition_idx",
@@ -790,6 +936,12 @@ class AgentEvent(Base):
     )
     occurred_at: Mapped[datetime]
     received_at: Mapped[datetime] = mapped_column(server_default=sa.text("now()"))
+    # Declared last because migration 0031 adds it: ADD COLUMN appends
+    # physically, and `alembic check` compares presence and type, not position.
+    # Null for producer-written events, which have no client to retry them.
+    idempotency_key: Mapped[uuid.UUID | None] = mapped_column(
+        doc="client-generated; a retry lands on the event that already exists"
+    )
 
 
 class AgentRun(Base):
