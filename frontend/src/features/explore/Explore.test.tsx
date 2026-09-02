@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Basemap, ExploreAnchor, ExplorePlace, ExploreRoute } from '@/api/queries'
 import { CategoryChips } from './CategoryChips'
@@ -516,5 +516,114 @@ describe('PlaceMap basemap', () => {
     const faraway: Basemap = { ...empty, roads_major: [[51.5, -0.12, 51.51, -0.13]] }
     const { container } = drawMap(faraway)
     expect(container.querySelector('.stroke-map-road-major')).toBeNull()
+  })
+})
+
+/* The expanded map: the same ground on the whole screen, where looking around
+ * is allowed. Its state is a viewport, so every control is checked by where
+ * the pins end up rather than by what a button is called. */
+describe('PlaceMap expanded', () => {
+  const north = place({ id: 'n', name: 'North', lat: 41.9, lng: -87.6252, walk_minutes: 7 })
+  const east = place({ id: 'e', name: 'East', lat: 41.8924, lng: -87.61, walk_minutes: 12 })
+  const noRoute: ExploreRoute = { stops: [], total_minutes: null }
+
+  async function open(over: Partial<ComponentProps<typeof PlaceMap>> = {}) {
+    const onSelect = vi.fn()
+    const result = render(
+      <PlaceMap
+        anchor={anchor}
+        places={[north, east]}
+        route={noRoute}
+        radiusM={8000}
+        timezone={TZ}
+        selectedId={null}
+        onSelect={onSelect}
+        onOpen={() => {}}
+        {...over}
+      />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Expand map' }))
+    const dialog = result.container.querySelector('dialog') as HTMLDialogElement
+    // showModal() moves focus into the dialog in a browser; jsdom's stand-in
+    // does not, so the test does what a tap on the ground does.
+    ;(dialog.firstElementChild as HTMLElement).focus()
+    return { ...result, dialog, onSelect }
+  }
+
+  /** Pin positions inside the dialog, as percentages of its frame. */
+  function pins(dialog: HTMLElement) {
+    return [...dialog.querySelectorAll('button[aria-pressed]')].map((el) => ({
+      x: Number.parseFloat((el as HTMLElement).style.left),
+      y: Number.parseFloat((el as HTMLElement).style.top),
+    }))
+  }
+  const button = (dialog: HTMLElement, name: string) =>
+    within(dialog).getByRole('button', { name })
+
+  it('opens the map on the whole screen, and closes it again', async () => {
+    const { container, dialog } = await open()
+    expect(dialog.open).toBe(true)
+    expect(dialog).toHaveAccessibleName('Map of places around The Gwen')
+    await userEvent.click(button(dialog, 'Close map'))
+    expect(container.querySelector('dialog')).toBeNull()
+  })
+
+  it('zooms in about the centre, in steps you can see', async () => {
+    const { dialog } = await open()
+    const before = pins(dialog)
+    await userEvent.click(button(dialog, 'Zoom in'))
+    const after = pins(dialog)
+    for (const [i, pin] of after.entries()) {
+      expect(pin.x - 50).toBeCloseTo((before[i]!.x - 50) * 1.5, 6)
+      expect(pin.y - 50).toBeCloseTo((before[i]!.y - 50) * 1.5, 6)
+    }
+  })
+
+  it('pans with the arrow keys, the view moving the way the arrow points', async () => {
+    const { dialog } = await open()
+    const before = pins(dialog)
+    await userEvent.keyboard('{ArrowRight}')
+    const after = pins(dialog)
+    // 48 px of a 360 px frame: the ground slides left as the view looks right.
+    expect(after[0]!.x - before[0]!.x).toBeCloseTo((-48 / 360) * 100, 6)
+    expect(after[0]!.y).toBeCloseTo(before[0]!.y, 6)
+  })
+
+  it('recentres to the fitted view after any amount of wandering', async () => {
+    const { dialog } = await open()
+    const fitted = pins(dialog)
+    await userEvent.click(button(dialog, 'Zoom in'))
+    await userEvent.keyboard('{ArrowUp}{ArrowLeft}')
+    expect(pins(dialog)).not.toEqual(fitted)
+    await userEvent.click(button(dialog, 'Recentre'))
+    expect(pins(dialog)).toEqual(fitted)
+  })
+
+  it('stops zooming out at twice the fitted view', async () => {
+    const { dialog } = await open()
+    const out = button(dialog, 'Zoom out')
+    await userEvent.click(out)
+    expect(out).toBeEnabled()
+    await userEvent.click(out)
+    expect(out).toBeDisabled()
+  })
+
+  it('a pin still selects', async () => {
+    const { dialog, onSelect } = await open()
+    await userEvent.click(within(dialog).getByRole('button', { name: /^North/ }))
+    expect(onSelect).toHaveBeenCalledWith('n')
+  })
+
+  it('brings the selected card up to meet the pin, in place of the callout', async () => {
+    const { dialog } = await open({ selectedId: 'n' })
+    expect(within(dialog).getByRole('heading', { name: 'North' })).toBeInTheDocument()
+    // The callout is for the band, where the card is off-screen. Here it is not.
+    expect(dialog.querySelector('.w-\\[210px\\]')).toBeNull()
+    expect(within(dialog).getByText(/Add North: \+7 min from The Gwen/)).toBeInTheDocument()
+  })
+
+  it('never speaks in the first person', async () => {
+    const { dialog } = await open({ selectedId: 'e' })
+    expect(dialog.textContent).not.toMatch(/\bI\b/)
   })
 })
