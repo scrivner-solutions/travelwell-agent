@@ -74,17 +74,17 @@ async def _store(session: AsyncSession, area: Area, drawn: Basemap) -> None:
     await session.commit()
 
 
-async def basemap_for(
-    session: AsyncSession, lat: float, lng: float, radius_m: float
-) -> Basemap:
-    """Geometry for the area around a point, from cache where possible.
+async def basemap_for(session: AsyncSession, area: Area) -> Basemap:
+    """Geometry for one area, from cache where possible.
+
+    Takes an `Area` rather than a point so the caller holds the same rounded
+    centre the row is keyed under, and can tell the client which cell it got.
 
     Never raises. The basemap is an enrichment: an unreachable provider must
     leave Explore rendering on plain ground, not failing. That is also why a
     stale row beats an empty one on error -- streets did not move because a
     donated server timed out.
     """
-    area = normalize(lat, lng, radius_m)
     row = await _cached(session, area)
     if row is not None and datetime.now(UTC) - row.fetched_at < ttl():
         return _to_basemap(row)

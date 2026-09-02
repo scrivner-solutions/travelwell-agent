@@ -37,7 +37,7 @@ from app.api.trips import (
     owned_trip,
 )
 from app.db.models import Place, PlaceKind, Trip, UserPreferences
-from app.services.basemap import ATTRIBUTION, basemap_for, bucket_radius
+from app.services.basemap import ATTRIBUTION, basemap_for, bucket_radius, normalize
 from app.services.places import default_provider
 from app.services.places.matching import (
     meters_between,
@@ -258,12 +258,21 @@ async def explore(
     )
 
 
+# How far from the trip's own anchor a basemap may be asked for. Wide enough
+# for any view a user reaches by panning a city; narrow enough that the
+# endpoint is not a worldwide proxy for a donated server, which is what an
+# unbounded centre would make of it for anyone with a demo login.
+BASEMAP_MAX_OFFSET_M = 30_000
+
+
 @router.get("/explore/basemap")
 async def explore_basemap(
     user: CurrentUser,
     session: SessionDep,
     trip_id: uuid.UUID,
     radius_m: int = Query(default=2000, ge=250, le=20_000),
+    lat: float | None = Query(default=None, ge=-90, le=90),
+    lng: float | None = Query(default=None, ge=-180, le=180),
 ) -> BasemapOut:
     """Street geometry for the area this trip's map covers.
 
@@ -276,7 +285,14 @@ async def explore_basemap(
     `radius_m` is the client's plot radius, which is computed from what is on
     screen. The server buckets it, so filtering a category usually reuses the
     area already cached rather than fetching a slightly different one.
+
+    `lat`/`lng` centre the area somewhere other than the trip's anchor: the
+    expanded map asks for finer geometry around wherever it has been zoomed
+    to. Both or neither, and never far from the anchor.
     """
+    if (lat is None) != (lng is None):
+        raise Problem(422, "lat and lng go together", "basemap_centre_incomplete")
+
     trip = await owned_trip(session, user, trip_id)
     anchor = trip_anchor(trip)
     if anchor is None or anchor.lat is None or anchor.lng is None:
@@ -284,6 +300,8 @@ async def explore_basemap(
         # is no area to draw, and guessing one would draw the wrong city.
         return BasemapOut(
             radius_m=bucket_radius(radius_m),
+            lat=None,
+            lng=None,
             attribution=ATTRIBUTION,
             roads_major=[],
             roads_minor=[],
@@ -292,9 +310,20 @@ async def explore_basemap(
             buildings=[],
         )
 
-    drawn = await basemap_for(session, anchor.lat, anchor.lng, radius_m)
+    if lat is not None and lng is not None:
+        if meters_between(anchor.lat, anchor.lng, lat, lng) > BASEMAP_MAX_OFFSET_M:
+            raise Problem(
+                422, "Centre is too far from this trip", "basemap_centre_too_far"
+            )
+        area = normalize(lat, lng, radius_m)
+    else:
+        area = normalize(anchor.lat, anchor.lng, radius_m)
+
+    drawn = await basemap_for(session, area)
     return BasemapOut(
-        radius_m=bucket_radius(radius_m),
+        radius_m=area.radius_m,
+        lat=area.lat,
+        lng=area.lng,
         attribution=ATTRIBUTION,
         roads_major=drawn.roads_major,
         roads_minor=drawn.roads_minor,

@@ -881,8 +881,8 @@ class BasemapArea(Base):
     basemap_area_id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True, server_default=sa.text("gen_random_uuid()")
     )
-    # Rounded centre and radius. `area_key()` in the basemap layer owns the
-    # format and is the only thing that may construct one.
+    # Snapped centre and bucketed radius. `normalize()` in the basemap layer
+    # owns the format and is the only thing that may construct one.
     area_key: Mapped[str] = mapped_column(unique=True, doc="rounded lat/lng and radius")
     # Each way is one flat [lat, lng, lat, lng, ...] run. Flat rather than
     # nested pairs because the payload is almost entirely numbers and the
