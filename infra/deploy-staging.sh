@@ -223,9 +223,12 @@ gcloud run deploy "$SERVICE" \
 URL=$(gcloud run services describe "$SERVICE" --region "$REGION" \
   --project "$PROJECT_ID" --format 'value(status.url)')
 echo "== Smoke test $URL/readyz =="
-# Authenticated first (works before the URL is public), then anonymous.
-AUTH_CODE=$(curl -s -o /dev/null -w '%{http_code}' \
-  -H "Authorization: Bearer $(gcloud auth print-identity-token)" "$URL/readyz" || true)
+# Authenticated first (works before the URL is public), then anonymous. The
+# token is best-effort: federated CI credentials cannot mint one.
+TOKEN=$(gcloud auth print-identity-token 2>/dev/null || true)
+AUTH=()
+if [[ -n "$TOKEN" ]]; then AUTH=(-H "Authorization: Bearer $TOKEN"); fi
+AUTH_CODE=$(curl -s -o /dev/null -w '%{http_code}' "${AUTH[@]}" "$URL/readyz" || true)
 ANON_CODE=$(curl -s -o /dev/null -w '%{http_code}' "$URL/readyz" || true)
 echo "authenticated: $AUTH_CODE, anonymous: $ANON_CODE"
 if [[ "$ANON_CODE" == 200 ]]; then

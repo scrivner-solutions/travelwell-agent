@@ -80,12 +80,16 @@ gcloud run deploy "$SERVICE" \
 
 URL=$(gcloud run services describe "$SERVICE" --region "$REGION" \
   --project "$PROJECT_ID" --format 'value(status.url)')
-TOKEN=$(gcloud auth print-identity-token)
+# The token only matters while the URL is private. Federated CI credentials
+# cannot mint one, and that must not fail a deploy that already happened.
+TOKEN=$(gcloud auth print-identity-token 2>/dev/null || true)
+AUTH=()
+if [[ -n "$TOKEN" ]]; then AUTH=(-H "Authorization: Bearer $TOKEN"); fi
 
 echo "== Smoke test $URL =="
-SHELL_CODE=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "$URL/" || true)
-CONF_CODE=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "$URL/config.json" || true)
-API_CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $TOKEN" "$URL/api/v1/auth/demo" || true)
+SHELL_CODE=$(curl -s -o /dev/null -w '%{http_code}' "${AUTH[@]}" "$URL/" || true)
+CONF_CODE=$(curl -s -o /dev/null -w '%{http_code}' "${AUTH[@]}" "$URL/config.json" || true)
+API_CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${AUTH[@]}" "$URL/api/v1/auth/demo" || true)
 ANON_CODE=$(curl -s -o /dev/null -w '%{http_code}' "$URL/" || true)
 echo "  SPA shell        : $SHELL_CODE"
 echo "  /config.json     : $CONF_CODE"
