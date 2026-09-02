@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import BasemapArea
 
-from . import overpass
+from . import backpressure
 from .geometry import (
     ATTRIBUTION,
     EMPTY,
@@ -91,8 +91,9 @@ async def basemap_for(session: AsyncSession, area: Area) -> Basemap:
     if not fetch_enabled():
         return _to_basemap(row) if row is not None else EMPTY
     try:
-        drawn = await overpass.fetch(area)
+        drawn, led = await backpressure.fetch(area)
     except BasemapUnavailable:
         return _to_basemap(row) if row is not None else EMPTY
-    await _store(session, area, drawn)
+    if led:
+        await _store(session, area, drawn)
     return drawn

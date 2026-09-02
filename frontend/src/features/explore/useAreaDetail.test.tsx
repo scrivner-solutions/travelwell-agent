@@ -176,3 +176,46 @@ describe('useAreaDetail', () => {
     expect(GET).toHaveBeenCalledTimes(BASEMAP_FETCH_CAP)
   })
 })
+
+describe('useAreaDetail on the wire', () => {
+  beforeEach(() => GET.mockReset())
+
+  function neverAnswer() {
+    let signal: AbortSignal | undefined
+    GET.mockImplementationOnce((_path: string, opts: { signal?: AbortSignal }) => {
+      signal = opts.signal
+      return new Promise(() => {})
+    })
+    return () => signal
+  }
+
+  it('a view that moves on before its answer arrives cancels the ask', async () => {
+    const first = neverAnswer()
+    const { result } = mount()
+    act(() => result.current.onView(rect()))
+    await vi.waitFor(() => expect(GET).toHaveBeenCalledTimes(1))
+    expect(first()).toBeInstanceOf(AbortSignal)
+    expect(first()?.aborted).toBe(false)
+
+    answer(area({ radius_m: 750, roads_major: [[41.89, -87.62, 41.9, -87.62]] }))
+    act(() => result.current.onView(rect({ centerEastM: 2000 })))
+    await vi.waitFor(() => expect(GET).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(first()?.aborted).toBe(true))
+  })
+
+  it('what has been drawn stays when the pending ask is replaced', async () => {
+    answer(area({ radius_m: 750, roads_major: [[41.89, -87.62, 41.9, -87.62]] }))
+    const { result } = mount()
+    act(() => result.current.onView(rect()))
+    await vi.waitFor(() => expect(result.current.layers).toHaveLength(1))
+
+    const second = neverAnswer()
+    act(() => result.current.onView(rect({ centerEastM: 2000 })))
+    await vi.waitFor(() => expect(GET).toHaveBeenCalledTimes(2))
+    answer(area({ radius_m: 750, roads_major: [[41.89, -87.6, 41.9, -87.6]] }))
+    act(() => result.current.onView(rect({ centerEastM: 4000 })))
+    await vi.waitFor(() => expect(result.current.layers).toHaveLength(2))
+    expect(second()?.aborted).toBe(true)
+    expect(GET).toHaveBeenCalledTimes(3)
+  })
+})

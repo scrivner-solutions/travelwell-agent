@@ -402,14 +402,18 @@ export interface BasemapArea {
  *  failure is not surfaced: the map draws on plain ground without it.
  *
  *  Keyed by the cell, so a view that returns to a cell it has seen is served
- *  from memory, and counted only when the request actually leaves. */
+ *  from memory, and counted only when the request actually leaves.
+ *
+ *  The abort signal goes with the request so a cell nobody is looking at
+ *  any more is dropped on the wire, not answered into a cache for a view
+ *  that has moved on. */
 export function basemapQueryOptions(tripId: string, area: BasemapArea) {
   return queryOptions({
     queryKey: ['trips', tripId, 'basemap', area.radius_m, area.lat, area.lng],
     staleTime: Infinity,
     gcTime: Infinity,
     retry: false,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       basemapFetches.set(tripId, (basemapFetches.get(tripId) ?? 0) + 1)
       const client = await api()
       return throwOnError<Basemap>(
@@ -417,6 +421,7 @@ export function basemapQueryOptions(tripId: string, area: BasemapArea) {
           params: {
             query: { trip_id: tripId, radius_m: area.radius_m, lat: area.lat, lng: area.lng },
           },
+          signal,
         }),
       )
     },

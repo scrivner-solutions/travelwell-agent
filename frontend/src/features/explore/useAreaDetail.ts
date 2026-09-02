@@ -9,15 +9,31 @@ import { hasGeography } from './projection'
    the query cache the moment the view returns to it, at no request. */
 const KEEP = 3
 
-function remember(prev: AreaRequest[], next: AreaRequest): AreaRequest[] {
+/* Answered cells are kept; a cell still on the wire when the view moves on
+   is dropped, which cancels its request. A pan across a wide map settles
+   several times a second, and each settle that kept its predecessor alive
+   would be one more query in a provider queue two deep. If the view comes
+   back, the cell is simply asked for again. */
+function remember(prev: AreaRequest[], answered: boolean[], next: AreaRequest): AreaRequest[] {
   const key = areaKey(next)
   const last = prev[prev.length - 1]
   if (last !== undefined && areaKey(last) === key) return prev
-  return [...prev.filter((area) => areaKey(area) !== key), next].slice(-KEEP)
+  const kept = prev.filter((area, i) => answered[i] === true && areaKey(area) !== key)
+  return [...kept, next].slice(-KEEP)
 }
 
-const loaded = (results: { data?: Basemap }[]) =>
-  results.flatMap((result) => (result.data !== undefined && hasGeography(result.data) ? [result.data] : []))
+interface Answers {
+  layers: Basemap[]
+  /** Per requested area, in order: has the server said anything yet. */
+  answered: boolean[]
+}
+
+const settle = (results: { data?: Basemap; status: 'pending' | 'error' | 'success' }[]): Answers => ({
+  layers: results.flatMap((result) =>
+    result.data !== undefined && hasGeography(result.data) ? [result.data] : [],
+  ),
+  answered: results.map((result) => result.status !== 'pending'),
+})
 
 export interface AreaDetail {
   /** Coarsest first, so each paints its ground over the one beneath. */
@@ -57,7 +73,8 @@ function middle(rect: Rect): Rect {
  *  asks while something it holds already covers the view at nearly this
  *  size, never asks at all once the trip's session budget is spent, and a
  *  base that came back empty means the server has nothing for this city, so
- *  it stops there. */
+ *  it stops there. At most one request is on the wire at a time: moving on
+ *  cancels the one the last view asked for. */
 export function useAreaDetail(
   tripId: string,
   anchor: ExploreAnchor | null | undefined,
@@ -65,14 +82,17 @@ export function useAreaDetail(
 ): AreaDetail {
   const [areas, setAreas] = useState<AreaRequest[]>([])
 
-  const results = useQueries({
+  const answers = useQueries({
     queries: areas.map((area) => ({
       ...basemapQueryOptions(tripId, area),
       enabled: basemapFetchesLeft(tripId) > 0,
     })),
-    combine: loaded,
+    combine: settle,
   })
-  const layers = useMemo(() => [...results].sort((a, b) => b.radius_m - a.radius_m), [results])
+  const layers = useMemo(
+    () => [...answers.layers].sort((a, b) => b.radius_m - a.radius_m),
+    [answers.layers],
+  )
   const held = useMemo(
     () => (base !== undefined && hasGeography(base) ? [base, ...layers] : layers),
     [base, layers],
@@ -90,9 +110,9 @@ export function useAreaDetail(
         const finest = Math.min(...covering.map((area) => area.radius_m))
         if (wanted.radius_m * WORTH_A_REQUEST > finest) return
       }
-      setAreas((prev) => remember(prev, wanted))
+      setAreas((prev) => remember(prev, answers.answered, wanted))
     },
-    [anchor, base, held],
+    [anchor, answers.answered, base, held],
   )
 
   return { layers, onView }

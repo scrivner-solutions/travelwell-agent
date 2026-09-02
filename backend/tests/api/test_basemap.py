@@ -11,6 +11,7 @@ fetch path turn it on for themselves and replace the network call, which is the
 same two-part arrangement the places layer uses.
 """
 
+import asyncio
 import re
 from datetime import UTC, datetime, timedelta
 
@@ -508,3 +509,116 @@ def test_a_building_too_small_to_see_is_dropped():
                              **_way((41.89, -87.62), (41.8901, -87.6201),
                                     (41.89, -87.62))}]}
     assert overpass.parse(area, payload).buildings == []
+
+
+# --- backpressure: what stands between a burst of views and the provider ---
+
+from app.services.basemap import backpressure  # noqa: E402
+
+
+def _drawing() -> Basemap:
+    return Basemap([[41.0, -87.0, 41.1, -87.1]], [], [], [], [])
+
+
+@pytest.mark.asyncio
+async def test_two_asks_for_one_cell_are_one_provider_call(monkeypatch):
+    calls: list[str] = []
+
+    async def _slow(area):
+        calls.append(area.key)
+        await asyncio.sleep(0.02)
+        return _drawing()
+
+    monkeypatch.setattr(overpass, "fetch", _slow)
+    (first, led_first), (second, led_second) = await asyncio.gather(
+        backpressure.fetch(_area()), backpressure.fetch(_area())
+    )
+    assert calls == [_area().key]
+    assert first == second == _drawing()
+    assert sorted([led_first, led_second]) == [False, True]
+
+
+@pytest.mark.asyncio
+async def test_no_more_than_the_providers_slots_run_at_once(monkeypatch):
+    running = 0
+    peak = 0
+
+    async def _counted(area):
+        nonlocal running, peak
+        running += 1
+        peak = max(peak, running)
+        await asyncio.sleep(0.01)
+        running -= 1
+        return _drawing()
+
+    monkeypatch.setattr(overpass, "fetch", _counted)
+    cells = [_area(r) for r in (750, 1000, 1500, 2000, 3000)]
+    answers = await asyncio.gather(*(backpressure.fetch(cell) for cell in cells))
+    assert len(answers) == 5
+    assert peak == backpressure.PROVIDER_SLOTS
+
+
+@pytest.mark.asyncio
+async def test_a_refused_cell_is_not_asked_again_for_a_while(monkeypatch):
+    calls: list[str] = []
+
+    async def _refuse(area):
+        calls.append(area.key)
+        raise overpass.BasemapUnavailable("timeout")
+
+    monkeypatch.setattr(overpass, "fetch", _refuse)
+    with pytest.raises(overpass.BasemapUnavailable):
+        await backpressure.fetch(_area())
+    with pytest.raises(overpass.BasemapUnavailable):
+        await backpressure.fetch(_area())
+    assert len(calls) == 1, "the second ask should not have reached the provider"
+
+    monkeypatch.setattr(backpressure, "REFUSED_FOR_S", 0.0)
+    with pytest.raises(overpass.BasemapUnavailable):
+        await backpressure.fetch(_area())
+    assert len(calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_a_wait_longer_than_the_provider_would_give_is_a_refusal(monkeypatch):
+    monkeypatch.setattr(backpressure, "QUEUE_WAIT_S", 0.01)
+    release = asyncio.Event()
+
+    async def _held(area):
+        await release.wait()
+        return _drawing()
+
+    monkeypatch.setattr(overpass, "fetch", _held)
+    holders = [
+        asyncio.create_task(backpressure.fetch(_area(r)))
+        for r in (750, 1000)[: backpressure.PROVIDER_SLOTS]
+    ]
+    await asyncio.sleep(0)
+    with pytest.raises(overpass.BasemapBusy):
+        await backpressure.fetch(_area(1500))
+    release.set()
+    await asyncio.gather(*holders)
+
+
+@pytest.mark.asyncio
+async def test_two_concurrent_requests_for_one_cell_ask_the_provider_once(
+    authed_client, user, monkeypatch
+):
+    monkeypatch.setenv("BASEMAP_FETCH_ENABLED", "1")
+    calls: list[str] = []
+
+    async def _slow(area):
+        calls.append(area.key)
+        await asyncio.sleep(0.05)
+        return _drawing()
+
+    monkeypatch.setattr(overpass, "fetch", _slow)
+    trip_id = await _make_trip(user)
+    params = {"trip_id": str(trip_id)}
+    first, second = await asyncio.gather(
+        authed_client.get("/api/v1/explore/basemap", params=params),
+        authed_client.get("/api/v1/explore/basemap", params=params),
+    )
+    assert first.status_code == second.status_code == 200
+    assert first.json()["roads_major"] == second.json()["roads_major"] != []
+    assert calls == [_area().key]
