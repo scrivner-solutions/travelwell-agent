@@ -5,6 +5,7 @@ projection or an arithmetic result, which is the point - nine of the ten stages
 are supposed to be answerable without a provider.
 """
 
+import uuid
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -16,6 +17,9 @@ DAY_ONE = date(2026, 9, 9)
 
 def build_scene(user):
     """A two-day Chicago trip with three commitments and three cached places.
+
+    The calendar rows carry no trip reference, because none exists: gather
+    finds them by owner and date overlap, the way the timeline does.
 
     One commitment is declined (`busy=False`), which is the case that tells
     the two `is_busy` implementations apart.
@@ -68,7 +72,6 @@ def build_scene(user):
                 CalendarEvent(
                     user_id=user.user_id,
                     source_id=source.source_id,
-                    trip_id=trip.trip_id,
                     external_id="ev-1",
                     title="Workshop day 1",
                     starts_at=at(DAY_ONE, 9),
@@ -78,7 +81,6 @@ def build_scene(user):
                 CalendarEvent(
                     user_id=user.user_id,
                     source_id=source.source_id,
-                    trip_id=trip.trip_id,
                     external_id="ev-2",
                     title="Team dinner\x07",
                     starts_at=at(DAY_ONE, 19, 30),
@@ -88,7 +90,6 @@ def build_scene(user):
                 CalendarEvent(
                     user_id=user.user_id,
                     source_id=source.source_id,
-                    trip_id=trip.trip_id,
                     external_id="ev-3",
                     title="Standup they declined",
                     starts_at=at(DAY_ONE + timedelta(days=1), 10),
@@ -195,6 +196,121 @@ async def test_a_declined_commitment_does_not_carve_a_window(gather_scene):
     day_two = [w for w in result.context.windows if w.day == DAY_ONE + timedelta(days=1)]
     assert len(day_two) == 1
     assert "Standup they declined" in [c.title for c in result.context.commitments]
+
+
+async def _add_event(user_id, external_id, title, starts_at, ends_at, **cols):
+    """One calendar row for `user_id`, on their Google source (one per user)."""
+    from sqlalchemy import select
+
+    import app.db.engine as db
+    from app.db.models import CalendarEvent, ConnectedSource, SourceKind, SourceStatus
+
+    async with db.SessionFactory() as session:
+        source_id = (
+            await session.execute(
+                select(ConnectedSource.source_id).where(
+                    ConnectedSource.user_id == user_id,
+                    ConnectedSource.kind == SourceKind.google_calendar,
+                )
+            )
+        ).scalar_one_or_none()
+        if source_id is None:
+            source = ConnectedSource(
+                user_id=user_id,
+                kind=SourceKind.google_calendar,
+                status=SourceStatus.connected,
+                secret_ref=f"mem:{external_id}",
+            )
+            session.add(source)
+            await session.flush()
+            source_id = source.source_id
+        session.add(
+            CalendarEvent(
+                user_id=user_id,
+                source_id=source_id,
+                external_id=external_id,
+                title=title,
+                starts_at=starts_at,
+                ends_at=ends_at,
+                content_hash=external_id,
+                **cols,
+            )
+        )
+        await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_another_travelers_meeting_is_not_a_commitment(gather_scene, other_user):
+    """Owner scope is load-bearing. A date overlap alone matches every calendar
+    in the table, and a gather that reads other people's meetings would plan
+    this traveler's day around them without anything visible going wrong."""
+    trip_id = await gather_scene()
+    day_two = DAY_ONE + timedelta(days=1)
+    await _add_event(
+        other_user.user_id,
+        "theirs",
+        "Their private thing",
+        datetime.combine(day_two, time(12), TZ),
+        datetime.combine(day_two, time(14), TZ),
+        busy=True,
+    )
+
+    result = await run_gather(trip_id)
+    assert "Their private thing" not in [c.title for c in result.context.commitments]
+    assert len([w for w in result.context.windows if w.day == day_two]) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_cancelled_event_neither_shows_nor_carves(gather_scene, user):
+    """Sync keeps cancellations as tombstones. A tombstone with `busy` unset
+    reads as blocking time under `is_busy`, so the status filter is what keeps
+    a meeting the traveler already lost from costing them the window."""
+    trip_id = await gather_scene()
+    day_two = DAY_ONE + timedelta(days=1)
+    await _add_event(
+        user.user_id,
+        "gone",
+        "Cancelled sync",
+        datetime.combine(day_two, time(12), TZ),
+        datetime.combine(day_two, time(14), TZ),
+        status="cancelled",
+    )
+
+    result = await run_gather(trip_id)
+    assert "Cancelled sync" not in [c.title for c in result.context.commitments]
+    assert len([w for w in result.context.windows if w.day == day_two]) == 1
+
+
+@pytest.mark.asyncio
+async def test_gather_and_the_timeline_read_the_same_events(
+    gather_scene, authed_client, user
+):
+    """The two readers share one query. This is the accuser if either grows
+    its own again: an event in the trip window that one shows and the other
+    does not turns this red."""
+    trip_id = await gather_scene()
+    day_two = DAY_ONE + timedelta(days=1)
+    # Straddles the trip's last midnight: in the window by overlap, and the
+    # kind of edge a hand-rolled second query gets wrong.
+    await _add_event(
+        user.user_id,
+        "late",
+        "Late flight",
+        datetime.combine(day_two, time(23), TZ),
+        datetime.combine(day_two + timedelta(days=1), time(1), TZ),
+    )
+
+    result = await run_gather(trip_id)
+    via_gather = sorted(result.commitment_events.values())
+
+    r = await authed_client.get(f"/api/v1/trips/{trip_id}/timeline")
+    assert r.status_code == 200
+    via_timeline = sorted(
+        uuid.UUID(e["calendar_event"]["id"])
+        for e in r.json()["entries"]
+        if e["entry_type"] == "calendar_event"
+    )
+    assert via_gather == via_timeline and len(via_gather) == 4
 
 
 @pytest.mark.asyncio

@@ -39,8 +39,8 @@ from app.agent.schemas import (
     TripContext,
     TripFacts,
 )
-from app.db.models import CalendarEvent, Place, RunKind, Trip, UserPreferences
-from app.services.calendar import is_busy
+from app.db.models import Place, RunKind, Trip, UserPreferences
+from app.services.calendar import events_during, is_busy
 from app.services.places import default_provider
 from app.services.places.cache import AreaFill, ensure_area_fresh
 from app.services.places.ports import NearbyQuery, PlacesProvider
@@ -258,15 +258,10 @@ async def gather(
     ).scalar_one_or_none()
     preferences = _preferences(prefs_row)
 
-    events = list(
-        (
-            await session.execute(
-                select(CalendarEvent)
-                .where(CalendarEvent.trip_id == trip_id)
-                .order_by(CalendarEvent.starts_at)
-            )
-        ).scalars()
-    )
+    # Owner and date overlap, the same read the timeline makes. Not trip_id:
+    # sync never writes it, and the meetings a planner must plan around are
+    # exactly the ones no detector would call part of the trip.
+    events = list((await session.execute(events_during(trip))).scalars())
 
     commitments: list[Commitment] = []
     commitment_events: dict[str, uuid.UUID] = {}
