@@ -56,6 +56,7 @@ env:
   GCP_SQL_CONNECTION_NAME: ${{ vars.GCP_SQL_CONNECTION_NAME }}
   DB_TARGET: ${{ vars.DB_TARGET }}
   GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+  AGENT_WORKER: ${{ vars.AGENT_WORKER }}
 
 jobs:
   gates:

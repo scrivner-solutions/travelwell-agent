@@ -185,7 +185,7 @@ fi
 # The worker that calls the model is off unless asked for (worker.py), so an
 # environment that wants the real agent running has to say so here. Off stays
 # the right default for an environment that only serves the UI.
-AGENT_WORKER="${AGENT_WORKER:-on}"
+AGENT_WORKER="${AGENT_WORKER:-off}"
 # An argumentless genai.Client() (gemini.py) reads these three to pick Vertex
 # over the public Gemini API and resolves credentials through ADC, which on
 # Cloud Run is the runtime service account. Location is global because a wrong
