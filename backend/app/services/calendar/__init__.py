@@ -15,19 +15,19 @@ schedule, and an empty schedule is indistinguishable from a free one.
 
 from app.services.calendar.busy import BUSY_SQL, busy_clause, classify, is_busy
 from app.services.calendar.google import GoogleCalendarClient
+from app.services.calendar.overlap import events_during, local_day
 from app.services.calendar.ports import (
     CalendarClient,
     CalendarUnavailable,
     CredentialRejected,
     RemoteEvent,
 )
-from app.services.calendar.status import CANCELLED, LIVE_SQL, is_live
+from app.services.calendar.status import CANCELLED, is_live, live_clause
 from app.services.calendar.sync import SyncResult, content_hash, sync_source
 
 __all__ = [
     "BUSY_SQL",
     "CANCELLED",
-    "LIVE_SQL",
     "CalendarClient",
     "CalendarUnavailable",
     "CredentialRejected",
@@ -37,8 +37,11 @@ __all__ = [
     "calendar_client",
     "classify",
     "content_hash",
+    "events_during",
     "is_busy",
     "is_live",
+    "live_clause",
+    "local_day",
     "sync_source",
 ]
 

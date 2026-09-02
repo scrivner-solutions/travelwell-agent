@@ -5,9 +5,11 @@ been wrong in both directions. A free-marked or declined event is **not busy**
 and still belongs on the traveler's timeline. A cancelled event **is not on the
 timeline at all**, whatever it was marked.
 
-Two dialects rather than three, because two consumers exist: the trip timeline
-reads SQL text, and the agent's context builder holds rows in Python. An ORM
-clause is a third spelling nothing has asked for yet.
+Two dialects, like `busy.py` minus the text one: an ORM clause for
+`overlap.py`, which builds the one query both the trip timeline and the agent's
+context gather read through, and Python for callers already holding rows. The
+text spelling went with the timeline's private SQL; nothing reads this table
+through `text()` any more.
 
 Latent until sync landed. The demo seed only ever wrote real events, so nothing
 in the database could be cancelled; the first real sync writes them, because
@@ -16,15 +18,20 @@ the client asks Google for them on purpose - see `google.py` on `showDeleted`.
 
 from __future__ import annotations
 
+import sqlalchemy as sa
+
 from app.db.models import CalendarEvent
 
 CANCELLED = "cancelled"
-
-# For raw SQL. Not `busy is not false` - that is the other question.
-LIVE_SQL = f"status <> '{CANCELLED}'"
 
 
 def is_live(event: CalendarEvent) -> bool:
     """Did this event survive? Cancelled rows are kept as tombstones, so that
     a removed commitment is distinguishable from one that never synced."""
     return event.status != CANCELLED
+
+
+def live_clause() -> sa.ColumnElement[bool]:
+    """The same predicate as an ORM expression. Not `busy.isnot(False)` -
+    that is the other question."""
+    return CalendarEvent.status != CANCELLED

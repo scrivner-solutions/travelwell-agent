@@ -44,7 +44,7 @@ from app.db.models import (
     WellnessWindow,
     WindowStatus,
 )
-from app.services.calendar import LIVE_SQL
+from app.services.calendar import events_during, local_day
 
 router = APIRouter(tags=["trips"], route_class=ApiRoute)
 
@@ -176,32 +176,6 @@ _STATE_WORDS: dict[TripState, tuple[str, str | None]] = {
 # prototype (removed is a backend tombstone).
 HIDDEN_ITEM_STATUSES = (ItemStatus.skipped, ItemStatus.removed)
 
-# Overlap, not ownership. `trip_id` answers "which trip does this event BELONG
-# to" - a semantic judgement that needs inference, and detection's to make. The
-# timeline needs a different question: does this event CONSTRAIN the traveler
-# while they are away? That is arithmetic, and the events that matter most to a
-# planner are exactly the ones the first question rejects - the standing meeting
-# back home is not part of the trip in any semantic sense and still eats the
-# morning.
-#
-# `user_id` is not decoration. Dropping `trip_id` from the WHERE clause removes
-# the scope that came with it, and without this the timeline reads every
-# traveler's calendar.
-CALENDAR_EVENTS_SQL = text(
-    f"""
-    select cal_event_id, title, location, starts_at, ends_at
-    from calendar_events
-    where user_id = :user_id
-      and {LIVE_SQL}
-      and starts_at < ((cast(:end_date as date) + 1)::timestamp at time zone :tz)
-      and ends_at > (cast(:start_date as date)::timestamp at time zone :tz)
-      and (cast(:day as date) is null
-           or (starts_at at time zone :tz)::date = cast(:day as date))
-    order by starts_at
-    """
-)
-
-
 async def owned_trip(
     session, user, trip_id: uuid.UUID, *, with_evidence: bool = False
 ) -> Trip:
@@ -317,18 +291,10 @@ async def get_trip_timeline(
     trip = await owned_trip(session, user, trip_id)
     tz = ZoneInfo(trip.timezone)
 
-    rows = await session.execute(
-        CALENDAR_EVENTS_SQL,
-        {
-            "user_id": user.user_id,
-            "tz": trip.timezone,
-            # The trip's last day is inclusive, so the window runs to the
-            # following midnight.
-            "start_date": trip.start_date,
-            "end_date": trip.end_date,
-            "day": day,
-        },
-    )
+    query = events_during(trip)
+    if day is not None:
+        query = query.where(local_day(trip) == day)
+    rows = (await session.execute(query)).scalars()
     entries = [
         TimelineEntryOut(
             entry_type="calendar_event",
