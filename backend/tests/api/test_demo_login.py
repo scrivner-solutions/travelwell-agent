@@ -105,3 +105,57 @@ async def test_demo_login_opt_in_outside_dev(client, monkeypatch):
 
     assert r.status_code == 200
     assert "twl_session" in client.cookies
+
+
+async def test_the_demo_account_gives_the_agent_exactly_one_trip_to_act_on(client):
+    """The seed's whole promise, asserted end to end as far as the model call.
+
+    Nothing checked this before, and all three halves of it were broken at once:
+    every seeded event was `accepted` so the worker had nothing to claim,
+    Portland carried a `running` run that dropped the event `already_running`,
+    and that run could never be swept because `RunSpec.started` is relative to
+    the TRIP's start date, which put `started_at` in the future where
+    `reap_stale_runs` can never reach it.
+
+    The three properties are asserted separately because any two of them still
+    leaves the demo dead, and each fails in a way that looks like the others.
+    """
+    from datetime import UTC, datetime
+
+    import sqlalchemy as sa
+
+    import app.db.engine as db
+    from app.agent.admit import admit, claim_pending
+    from app.agent.context import _origin
+    from app.db.models import AgentEvent, EventDisposition, Trip
+
+    await client.post("/api/v1/auth/demo")
+
+    async with db.SessionFactory() as session:
+        pending = (
+            await session.execute(
+                sa.select(AgentEvent).where(
+                    AgentEvent.disposition == EventDisposition.pending
+                )
+            )
+        ).scalars().all()
+        assert len(pending) == 1, (
+            "TRIGGERED: exactly one seeded event may be pending, or the demo "
+            f"either does nothing or does several things; got {len(pending)}"
+        )
+
+        event = await claim_pending(session)
+        assert event is not None
+        run = await admit(session, event, now=datetime.now(UTC))
+        assert run is not None, (
+            "ELIGIBLE: the one pending event was dropped, so signing in starts "
+            f"no run. Disposition: {event.disposition}"
+        )
+
+        trip = await session.get(Trip, run.trip_id)
+        assert trip.destination_city == "Portland"
+        assert _origin(trip) is not None, (
+            "ANCHORED: no hotel or destination coordinates, so the planner "
+            "would fall back on whatever places are already cached and build a "
+            "plan about the wrong city"
+        )
