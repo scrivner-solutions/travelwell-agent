@@ -6,6 +6,7 @@ import { MapCanvas } from './MapCanvas'
 import { spurTarget } from './spur'
 import { MapControls } from './MapControls'
 import { RouteStrip, SpurPill } from './RouteStrip'
+import { visibleRect, type Rect } from './areas'
 import { fit, pan, zoomAt, zoomBoundsFor, type Viewport } from './projection'
 import { useFrameSize } from './useFrameSize'
 import { useMapGestures } from './useMapGestures'
@@ -14,6 +15,11 @@ import { useMapGestures } from './useMapGestures'
  * were; 48 px is a thumb's width of ground. */
 const ZOOM_STEP = 1.5
 const PAN_STEP_PX = 48
+
+/* How long the view must hold still before it counts as somewhere the user
+ * meant to look, and finer ground may be asked for. Shorter and a pan across
+ * town asks for every cell it crosses. */
+const SETTLE_MS = 300
 
 const KEY_PAN: Record<string, [number, number]> = {
   ArrowLeft: [PAN_STEP_PX, 0],
@@ -27,11 +33,16 @@ export interface ExpandedMapProps {
   places: ExplorePlace[]
   route: ExploreRoute
   basemap?: Basemap
+  /** Areas drawn over the base for the view that settled, coarsest first. */
+  detail?: Basemap[]
   radiusM: number
   timezone: string
   selectedId: string | null
   onSelect: (id: string | null) => void
   onClose: () => void
+  /** Called once the view has held still: what is on screen, in metres from
+   *  the anchor. Whoever holds the queries decides whether to fetch for it. */
+  onView?: (rect: Rect) => void
   /** The category chips, floated over the map exactly as on the band. */
   children?: ReactNode
   toolbar?: ReactNode
@@ -49,11 +60,13 @@ export function ExpandedMap({
   places,
   route,
   basemap,
+  detail,
   radiusM,
   timezone,
   selectedId,
   onSelect,
   onClose,
+  onView,
   children,
   toolbar,
 }: ExpandedMapProps) {
@@ -71,6 +84,12 @@ export function ExpandedMap({
   }, [])
 
   const gestures = useMapGestures({ size, bounds, onChange: setViewport })
+
+  useEffect(() => {
+    if (onView === undefined) return
+    const timer = setTimeout(() => onView(visibleRect(viewport, size)), SETTLE_MS)
+    return () => clearTimeout(timer)
+  }, [viewport, size, onView])
 
   const centre = { x: size.w / 2, y: size.h / 2 }
   const zoom = (factor: number) =>
@@ -112,6 +131,7 @@ export function ExpandedMap({
           places={places}
           route={route}
           basemap={basemap}
+          detail={detail}
           viewport={viewport}
           size={size}
           timezone={timezone}
@@ -134,9 +154,9 @@ export function ExpandedMap({
         </div>
 
         {/* ODbL requires the credit wherever the geometry is shown. */}
-        {basemap !== undefined && (
+        {(basemap ?? detail?.[0]) !== undefined && (
           <p className="pointer-events-none absolute right-1.5 top-[calc(max(0.875rem,env(safe-area-inset-top))+2.5rem)] z-10 text-[9px] leading-none text-muted-faint">
-            {basemap.attribution}
+            {(basemap ?? detail?.[0])?.attribution}
           </p>
         )}
 

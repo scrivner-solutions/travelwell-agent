@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
   basemapQueryOptions,
-  basemapRadius,
   exploreQueryOptions,
   preferencesQueryOptions,
   tripsQueryOptions,
@@ -25,7 +24,9 @@ import {
 } from './filters'
 import { PlaceCard } from './PlaceCard'
 import { PlaceMap } from './PlaceMap'
+import { areaCovering } from './areas'
 import { plotRadiusFor } from './projection'
+import { useAreaDetail } from './useAreaDetail'
 
 const route = getRouteApi('/_shell/explore')
 
@@ -115,10 +116,23 @@ export function ExploreScreen() {
           explore.data.radius_m,
         )
       : null
+  /* The cell that covers the band around the anchor. 1.2 allows for the band
+     being a square around a plot circle, and for a little drift in the plot
+     radius; the snapping is allowed for inside `areaCovering`. */
+  const area =
+    explore.data?.anchor != null && drawnRadius !== null
+      ? areaCovering(explore.data.anchor, {
+          centerEastM: 0,
+          centerNorthM: 0,
+          halfWidthM: drawnRadius * 1.2,
+          halfHeightM: drawnRadius * 1.2,
+        })
+      : null
   const basemap = useQuery({
-    ...basemapQueryOptions(trip?.id ?? '', drawnRadius === null ? 0 : basemapRadius(drawnRadius)),
-    enabled: trip !== undefined && drawnRadius !== null,
+    ...basemapQueryOptions(trip?.id ?? '', area ?? { lat: 0, lng: 0, radius_m: 0 }),
+    enabled: trip !== undefined && area !== null,
   })
+  const detail = useAreaDetail(trip?.id ?? '', explore.data?.anchor, basemap.data)
 
   if (trips.isPending || (trip !== undefined && explore.isPending)) {
     return (
@@ -186,6 +200,8 @@ export function ExploreScreen() {
           anchor={anchor}
           places={shown}
           basemap={basemap.data}
+          detail={detail.layers}
+          onView={detail.onView}
           radiusM={data.radius_m}
           timezone={trip.timezone}
           route={data.route}

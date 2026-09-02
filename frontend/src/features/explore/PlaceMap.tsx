@@ -5,6 +5,7 @@ import { ExpandedMap } from './ExpandedMap'
 import { MapCanvas } from './MapCanvas'
 import { spurTarget } from './spur'
 import { RouteStrip, SpurPill } from './RouteStrip'
+import type { Rect } from './areas'
 import { VIEW, fit, hasGeography } from './projection'
 import { useFrameSize } from './useFrameSize'
 
@@ -15,10 +16,13 @@ export interface PlaceMapProps {
   /** Real streets, water and parks. Absent until it loads, and absent for good
    *  if it cannot: the map is designed to work without it. */
   basemap?: Basemap
+  /** Finer or wider areas for the expanded map only; the band never asks. */
+  detail?: Basemap[]
   radiusM: number
   timezone: string
   selectedId: string | null
   onSelect: (id: string | null) => void
+  onView?: (rect: Rect) => void
   /** Brings the selected place's card into view, from the callout. */
   onOpen: (id: string) => void
   /** Floats over the map, top-left: the category chips. */
@@ -35,10 +39,12 @@ export function PlaceMap({
   places,
   route,
   basemap,
+  detail,
   radiusM,
   timezone,
   selectedId,
   onSelect,
+  onView,
   onOpen,
   children,
   toolbar,
@@ -98,11 +104,13 @@ export function PlaceMap({
           places={places}
           route={route}
           basemap={basemap}
+          detail={detail}
           radiusM={radiusM}
           timezone={timezone}
           selectedId={selectedId}
           onSelect={onSelect}
           onClose={() => setExpanded(false)}
+          onView={onView}
           toolbar={toolbar}
         >
           {children}

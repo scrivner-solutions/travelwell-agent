@@ -376,14 +376,22 @@ export async function updatePreferences(
   )
 }
 
-/** How wide an area to ask for, given what the map is currently showing.
+/** How many basemap areas one trip may fetch in a session. Each is a call to
+ *  a donated server, so the expanded map stops asking for finer detail past
+ *  this and says nothing: the coarser layer it already has is still right. */
+export const BASEMAP_FETCH_CAP = 12
+const basemapFetches = new Map<string, number>()
 
- *  The 1.2 covers the viewport square being slightly larger than the plot
- *  circle it is scaled from. The rounding is not the server's bucketing
- *  repeated -- that stays server-side and comes back in `radius_m` -- it only
- *  stops a few metres of drift in the plot radius from making a new request. */
-export function basemapRadius(plotRadiusM: number): number {
-  return Math.max(500, Math.ceil((plotRadiusM * 1.2) / 500) * 500)
+export function basemapFetchesLeft(tripId: string): number {
+  return BASEMAP_FETCH_CAP - (basemapFetches.get(tripId) ?? 0)
+}
+
+/** One cache cell of ground, as `areas.ts` names it: the centre snapped to
+ *  the server's grid and the radius on its ladder. */
+export interface BasemapArea {
+  lat: number
+  lng: number
+  radius_m: number
 }
 
 /** The ground under the pins: real streets, water and parks.
@@ -391,18 +399,24 @@ export function basemapRadius(plotRadiusM: number): number {
  *  Its own query rather than a field on Explore because the two age nothing
  *  alike. Category chips re-read Explore constantly; this changes on a scale
  *  of years, so it is held for the session and never refetched on focus. A
- *  failure is not surfaced: the map draws on plain ground without it. */
-export function basemapQueryOptions(tripId: string, radiusM: number) {
+ *  failure is not surfaced: the map draws on plain ground without it.
+ *
+ *  Keyed by the cell, so a view that returns to a cell it has seen is served
+ *  from memory, and counted only when the request actually leaves. */
+export function basemapQueryOptions(tripId: string, area: BasemapArea) {
   return queryOptions({
-    queryKey: ['trips', tripId, 'basemap', radiusM],
+    queryKey: ['trips', tripId, 'basemap', area.radius_m, area.lat, area.lng],
     staleTime: Infinity,
     gcTime: Infinity,
     retry: false,
     queryFn: async () => {
+      basemapFetches.set(tripId, (basemapFetches.get(tripId) ?? 0) + 1)
       const client = await api()
       return throwOnError<Basemap>(
         await client.GET('/explore/basemap', {
-          params: { query: { trip_id: tripId, radius_m: radiusM } },
+          params: {
+            query: { trip_id: tripId, radius_m: area.radius_m, lat: area.lat, lng: area.lng },
+          },
         }),
       )
     },

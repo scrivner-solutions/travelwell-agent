@@ -6,6 +6,7 @@ import type { Basemap, ExploreAnchor, ExplorePlace, ExploreRoute } from '@/api/q
 import { CategoryChips } from './CategoryChips'
 import { PlaceCard } from './PlaceCard'
 import { PlaceMap } from './PlaceMap'
+import type { Rect } from './areas'
 import { hoursLabel } from './hours'
 
 /**
@@ -385,6 +386,8 @@ describe('PlaceMap', () => {
 describe('PlaceMap basemap', () => {
   const streets: Basemap = {
     radius_m: 2000,
+    lat: 41.8924,
+    lng: -87.6252,
     attribution: '© OpenStreetMap contributors',
     // A north-south street through the anchor, and an east-west one.
     roads_major: [[41.885, -87.6252, 41.9, -87.6252]],
@@ -395,6 +398,8 @@ describe('PlaceMap basemap', () => {
   }
   const empty: Basemap = {
     radius_m: 2000,
+    lat: 41.8924,
+    lng: -87.6252,
     attribution: '© OpenStreetMap contributors',
     roads_major: [],
     roads_minor: [],
@@ -764,5 +769,96 @@ describe('PlaceMap gestures', () => {
     fireEvent.pointerUp(ground, pointer(1, 160, 100))
     expect(ground.querySelector('button[aria-pressed]')!.getAttribute('style')).toBe(before)
     expect(ground.style.touchAction).toBe('')
+  })
+})
+
+/* Finer ground on zoom. The map only reports where the view settled and
+ * draws whatever it is handed; the deciding is in useAreaDetail.test.tsx. */
+describe('PlaceMap detail', () => {
+  const north = place({ id: 'n', name: 'North', lat: 41.9, lng: -87.6252, walk_minutes: 7 })
+  const noRoute: ExploreRoute = { stops: [], total_minutes: null }
+  const base: Basemap = {
+    radius_m: 5500,
+    lat: 41.8924,
+    lng: -87.6252,
+    attribution: '© OpenStreetMap contributors',
+    roads_major: [[41.885, -87.6252, 41.9, -87.6252]],
+    roads_minor: [],
+    water: [],
+    parks: [],
+    buildings: [],
+  }
+  // A block-sized cell a little north-east of the hotel, with one building.
+  const fine: Basemap = {
+    radius_m: 750,
+    lat: 41.8954,
+    lng: -87.6212,
+    attribution: '© OpenStreetMap contributors',
+    roads_major: [],
+    roads_minor: [],
+    water: [],
+    parks: [],
+    buildings: [[41.895, -87.622, 41.8952, -87.622, 41.8952, -87.6218, 41.895, -87.6218, 41.895, -87.622]],
+  }
+
+  async function open(over: Partial<ComponentProps<typeof PlaceMap>> = {}) {
+    const result = render(
+      <PlaceMap
+        anchor={anchor}
+        places={[north]}
+        route={noRoute}
+        radiusM={8000}
+        timezone={TZ}
+        selectedId={null}
+        onSelect={() => {}}
+        onOpen={() => {}}
+        {...over}
+      />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Expand map' }))
+    return result.container.querySelector('dialog') as HTMLDialogElement
+  }
+
+  it('reports the settled view in metres, and again after a zoom', async () => {
+    const onView = vi.fn()
+    const dialog = await open({ basemap: base, onView })
+    expect(onView).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(onView).toHaveBeenCalledTimes(1))
+    const first = onView.mock.calls[0]?.[0] as Rect
+    // jsdom measures nothing, so the frame is the 360 x 640 fallback: the
+    // long side is the short one times 640/360.
+    expect(first.centerEastM).toBe(0)
+    expect(first.centerNorthM).toBe(0)
+    expect(first.halfHeightM).toBeCloseTo(first.halfWidthM * (640 / 360))
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Zoom in' }))
+    await vi.waitFor(() => expect(onView).toHaveBeenCalledTimes(2))
+    const second = onView.mock.calls[1]?.[0] as Rect
+    expect(second.halfWidthM).toBeCloseTo(first.halfWidthM / 1.5)
+  })
+
+  it('draws a finer area over the base on its own patch of ground', async () => {
+    const dialog = await open({ basemap: base, detail: [fine] })
+    const ground = dialog.querySelector('[data-testid="area-ground"]') as SVGRectElement
+    expect(ground).not.toBeNull()
+    // The patch is the cell's square, in metres east and south of the hotel.
+    expect(Number(ground.getAttribute('width'))).toBe(1500)
+    expect(Number(ground.getAttribute('height'))).toBe(1500)
+    const eastM = (fine.lng! - anchor.lng!) * 111_320 * Math.cos((anchor.lat! * Math.PI) / 180)
+    const northM = (fine.lat! - anchor.lat!) * 111_320
+    expect(Number(ground.getAttribute('x'))).toBeCloseTo(eastM - 750, 3)
+    expect(Number(ground.getAttribute('y'))).toBeCloseTo(-northM - 750, 3)
+    // Under the patch: the base's street. On it: the building.
+    const baseRoad = dialog.querySelector('.stroke-map-road-major') as Element
+    const building = dialog.querySelector('.fill-map-building') as Element
+    expect(building).not.toBeNull()
+    expect(baseRoad.compareDocumentPosition(ground) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(ground.compareDocumentPosition(building) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('a detail area alone is still real ground, not the dot grid', async () => {
+    const dialog = await open({ detail: [fine] })
+    expect(dialog.querySelector('[class*="map-texture"]')).toBeNull()
+    expect(dialog.querySelector('.fill-map-building')).not.toBeNull()
   })
 })

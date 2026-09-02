@@ -46,6 +46,8 @@ export interface MapCanvasProps {
   places: ExplorePlace[]
   route: ExploreRoute
   basemap?: Basemap
+  /** Finer or wider areas drawn over the base, coarsest first. */
+  detail?: Basemap[]
   viewport: Viewport
   size: Size
   timezone: string
@@ -67,6 +69,7 @@ export function MapCanvas({
   places,
   route,
   basemap,
+  detail = [],
   viewport,
   size,
   timezone,
@@ -78,7 +81,7 @@ export function MapCanvas({
   const pct = (p: Point) => ({ left: `${(p.x / size.w) * 100}%`, top: `${(p.y / size.h) * 100}%` })
   const place = (at: Offset): Point => toPoint(viewport, size, at)
   const centre = place({ eastM: 0, northM: 0 })
-  const ground = hasGeography(basemap)
+  const ground = hasGeography(basemap) || detail.some(hasGeography)
 
   const pins = places.flatMap((entry) => {
     const at = offset(entry.lat, entry.lng, anchor)
@@ -112,9 +115,19 @@ export function MapCanvas({
         role="img"
         aria-label={`Places around ${anchor.name}`}
       >
-        {ground && (
+        {hasGeography(basemap) && (
           <BasemapLayer basemap={basemap} anchor={anchor} viewport={viewport} size={size} />
         )}
+        {detail.map((area) => (
+          <BasemapLayer
+            key={`${area.lat},${area.lng},${area.radius_m}`}
+            basemap={area}
+            anchor={anchor}
+            viewport={viewport}
+            size={size}
+            ground
+          />
+        ))}
         {routePoints.length > 1 && (
           <polyline
             points={routePoints.map((p) => `${p.x},${p.y}`).join(' ')}

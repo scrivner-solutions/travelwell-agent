@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { Basemap, ExploreAnchor } from '@/api/queries'
-import { metersPerUnit, offset, type Size, type Viewport } from './projection'
+import { metersPerUnit, offset, type Offset, type Size, type Viewport } from './projection'
 
 /* Ways are stored flat -- [lat, lng, lat, lng, ...] -- because the payload is
    almost entirely numbers and nesting them cost about a third more bytes. */
@@ -17,7 +17,13 @@ const CULL_MARGIN = 0.5
    once per loaded area; pan and zoom only move the group, which is what keeps
    a gesture over sixty thousand points from rebuilding a megabyte of path
    string per frame. */
-function worldPath(ways: number[][], anchor: ExploreAnchor, limitM: number, close: boolean): string {
+function worldPath(
+  ways: number[][],
+  anchor: ExploreAnchor,
+  centre: Offset,
+  limitM: number,
+  close: boolean,
+): string {
   const parts: string[] = []
   for (const way of ways) {
     let d = ''
@@ -37,7 +43,10 @@ function worldPath(ways: number[][], anchor: ExploreAnchor, limitM: number, clos
       maxY = Math.max(maxY, y)
     }
     if (d === '') continue
-    const outside = maxX < -limitM || minX > limitM || maxY < -limitM || minY > limitM
+    const cx = centre.eastM
+    const cy = -centre.northM
+    const outside =
+      maxX < cx - limitM || minX > cx + limitM || maxY < cy - limitM || minY > cy + limitM
     if (outside) continue
     parts.push(close ? `${d}Z` : d)
   }
@@ -49,6 +58,10 @@ export interface BasemapLayerProps {
   anchor: ExploreAnchor
   viewport: Viewport
   size: Size
+  /** Paint plain ground under this area first. For a finer area drawn over a
+   *  coarser one: the two were simplified at different precisions, and the
+   *  coarse streets showing through would double every road. */
+  ground?: boolean
 }
 
 /** The ground: water, parks and streets, drawn beneath everything of ours.
@@ -61,15 +74,19 @@ export interface BasemapLayerProps {
  *  buildings, then the smaller road classes, then the larger ones on top. That
  *  is what makes a street look carved through a block rather than painted over
  *  it, and a motorway look like it crosses a side street. */
-export function BasemapLayer({ basemap, anchor, viewport, size }: BasemapLayerProps) {
+export function BasemapLayer({ basemap, anchor, viewport, size, ground = false }: BasemapLayerProps) {
   const paths = useMemo(() => {
+    /* Where the area is: the server's snapped centre, which is not the anchor
+       even for the anchor's own area. */
+    const centre = offset(basemap.lat, basemap.lng, anchor) ?? { eastM: 0, northM: 0 }
     const limitM = basemap.radius_m * (1 + CULL_MARGIN)
     return {
-      water: worldPath(basemap.water, anchor, limitM, true),
-      parks: worldPath(basemap.parks, anchor, limitM, true),
-      buildings: worldPath(basemap.buildings, anchor, limitM, true),
-      minor: worldPath(basemap.roads_minor, anchor, limitM, false),
-      major: worldPath(basemap.roads_major, anchor, limitM, false),
+      centre,
+      water: worldPath(basemap.water, anchor, centre, limitM, true),
+      parks: worldPath(basemap.parks, anchor, centre, limitM, true),
+      buildings: worldPath(basemap.buildings, anchor, centre, limitM, true),
+      minor: worldPath(basemap.roads_minor, anchor, centre, limitM, false),
+      major: worldPath(basemap.roads_major, anchor, centre, limitM, false),
     }
   }, [basemap, anchor])
 
@@ -81,6 +98,16 @@ export function BasemapLayer({ basemap, anchor, viewport, size }: BasemapLayerPr
      them from becoming rivers when the view zooms in, or vanishing out. */
   return (
     <g aria-hidden transform={`translate(${tx} ${ty}) scale(${scale})`}>
+      {ground && (
+        <rect
+          x={paths.centre.eastM - basemap.radius_m}
+          y={-paths.centre.northM - basemap.radius_m}
+          width={basemap.radius_m * 2}
+          height={basemap.radius_m * 2}
+          className="fill-map-ground"
+          data-testid="area-ground"
+        />
+      )}
       {paths.water !== '' && <path d={paths.water} className="fill-map-water" />}
       {paths.parks !== '' && <path d={paths.parks} className="fill-map-park" />}
       {paths.buildings !== '' && <path d={paths.buildings} className="fill-map-building" />}
