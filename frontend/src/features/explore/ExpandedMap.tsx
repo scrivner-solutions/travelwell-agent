@@ -8,6 +8,7 @@ import { MapControls } from './MapControls'
 import { RouteStrip, SpurPill } from './RouteStrip'
 import { fit, pan, zoomAt, zoomBoundsFor, type Viewport } from './projection'
 import { useFrameSize } from './useFrameSize'
+import { useMapGestures } from './useMapGestures'
 
 /* One button press or key. 1.5 is a step you can see without losing where you
  * were; 48 px is a thumb's width of ground. */
@@ -67,6 +68,8 @@ export function ExpandedMap({
     if (dialog && !dialog.open) dialog.showModal()
   }, [])
 
+  const gestures = useMapGestures({ size, bounds, onChange: setViewport })
+
   const centre = { x: size.w / 2, y: size.h / 2 }
   const zoom = (factor: number) =>
     setViewport((vp) => zoomAt(vp, factor, centre, size, bounds))
@@ -101,7 +104,7 @@ export function ExpandedMap({
     >
       {/* Focusable so that a tap on the ground keeps the keyboard's focus in
           the map, where the arrow keys mean something. */}
-      <div ref={frameRef} tabIndex={-1} className="relative h-full w-full overflow-hidden outline-none">
+      <div ref={frameRef} tabIndex={-1} className="relative h-full w-full select-none overflow-hidden outline-none">
         <MapCanvas
           anchor={anchor}
           places={places}
@@ -112,6 +115,7 @@ export function ExpandedMap({
           timezone={timezone}
           selectedId={selectedId}
           onSelect={onSelect}
+          groundProps={gestures}
         />
 
         <div className="absolute inset-x-4 top-[max(0.875rem,env(safe-area-inset-top))] z-30 flex items-start gap-2">

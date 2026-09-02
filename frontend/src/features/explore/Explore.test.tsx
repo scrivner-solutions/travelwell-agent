@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Basemap, ExploreAnchor, ExplorePlace, ExploreRoute } from '@/api/queries'
 import { CategoryChips } from './CategoryChips'
@@ -625,5 +625,133 @@ describe('PlaceMap expanded', () => {
   it('never speaks in the first person', async () => {
     const { dialog } = await open({ selectedId: 'e' })
     expect(dialog.textContent).not.toMatch(/\bI\b/)
+  })
+})
+
+/* Gestures, with synthetic pointer and wheel events. Each one is checked by
+ * where the pins end up, which is the same check a finger would make. */
+describe('PlaceMap gestures', () => {
+  const north = place({ id: 'n', name: 'North', lat: 41.9, lng: -87.6252, walk_minutes: 7 })
+  const east = place({ id: 'e', name: 'East', lat: 41.8924, lng: -87.61, walk_minutes: 12 })
+  // The dialog's frame in jsdom, where nothing has a size: the hook's fallback.
+  const W = 360
+  const H = 640
+
+  async function open() {
+    const onSelect = vi.fn()
+    const { container } = render(
+      <PlaceMap
+        anchor={anchor}
+        places={[north, east]}
+        route={{ stops: [], total_minutes: null }}
+        radiusM={8000}
+        timezone={TZ}
+        selectedId={null}
+        onSelect={onSelect}
+        onOpen={() => {}}
+      />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Expand map' }))
+    const dialog = container.querySelector('dialog') as HTMLDialogElement
+    const ground = within(dialog).getByRole('img').parentElement as HTMLElement
+    return { dialog, ground, onSelect }
+  }
+
+  /** Pin positions in the dialog, in pixels of its frame. */
+  function pins(dialog: HTMLElement) {
+    return [...dialog.querySelectorAll('button[aria-pressed]')].map((el) => ({
+      x: (Number.parseFloat((el as HTMLElement).style.left) / 100) * W,
+      y: (Number.parseFloat((el as HTMLElement).style.top) / 100) * H,
+    }))
+  }
+  const pointer = (id: number, x: number, y: number) => ({
+    pointerId: id,
+    clientX: x,
+    clientY: y,
+    button: 0,
+  })
+
+  it('drags the ground with the pointer', async () => {
+    const { dialog, ground } = await open()
+    const before = pins(dialog)
+    fireEvent.pointerDown(ground, pointer(1, 100, 100))
+    fireEvent.pointerMove(ground, pointer(1, 140, 110))
+    fireEvent.pointerUp(ground, pointer(1, 140, 110))
+    const after = pins(dialog)
+    expect(after[0]!.x - before[0]!.x).toBeCloseTo(40, 6)
+    expect(after[0]!.y - before[0]!.y).toBeCloseTo(10, 6)
+  })
+
+  it('a tap selects a pin; the click a drag leaves behind does not', async () => {
+    const { dialog, ground, onSelect } = await open()
+    const pin = within(dialog).getByRole('button', { name: /^North/ })
+    fireEvent.pointerDown(pin, pointer(1, 50, 50))
+    fireEvent.pointerUp(pin, pointer(1, 51, 50))
+    fireEvent.click(pin)
+    expect(onSelect).toHaveBeenCalledTimes(1)
+
+    fireEvent.pointerDown(pin, pointer(1, 50, 50))
+    fireEvent.pointerMove(ground, pointer(1, 80, 50))
+    fireEvent.pointerUp(ground, pointer(1, 80, 50))
+    fireEvent.click(pin)
+    expect(onSelect).toHaveBeenCalledTimes(1)
+
+    // And the swallowed click does not poison the next honest tap.
+    fireEvent.pointerDown(pin, pointer(1, 50, 50))
+    fireEvent.pointerUp(pin, pointer(1, 50, 50))
+    fireEvent.click(pin)
+    expect(onSelect).toHaveBeenCalledTimes(2)
+  })
+
+  it('a wheel zooms about the pointer, keeping the ground under it still', async () => {
+    const { dialog, ground } = await open()
+    const about = { x: 90, y: 160 }
+    const before = pins(dialog)
+    fireEvent.wheel(ground, { clientX: about.x, clientY: about.y, deltaY: -100 })
+    const after = pins(dialog)
+    const factor = Math.exp(100 * 0.0015)
+    for (const [i, pin] of after.entries()) {
+      expect(pin.x - about.x).toBeCloseTo((before[i]!.x - about.x) * factor, 6)
+      expect(pin.y - about.y).toBeCloseTo((before[i]!.y - about.y) * factor, 6)
+    }
+  })
+
+  it('a pinch zooms by the spread of the fingers and follows their midpoint', async () => {
+    const { dialog, ground } = await open()
+    const before = pins(dialog)
+    fireEvent.pointerDown(ground, pointer(1, 100, 300))
+    fireEvent.pointerDown(ground, pointer(2, 200, 300))
+    // Second finger moves out: distance doubles, midpoint drifts 150 -> 200.
+    fireEvent.pointerMove(ground, pointer(2, 300, 300))
+    fireEvent.pointerUp(ground, pointer(2, 300, 300))
+    fireEvent.pointerUp(ground, pointer(1, 100, 300))
+    const after = pins(dialog)
+    for (const [i, pin] of after.entries()) {
+      expect(pin.x).toBeCloseTo(200 + (before[i]!.x - 150) * 2, 6)
+      expect(pin.y).toBeCloseTo(300 + (before[i]!.y - 300) * 2, 6)
+    }
+  })
+
+  it('the band itself does not drag', () => {
+    const onSelect = vi.fn()
+    render(
+      <PlaceMap
+        anchor={anchor}
+        places={[north, east]}
+        route={{ stops: [], total_minutes: null }}
+        radiusM={8000}
+        timezone={TZ}
+        selectedId={null}
+        onSelect={onSelect}
+        onOpen={() => {}}
+      />,
+    )
+    const ground = screen.getByRole('img').parentElement as HTMLElement
+    const before = ground.querySelector('button[aria-pressed]')!.getAttribute('style')
+    fireEvent.pointerDown(ground, pointer(1, 100, 100))
+    fireEvent.pointerMove(ground, pointer(1, 160, 100))
+    fireEvent.pointerUp(ground, pointer(1, 160, 100))
+    expect(ground.querySelector('button[aria-pressed]')!.getAttribute('style')).toBe(before)
+    expect(ground.style.touchAction).toBe('')
   })
 })

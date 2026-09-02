@@ -1,4 +1,4 @@
-import type { HTMLAttributes } from 'react'
+import type { HTMLAttributes, Ref } from 'react'
 import type { Basemap, ExploreAnchor, ExplorePlace, ExploreRoute } from '@/api/queries'
 import { BasemapLayer } from './BasemapLayer'
 import { hoursLabel } from './hours'
@@ -55,7 +55,7 @@ export interface MapCanvasProps {
    *  where the card itself is already on screen. */
   onOpen?: (id: string) => void
   /** Handed to the ground: the expanded map's gestures land here. */
-  groundProps?: HTMLAttributes<HTMLDivElement>
+  groundProps?: HTMLAttributes<HTMLDivElement> & { ref?: Ref<HTMLDivElement> }
 }
 
 /** The ground and what stands on it: streets, the day's line, the anchor, the
