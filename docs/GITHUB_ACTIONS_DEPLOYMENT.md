@@ -61,6 +61,13 @@ only run on main rather than a second one.
 
 `gates` and `preflight` run first, then the backend, then the frontend.
 
+Neither deploy job contains a single `gcloud` command. Both run the same
+scripts a human runs by hand, [infra/deploy-staging.sh](../infra/deploy-staging.sh)
+and [infra/deploy-frontend-staging.sh](../infra/deploy-frontend-staging.sh), so
+there is one implementation with two callers rather than two that promise to
+match. This workflow holds only when and who deploys; everything described
+below is what those scripts do.
+
 The backend job builds `backend/`, pushes to Artifact Registry tagged with the
 short commit SHA, runs migrations, deploys the service and smoke tests
 `/readyz`, the one path the auth gate leaves open. Migrations run as a Cloud Run
@@ -93,8 +100,16 @@ Repository variables, under Settings > Secrets and variables > Actions:
 | `GCP_PROJECT_ID` | yes | Google Cloud project |
 | `GCP_WIF_PROVIDER` | yes | Full resource name of the Workload Identity provider |
 | `GCP_DEPLOYER_SA` | yes | Deployer service account email |
-| `DB_TARGET` | no | `cloudsql` or `external`; defaults to `external` |
+| `GCP_REGION` | no | Cloud Run region; defaults to `us-central1` |
+| `DB_TARGET` | no | `cloudsql` or `external`; defaults to `cloudsql` |
 | `GCP_SQL_CONNECTION_NAME` | when `DB_TARGET` is `cloudsql` | Instance connection name, `project:region:instance` |
+| `GOOGLE_CLIENT_ID` | no | Google OAuth client id; when unset the service keeps whatever it has |
+| `AGENT_WORKER` | no | `on` runs the in-process loop that claims planning work and calls Gemini; defaults to `off`, which deploys the API only |
+
+An unset repository variable arrives as an empty string, not as an absent one.
+Every value in the scripts is `${VAR:-default}` and `:-` treats empty as unset,
+so an unset variable falls through to the default above rather than blanking
+the setting.
 
 No secrets are stored. Authentication is Workload Identity Federation, so the
 runner exchanges its own OIDC token for short-lived credentials and there is no
@@ -102,25 +117,52 @@ service account key to leak or rotate.
 
 `DB_TARGET` exists because `DATABASE_URL` alone selects the database
 (`app/db/engine.py`) but only Cloud SQL also needs its instance attached to the
-revision. The workflow clears the attachment rather than omitting the flag, since
+revision. The deploy clears the attachment rather than omitting the flag, since
 an omitted flag would keep whatever the previous revision had.
 
-That makes the default the destructive direction: deploying `external` over a
-service that has an instance attached detaches it, and the app only fails later,
-at runtime. So the deploy reads the current attachment first and refuses rather
-than clearing one it was not told about. A deploy that cannot read the current
-attachment also refuses, because an unreadable one and an absent one look
-identical.
+That makes `external` the direction that can destroy something: it detaches an
+instance the service may still need.
+
+Nothing checks the current attachment before clearing it, and nothing needs to.
+**The ordering is what protects the service.** Migrations run first, as a Cloud
+Run job built from the same image and handed the same emptied attachment
+(`deploy-staging.sh:91`, `--max-retries 0` at `:100`, executed with `--wait` at
+`:101`). A socket-form `DATABASE_URL` then has no `/cloudsql` socket to reach,
+Alembic cannot connect, the job fails, and `set -euo pipefail` aborts the script
+well before the `gcloud run deploy` at `:208`. The live service keeps its
+attachment and keeps serving. A mismatched `DB_TARGET` costs you a red deploy,
+not a detached database.
+
+The smoke test is the second net: `/readyz` opens a connection and runs
+`select 1` (`fast_api_app.py:158`), so the smoke test at `:225` fails on an unreachable database
+even if the job execution does not surface one. That second net is worth
+keeping, because `gcloud run jobs execute --wait` exiting non-zero on a failed
+execution is implied by the documentation rather than stated, and has not been
+measured here.
+
+An earlier version of this section said the deploy reads the current attachment
+and refuses to clear one it was not told about. That described the previous
+`deploy.yml`, which did exactly that. The script both paths now run does not,
+and that is deliberate: a guard cannot tell a mistake from an intended
+migration, so it would refuse the one legitimate detach in this project's life
+to buy a marginally earlier failure in a case the ordering already catches.
 
 ### Setup still required
 
-The Workload Identity pool does not exist yet, so the three required variables
-are unset and **the deploy jobs skip while the gates still run**. Merges stay
-green and the run summary says why. Nothing in the workflow changes when the
-variables are filled in; the deploys simply start happening.
+The three required variables are unset (`gh variable list` and `gh secret list`
+were both empty on 2026-09-01), so **the deploy jobs skip while the gates still
+run**. Merges stay green and the run summary says why. Nothing in the workflow
+changes when the variables are filled in; the deploys simply start happening.
 
-Creating the pool needs project-level IAM that the repository owner does not
-hold. A project admin has to create the pool and an OIDC provider restricted to
-this repository, create the deployer service account, and grant it Cloud Run
-Admin, Artifact Registry Writer, Service Account User on `travelwell-runtime`,
-and Workload Identity User for the repository's principal.
+Turning deploys on needs a Workload Identity pool and an OIDC provider
+restricted to this repository, a deployer service account, and that account
+granted Cloud Run Admin, Artifact Registry Writer, Service Account User on
+`travelwell-runtime`, and Workload Identity User for the repository's
+principal.
+
+Whether the pool already exists, and who holds the project-level IAM to create
+it, is a question about the live Google Cloud project and is deliberately not
+answered here. An earlier version of this section stated that the pool did not
+exist and that a project admin was required; that described a different Google
+Cloud project than the one staging runs on today. Ask before assuming either
+that the pool is missing or that this repository's owner cannot create it.
